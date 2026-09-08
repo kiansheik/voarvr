@@ -1,0 +1,29 @@
+using System.Collections;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+using VoarVR.Flight;
+
+namespace VoarVR.Tests
+{
+    public sealed class BootstrapSmokeTests
+    {
+        [UnityTest]
+        public IEnumerator BootstrapLoadsConnectedPrototype()
+        {
+            yield return SceneManager.LoadSceneAsync("Bootstrap");
+            for (int i = 0; i < 120 && SceneManager.GetActiveScene().name != "BirdFlight"; i++)
+                yield return null;
+            Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("BirdFlight"));
+            yield return null;
+            var driver = Object.FindFirstObjectByType<BirdFlightDriver>();
+            Assert.That(driver, Is.Not.Null);
+            Assert.That(driver.Controller, Is.Not.Null);
+            Assert.That(Camera.main, Is.Not.Null);
+            Assert.That(GameObject.Find("Ground"), Is.Not.Null);
+            Assert.That(GameObject.Find("Perch_03"), Is.Not.Null);
+            Assert.That(driver.Controller.State.Speed, Is.GreaterThan(0f));
+        }
+    }
+}

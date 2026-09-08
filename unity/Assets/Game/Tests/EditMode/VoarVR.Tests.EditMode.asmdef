@@ -1,0 +1,14 @@
+{
+  "name": "VoarVR.Tests.EditMode",
+  "rootNamespace": "VoarVR.Tests",
+  "references": [
+    "VoarVR.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

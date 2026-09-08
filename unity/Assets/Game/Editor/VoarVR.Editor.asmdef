@@ -1,0 +1,17 @@
+{
+  "name": "VoarVR.Editor",
+  "rootNamespace": "VoarVR.Editor",
+  "includePlatforms": [
+    "Editor"
+  ],
+  "references": [
+    "VoarVR.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.XR.Management",
+    "Unity.XR.Management.Editor",
+    "Unity.XR.OpenXR",
+    "Unity.XR.OpenXR.Editor",
+    "Unity.XR.OpenXR.Features.MetaQuestSupport"
+  ]
+}

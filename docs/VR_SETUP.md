@@ -1,0 +1,72 @@
+# Quest 3 / OpenXR on macOS
+
+Setup baseline reviewed 2026-09-08; dashboard requirements, UI labels, supported package versions and store submission rules can change. This is local development setup, not a store-release configuration.
+
+## Toolchain
+
+Install Unity 6000.3.21f1 through Hub with Android Build Support, Android SDK & NDK Tools and OpenJDK. In Unity Settings/Preferences > External Tools use the tools installed with Unity. Open `unity/`, let packages resolve and run **VoarVR > Configure Foundation**. Restart for input backend changes if requested.
+
+The pinned OpenXR 1.16.1 package contains **Meta Quest Support** and Touch interaction profiles. No Meta All-in-One SDK, Oculus provider or Unity OpenXR Meta extension package is necessary for basic opaque VR/controller tracking. Add optional extensions only when their functionality is needed. The architecture does not require XR Interaction Toolkit.
+
+## Android configuration and manual fallback
+
+File > Build Profiles > Android > Switch Platform. Some Hub/editor UI versions expose a Meta Quest entry over Android. Inspect the Android target tab regardless.
+
+| Setting | Foundation value / action |
+| --- | --- |
+| Player identifier | `com.voarvr.prototype` (provisional local identifier) |
+| Scripting backend / architecture | IL2CPP / ARM64 |
+| Input | Input System Package (New) only |
+| Color space | Linear |
+| Android graphics API | Vulkan; automatic API selection off |
+| Minimum / target SDK | API 29 / highest installed (Automatic), for local development |
+| Render pipeline | `Assets/Settings/VoarVRPipeline.asset` in Graphics and all Quality levels |
+| URP settings | 4x MSAA, HDR off, scale 1; provisional, profile on device |
+| XR Plug-in Management, Android | OpenXR enabled; Initialize XR on Startup enabled |
+| OpenXR interaction profile | Oculus Touch Controller Profile |
+| OpenXR feature | Meta Quest Support enabled; Quest 3 selected in its gear/settings device list |
+| OpenXR rendering | Single Pass Instanced (the provider maps to its supported stereo path) |
+| Build scene order | Bootstrap, BirdFlight |
+
+These values are applied by `ProjectSetup.Configure`. If automated configuration fails, inspect the Console, then use the settings above as the manual fallback. Review **XR Plug-in Management > Project Validation**, Android tab; resolve errors before building and evaluate performance warnings. Do not blindly apply unrelated optional feature suggestions. Store API requirements can exceed local minimum settings and must be rechecked before submission.
+
+## Headset authorization
+
+Use a verified Meta developer account; complete any organization/team onboarding currently requested in the developer dashboard. Pair the headset in the Meta Horizon mobile app. Enable Developer Mode in the paired device's settings. Connect a USB data cable, unlock/wear Quest, then accept the USB debugging trust prompt for this Mac. The headset's developer/MTP notification settings may be needed to expose the prompt.
+
+Use the adb from Unity's configured SDK or an existing platform-tools installation:
+
+```sh
+export ADB="/actual/Android/SDK/platform-tools/adb"
+"$ADB" version
+"$ADB" devices -l
+```
+
+`device` means authorized. `unauthorized` requires accepting the headset prompt; `offline` merits reconnect/restart troubleshooting. An empty list merits checking the cable, Developer Mode and USB connection. USB charging alone does not prove data access. Meta Quest Developer Hub is an optional device-management GUI.
+
+## Build, run, observe
+
+From Unity: Development Build, Run Device = your Quest, then Build And Run to `builds/quest/VoarVR.apk`. Both scenes must be enabled. From a shell with the editor closed:
+
+```sh
+python3 tools/scripts/unity.py build-quest
+"$ADB" install -r builds/quest/VoarVR.apk
+"$ADB" logcat -s Unity
+```
+
+For multiple devices use `"$ADB" -s SERIAL install -r builds/quest/VoarVR.apk`. Launch from the headset's developer/unknown-sources app library after adb installation. Build output is ignored. No production signing key is stored; Unity uses development signing for this prototype.
+
+On device Auto selects XR. Physical controller position/orientation is read through Input System/OpenXR, velocity is differenced in tracking coordinates, and head pose drives the camera. Right trigger tucks/dives; left trigger flares; right primary button resets/recenters; left primary button toggles pause. Recenter support depends on the active XR tracking origin/runtime; check its actual effect on hardware. Meta system menu remains a system control. Returning from tracking loss suppresses the first wing velocity sample.
+
+Confirm head rotation/translation, left/right controller assignment, reasonable wing velocity signs, pause/reset and consistent stereo rendering before developing the workout loop. Smooth yaw/forward motion and direct physical wing mappings are provisional and not comfort-tested. The simulation keeps moving forward with no collision/perch response. The desktop HUD is deliberately disabled in XR; inspect values through Unity tooling/logging until an in-world HUD is designed.
+
+## Mac testing boundary
+
+Desktop Play mode supports synthetic/gamepad testing. A connected USB Quest does not turn macOS Unity Play mode into a supported Quest Link preview. Use standalone Android builds for this workflow; Meta's Windows Link tooling is a separate path. Hardware validation and GPU/frame-time profiling remain necessary even when EditMode and PlayMode tests pass.
+
+## Official references
+
+- [Unity Meta Quest Support and profiles](https://docs.unity3d.com/Packages/com.unity.xr.openxr@1.16/manual/features/metaquest.html)
+- [Unity XR Plug-in Management](https://docs.unity3d.com/6000.3/Documentation/Manual/xr-plugin-management.html)
+- [Meta headset developer setup](https://developers.meta.com/horizon/documentation/unity/unity-env-device-setup/)
+- [Meta Horizon Link requirements](https://developers.meta.com/horizon/documentation/unity/unity-link/)

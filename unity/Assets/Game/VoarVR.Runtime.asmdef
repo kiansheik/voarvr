@@ -1,0 +1,7 @@
+{
+  "name": "VoarVR.Runtime",
+  "rootNamespace": "VoarVR",
+  "references": [
+    "Unity.InputSystem"
+  ]
+}

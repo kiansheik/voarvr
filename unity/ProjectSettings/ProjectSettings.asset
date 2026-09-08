@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 28
+  companyName: VoarVR
+  productName: VoarVR
+  bundleVersion: 0.0.1
+  activeInputHandler: 1
+  m_ActiveColorSpace: 1
+  defaultScreenWidth: 1280
+  defaultScreenHeight: 720
+  runInBackground: 1
+  applicationIdentifier:
+    Android: com.voarvr.prototype
+    Standalone: com.voarvr.prototype
+  AndroidBundleVersionCode: 1
+  AndroidMinSdkVersion: 29
+  AndroidTargetSdkVersion: 0
+  AndroidTargetArchitectures: 2
+  scriptingBackend:
+    Android: 1

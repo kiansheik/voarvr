@@ -1,0 +1,12 @@
+{
+  "name": "VoarVR.Tests.PlayMode",
+  "rootNamespace": "VoarVR.Tests",
+  "references": [
+    "VoarVR.Runtime"
+  ],
+  "includePlatforms": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}
