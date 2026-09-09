@@ -10,3 +10,5 @@ Source code/tests/configuration outrank these compiled notes. Update notes when 
 - [Blender pipeline](../BLENDER_PIPELINE.md)
 - [Log](log.md)
 - [Foundation handoff](session-handoffs/2026-09-08-foundation.md)
+- [First editor playtest handoff](session-handoffs/2026-09-08-first-playtest.md)
+- [Duck flight v1 handoff](session-handoffs/2026-09-09-duck-flight-v1.md)

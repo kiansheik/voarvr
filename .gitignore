@@ -20,6 +20,7 @@ __pycache__/
 /unity/[Mm]emoryCaptures/
 /unity/[Rr]ecordings/
 /unity/.vs/
+/unity/.utmp/
 /unity/*.csproj
 /unity/*.sln
 /unity/*.slnx

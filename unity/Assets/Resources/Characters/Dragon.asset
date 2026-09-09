@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0db02aadff874900a665129b1c936a8d, type: 3}
+  m_Name: Dragon
+  m_EditorClassIdentifier: 
+  DisplayName: Dragon
+  FlavorText: Huge and powerful. Slow to turn, hard to slow down, and needs real wingbeats to get airborne.
+  SortOrder: 1
+  RigModel: {fileID: 919132149155446097, guid: 410fc84cc47794b22b40b1742875e94a, type: 3}
+  ModelAssetPath: Assets/Art/Models/Dragon.fbx
+  BodyMaterial: {fileID: 2100000, guid: d2906f049e724975bf45fdc71c1438e1, type: 2}
+  FirstPersonHiddenParts:
+  - Face
+  - Neck
+  RestArmSpan: 1.1
+  Size: 2
+  Speed: 0.55
+  Power: 0.85
+  Agility: 0.3
+  Weight: 0.7

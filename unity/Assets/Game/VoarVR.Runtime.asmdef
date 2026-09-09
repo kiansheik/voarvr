@@ -2,6 +2,8 @@
   "name": "VoarVR.Runtime",
   "rootNamespace": "VoarVR",
   "references": [
-    "Unity.InputSystem"
+    "Unity.InputSystem",
+    "UnityEngine.UI",
+    "Unity.XR.Interaction.Toolkit"
   ]
 }

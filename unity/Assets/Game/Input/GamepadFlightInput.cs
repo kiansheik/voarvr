@@ -7,6 +7,8 @@ namespace VoarVR.Input
     {
         private bool resetHeld;
         private bool pauseHeld;
+        private bool viewHeld;
+        private bool windHeld;
         public string Mode => Gamepad.current == null ? "Gamepad (disconnected)" : "Gamepad";
 
         public FlightInputFrame Sample(float deltaTime)
@@ -15,7 +17,7 @@ namespace VoarVR.Input
             var pad = Gamepad.current;
             if (pad == null)
             {
-                resetHeld = pauseHeld = false;
+                resetHeld = pauseHeld = viewHeld = windHeld = false;
                 return frame;
             }
             frame.Bank = pad.leftStick.x.ReadValue();
@@ -26,8 +28,12 @@ namespace VoarVR.Input
             frame.LeftWing.Velocity.y = frame.RightWing.Velocity.y = stroke;
             frame.ResetPressed = pad.selectButton.isPressed && !resetHeld;
             frame.PausePressed = pad.startButton.isPressed && !pauseHeld;
+            frame.ViewTogglePressed = pad.buttonNorth.isPressed && !viewHeld;
+            frame.WindModePressed = pad.buttonWest.isPressed && !windHeld;
             resetHeld = pad.selectButton.isPressed;
             pauseHeld = pad.startButton.isPressed;
+            viewHeld = pad.buttonNorth.isPressed;
+            windHeld = pad.buttonWest.isPressed;
             return frame;
         }
     }

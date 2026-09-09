@@ -20,16 +20,22 @@ namespace VoarVR.Input
         public WingInput LeftWing;
         public WingInput RightWing;
         public Vector3 LookDirection;
+        public Vector3 HeadPosition;
+        public Quaternion HeadOrientation;
+        public bool HeadTracked;
         public float Bank; // -1 left, +1 right: provisional semantic mapping.
         public float Tuck; // 0..1
         public float Flare; // 0..1
         public bool ResetPressed;
         public bool PausePressed;
+        public bool ViewTogglePressed;
+        public bool WindModePressed;
 
         public static FlightInputFrame Neutral => new FlightInputFrame
         {
             LeftWing = WingInput.Rest(new Vector3(-0.6f, 0f, 0f)),
             RightWing = WingInput.Rest(new Vector3(0.6f, 0f, 0f)),
+            HeadOrientation = Quaternion.identity,
             LookDirection = Vector3.forward
         };
     }

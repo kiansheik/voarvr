@@ -11,9 +11,11 @@ namespace VoarVR.Input
     {
         private readonly InputActionMap actions = new InputActionMap("Flight");
         private readonly InputAction leftPosition, rightPosition, leftRotation, rightRotation;
-        private readonly InputAction leftTracked, rightTracked, headRotation, tuck, flare, reset, pause;
+        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, reset, pause, viewToggle, windMode;
         private WingInput previousLeft, previousRight;
-        private bool resetHeld, pauseHeld;
+        private bool resetHeld, pauseHeld, viewHeld, windHeld;
+        public FlightInputFrame LastRawFrame { get; private set; }
+        public bool WingsEnabled { get; set; }
         public string Mode => "XR / OpenXR";
 
         public XRFlightInput()
@@ -24,11 +26,15 @@ namespace VoarVR.Input
             rightRotation = Action("RightRotation", "<XRController>{RightHand}/deviceRotation");
             leftTracked = Action("LeftTracked", "<XRController>{LeftHand}/isTracked");
             rightTracked = Action("RightTracked", "<XRController>{RightHand}/isTracked");
+            headPosition = Action("HeadPosition", "<XRHMD>/centerEyePosition");
+            headTracked = Action("HeadTracked", "<XRHMD>/isTracked");
             headRotation = Action("HeadRotation", "<XRHMD>/centerEyeRotation");
             tuck = Action("Tuck", "<XRController>{RightHand}/trigger");
             flare = Action("Flare", "<XRController>{LeftHand}/trigger");
             reset = Action("Reset", "<XRController>{RightHand}/primaryButton");
             pause = Action("Pause", "<XRController>{LeftHand}/primaryButton");
+            viewToggle = Action("ViewToggle", "<XRController>{RightHand}/secondaryButton");
+            windMode = Action("WindMode", "<XRController>{LeftHand}/secondaryButton");
             actions.Enable();
         }
 
@@ -59,6 +65,9 @@ namespace VoarVR.Input
             previousLeft = frame.LeftWing;
             previousRight = frame.RightWing;
             var rotation = headRotation.ReadValue<Quaternion>();
+            frame.HeadPosition = headPosition.ReadValue<Vector3>();
+            frame.HeadTracked = headTracked.ReadValue<float>() > 0f;
+            frame.HeadOrientation = rotation == default(Quaternion) ? Quaternion.identity : rotation;
             frame.LookDirection = rotation == default(Quaternion) ? Vector3.forward : rotation * Vector3.forward;
             frame.Bank = frame.LeftWing.Tracked && frame.RightWing.Tracked
                 ? Mathf.Clamp(frame.LeftWing.Position.y - frame.RightWing.Position.y, -1f, 1f) : 0f;
@@ -66,18 +75,36 @@ namespace VoarVR.Input
             frame.Flare = flare.ReadValue<float>();
             bool resetNow = reset.ReadValue<float>() > 0.5f;
             bool pauseNow = pause.ReadValue<float>() > 0.5f;
+            bool viewNow = viewToggle.ReadValue<float>() > 0.5f;
+            bool windNow = windMode.ReadValue<float>() > 0.5f;
             frame.ResetPressed = resetNow && !resetHeld;
             frame.PausePressed = pauseNow && !pauseHeld;
+            frame.ViewTogglePressed = viewNow && !viewHeld;
+            frame.WindModePressed = windNow && !windHeld;
             resetHeld = resetNow;
             pauseHeld = pauseNow;
+            viewHeld = viewNow;
+            windHeld = windNow;
             if (frame.ResetPressed)
             {
-                var subsystems = new List<XRInputSubsystem>();
-                SubsystemManager.GetSubsystems(subsystems);
-                foreach (var subsystem in subsystems) subsystem.TryRecenter();
+                // App-space recenter captures this pose; avoid an asynchronous origin jump.
                 previousLeft = previousRight = default;
             }
+            LastRawFrame = frame;
+            if (!WingsEnabled)
+            {
+                // Keep the bird stable until the player deliberately establishes the
+                // human-to-duck frame. Reset/pause and valid HMD data still pass through.
+                frame.LeftWing = FlightInputFrame.Neutral.LeftWing;
+                frame.RightWing = FlightInputFrame.Neutral.RightWing;
+                frame.Bank = frame.Tuck = frame.Flare = 0f;
+            }
             return frame;
+        }
+
+        public void ResetDerivatives()
+        {
+            previousLeft = previousRight = default;
         }
 
         public void Dispose() => actions.Dispose();

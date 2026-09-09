@@ -35,6 +35,12 @@ def export(output, overwrite=False):
             clone.hide_select = False
             clone.select_set(True)
             copies.append((clone, obj, obj.name))
+        remap = {original: clone for clone, original, name in copies}
+        for clone, original, name in copies:
+            clone.parent = remap.get(original.parent)
+            for modifier in clone.modifiers:
+                if modifier.type == "ARMATURE":
+                    modifier.object = remap[modifier.object]
         bpy.context.view_layer.objects.active = copies[0][0]
         bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
         # Blender adds .001 to duplicated object names; restore export names temporarily.
@@ -42,9 +48,9 @@ def export(output, overwrite=False):
             original.name = name + "__SourceDuringExport"
             clone.name = name
         result = bpy.ops.export_scene.fbx(
-            filepath=str(output), use_selection=True, object_types={"MESH"},
+            filepath=str(output), use_selection=True, object_types={"MESH", "ARMATURE"},
             global_scale=1.0, apply_unit_scale=True, apply_scale_options="FBX_SCALE_UNITS",
-            axis_forward="-Z", axis_up="Y", use_mesh_modifiers=True,
+            axis_forward="-Z", axis_up="Y", use_mesh_modifiers=not any(o.type == "ARMATURE" for o in objects),
             add_leaf_bones=False, bake_anim=False, path_mode="STRIP",
             use_custom_props=False,
         )
@@ -54,7 +60,10 @@ def export(output, overwrite=False):
         for clone, original, name in copies:
             mesh = clone.data
             bpy.data.objects.remove(clone, do_unlink=True)
-            bpy.data.meshes.remove(mesh)
+            if isinstance(mesh, bpy.types.Armature):
+                bpy.data.armatures.remove(mesh)
+            else:
+                bpy.data.meshes.remove(mesh)
         for clone, original, name in copies:
             original.name = name
         bpy.data.collections.remove(temporary)

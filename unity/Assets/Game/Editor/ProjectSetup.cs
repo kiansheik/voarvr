@@ -21,6 +21,7 @@ namespace VoarVR.Editor
         public static readonly string[] Scenes =
         {
             "Assets/Scenes/Bootstrap/Bootstrap.unity",
+            "Assets/Scenes/Menu/CharacterSelect.unity",
             "Assets/Scenes/Prototypes/BirdFlight.unity"
         };
 
@@ -35,6 +36,7 @@ namespace VoarVR.Editor
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.voarvr.prototype");
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
@@ -117,6 +119,7 @@ namespace VoarVR.Editor
             quest.enabled = true;
             touch.enabled = true;
             xr.renderMode = OpenXRSettings.RenderMode.SinglePassInstanced;
+            xr.latencyOptimization = OpenXRSettings.LatencyOptimization.PrioritizeInputPolling;
             EditorUtility.SetDirty(quest);
             EditorUtility.SetDirty(touch);
             EditorUtility.SetDirty(xr);

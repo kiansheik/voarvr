@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0db02aadff874900a665129b1c936a8d, type: 3}
+  m_Name: Duck
+  m_EditorClassIdentifier: 
+  DisplayName: Duck
+  FlavorText: The default flyer. Balanced and forgiving - built for calm lakes and steady glides.
+  SortOrder: 0
+  RigModel: {fileID: 919132149155446097, guid: fa3f4d7c3586d4148862912e496e55f4, type: 3}
+  ModelAssetPath: Assets/Art/Models/Duck.fbx
+  BodyMaterial: {fileID: 2100000, guid: 6146283ed06e64c7cb3a2e5dc604ada6, type: 2}
+  FirstPersonHiddenParts:
+  - Face
+  - Neck
+  RestArmSpan: 0.56
+  Size: 1
+  Speed: 0.5
+  Power: 0.5
+  Agility: 0.5
+  Weight: 0.5

@@ -1,8 +1,10 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 using VoarVR.Flight;
 
 namespace VoarVR.Tests
@@ -13,6 +15,13 @@ namespace VoarVR.Tests
         public IEnumerator BootstrapLoadsConnectedPrototype()
         {
             yield return SceneManager.LoadSceneAsync("Bootstrap");
+            for (int i = 0; i < 120 && SceneManager.GetActiveScene().name != "CharacterSelect"; i++)
+                yield return null;
+            Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("CharacterSelect"));
+            yield return null;
+            var cards = Object.FindObjectsByType<Button>(FindObjectsSortMode.None);
+            Assert.That(cards, Is.Not.Empty, "Character select screen built no selectable cards");
+            cards.First().onClick.Invoke();
             for (int i = 0; i < 120 && SceneManager.GetActiveScene().name != "BirdFlight"; i++)
                 yield return null;
             Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("BirdFlight"));

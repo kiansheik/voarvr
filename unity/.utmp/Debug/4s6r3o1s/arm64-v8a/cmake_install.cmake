@@ -44,6 +44,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
+  include("/Users/kian/code/voarvr/unity/.utmp/Debug/4s6r3o1s/arm64-v8a/GameActivity/cmake_install.cmake")
   include("/Users/kian/code/voarvr/unity/.utmp/Debug/4s6r3o1s/arm64-v8a/FramePacing/cmake_install.cmake")
 
 endif()

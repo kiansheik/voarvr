@@ -2,9 +2,9 @@
 
 Bird flight simulation / fitness game for Meta Quest 3, with a future non-VR gamepad mode. Unity is the runtime engine; Blender is the source DCC tool. **Current status: foundation / prototype stage.**
 
-The foundation contains Bootstrap and BirdFlight scenes, primitive bird/ground/perches, device-independent kinematic movement, XR/gamepad/synthetic input providers, diagnostics, Unity tests, editor setup/build commands and a static-mesh Blender pipeline. Flight forces, collisions, landing, fitness, wildlife and a finished gamepad experience are future work.
+The current prototype contains a low-poly rigged duck embodied at the HMD, controller-to-wing analytic IK, explicit arm-span calibration, persistent force-integrated flight, perching/ground takeoff, XR/gamepad/synthetic input, a measured flight field, diagnostics, Unity tests and validated static/rigged Blender export. Fitness, wildlife, general collision, production environments and a finished gamepad experience are future work.
 
-**Validation status:** offline repository checks and Python tooling tests pass. Unity and Blender were unavailable during bootstrap: C# compilation, package resolution, shader/scene import, Unity tests, FBX roundtrip and Quest execution still need their first real run. Nothing was committed or pushed. [Current state](docs/agent/current-state.md) records the verification boundary.
+**Validation status:** Unity 6000.6.0f1 and Blender 5.2.1 LTS are the tested local baselines. Editor compilation, deterministic simulation/rig tests, Blender static and rigged FBX roundtrips and desktop visual review pass. Android tooling is installed; the final APK build result and Quest hardware boundary are recorded in [current state](docs/agent/current-state.md). Nothing was committed or pushed.
 
 ## Prerequisites on a new Mac
 
@@ -13,16 +13,16 @@ The foundation contains Bootstrap and BirdFlight scenes, primitive bird/ground/p
 | macOS MacBook | Development host; use the Unity/Blender installer matching Apple Silicon or Intel. |
 | Git and Git LFS | Source control and binary source assets. |
 | Python 3.10+ | Dependency-free repository tools. Blender uses its own bundled Python. |
-| Unity Hub and a licensed Unity Editor | Install **Unity 6.3 LTS, 6000.3.21f1** and activate an appropriate Unity license. |
+| Unity Hub and a licensed Unity Editor | Install the repository-pinned **Unity 6000.6.0f1** and activate an appropriate Unity license. |
 | Android Build Support | Install as a module of that exact Unity Editor. |
 | Android SDK & NDK Tools, OpenJDK | Select both nested Hub module options; prefer Unity's bundled versions. |
-| Blender **4.5 LTS** | Use the latest 4.5 maintenance release available for your Mac. |
+| Blender **5.2.1 LTS** | Tested authoring/export baseline for this prototype. |
 | Meta Quest 3, controllers, USB data cable | Real standalone VR testing. |
 | Meta developer access, Developer Mode, USB authorization | Permit installing and debugging your own APKs. |
 | Optional adb / Meta Quest Developer Hub | Check the device and install APKs. Unity includes adb in its SDK. |
 | Optional Unity/Blender MCP integration | Editor inspection and agent automation; never required to build. |
 
-The pinned editor is an available [Unity 6.3 LTS release](https://unity.com/releases/editor/whats-new/6000.3.21f1), chosen as a reproducible baseline rather than a promise of hardware validation. [Blender 4.5 LTS](https://www.blender.org/releases/4-5/) is the authoring baseline. Review upgrades deliberately with package/test changes together.
+The checked-in `ProjectVersion.txt` is authoritative for Unity. Blender 5.2.1 LTS is the validated local authoring baseline. Review upgrades deliberately with package and test changes together.
 
 ## Install and configure
 
@@ -43,12 +43,12 @@ git lfs pull
 ```
 
 1. Install [Unity Hub](https://unity.com/download), sign in and activate your license.
-2. From the [6000.3.21f1 release page](https://unity.com/releases/editor/whats-new/6000.3.21f1), install through Hub. Select the matching Mac architecture and **Android Build Support**, including **Android SDK & NDK Tools** and **OpenJDK**. Add missing modules later through Hub > Installs > the editor's menu > Add modules.
-3. Install Blender from the [4.5 LTS release downloads](https://www.blender.org/releases/4-5/). Keep authored `.blend` files in `blender/source/`, outside Unity's Assets tree.
+2. Install Unity 6000.6.0f1 through Hub. Select the matching Mac architecture and **Android Build Support**, including **Android SDK & NDK Tools** and **OpenJDK**.
+3. Install Blender 5.2.1 LTS. Keep authored `.blend` files in `blender/source/`, outside Unity's Assets tree.
 4. Set executable paths for this shell. These are **examples**, not universal installation paths. Use Hub's installed-editor location and your actual Blender app location.
 
 ```sh
-export UNITY_EDITOR="/Applications/Unity/Hub/Editor/6000.3.21f1/Unity.app/Contents/MacOS/Unity"
+export UNITY_EDITOR="/Applications/Unity/Hub/Editor/6000.6.0f1/Unity.app/Contents/MacOS/Unity"
 export BLENDER="/Applications/Blender.app/Contents/MacOS/Blender"
 test -x "$UNITY_EDITOR"
 "$BLENDER" --version
@@ -63,8 +63,8 @@ python3 -m unittest discover -s tools/scripts -p 'test_*.py'
 2. Wait for package resolution and import. Package Manager > In Project should show Input System, Universal RP, XR Plug-in Management, OpenXR Plugin and Test Framework. Versions are in `unity/Packages/manifest.json`; URP 17.3 and Test Framework 1.6 are editor-core packages. No Asset Store download, Meta All-in-One SDK or XR Interaction Toolkit is needed.
 3. Run **VoarVR > Configure Foundation**. This creates URP renderer/pipeline and Android XR settings assets, sets Input System-only input, ARM64/IL2CPP, Vulkan, Linear color, 4x MSAA without HDR, and the two build scenes. Restart the editor if requested for the input backend. The command preserves the authored scenes; rerunning it reapplies foundation player/XR defaults.
 4. Verify Graphics and Quality settings reference `VoarVRPipeline`. Confirm the Console has no compiler/import errors.
-5. Open `Assets/Scenes/Bootstrap/Bootstrap.unity` and press Play. It loads BirdFlight. Without a gamepad, Auto input glides synthetically; with a gamepad connected before Play, Auto chooses it. On the Bird object, choose Synthetic and change Gesture during Play to explore flap/bank/dive/flare. Mode changes require exiting and re-entering Play.
-6. The desktop camera follows the bird. The HUD shows motion/input state; uncheck Show Overlay or disable FlightDiagnostics to hide it. Inspector diagnostics are also available. IMGUI is disabled in XR; a stereo HUD is future work.
+5. Open `Assets/Scenes/Bootstrap/Bootstrap.unity` and press Play. It loads BirdFlight. Without a gamepad, Auto uses deterministic synthetic glide. On the Bird object, choose Synthetic and change Gesture to inspect flap, bank, tuck/dive, flare, stall recovery and tracking loss.
+6. On Quest, spread both tracked arms comfortably and press the right primary button. Valid calibration requires head and both hands tracked with 0.7-2.2 m hand separation; an in-world prompt remains visible until accepted. Head translation stays 1:1 while arm motion scales to the duck skeleton. The desktop HUD exposes speed, vertical speed, phase, energy, angle of attack and calibration status.
 
 To configure from the command line instead, **close the editor for this project**:
 
@@ -105,7 +105,7 @@ macOS Editor Play mode tests the desktop/synthetic path. Meta Quest Link's Windo
 
 ## Blender setup and use
 
-Create a metric static mesh in an `EXPORT` collection, one Blender unit per meter, with applied rotation/scale and object origins at world zero. Save it as, for example, `blender/source/OakPerch.blend`. Author base pivots for perches or center pivots for bird bodies by positioning vertices in Edit Mode; see [pipeline conventions](docs/BLENDER_PIPELINE.md).
+Create metric meshes and an optional armature in an `EXPORT` collection, one Blender unit per meter, with applied object transforms. Static objects remain unparented; skinned meshes use one exported armature parent/modifier and normalized one-to-four-bone weights. See [pipeline conventions](docs/BLENDER_PIPELINE.md).
 
 ```sh
 "$BLENDER" --background blender/source/OakPerch.blend --python-exit-code 1 --python blender/scripts/validate_asset.py

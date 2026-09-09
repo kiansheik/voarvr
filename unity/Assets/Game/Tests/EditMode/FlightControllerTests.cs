@@ -15,12 +15,12 @@ namespace VoarVR.Tests
         }
 
         [Test]
-        public void InitialStateIsStationaryAtSpawn()
+        public void InitialStateHasConfiguredGlideVelocityAtSpawn()
         {
             var spawn = new Vector3(2f, 4f, 6f);
             var controller = new BirdFlightController(new SuppliedInput(), spawn);
             Assert.That(controller.State.Position, Is.EqualTo(spawn));
-            Assert.That(controller.State.Velocity, Is.EqualTo(Vector3.zero));
+            Assert.That(controller.State.Velocity, Is.EqualTo(Vector3.forward * BirdFlightProfile.Default.InitialSpeedMps));
             Assert.That(controller.State.Rotation, Is.EqualTo(Quaternion.identity));
             Assert.That(controller.State.Phase, Is.EqualTo(FlightPhase.Gliding));
         }
@@ -32,7 +32,7 @@ namespace VoarVR.Tests
             input.Frame.LeftWing.Velocity = input.Frame.RightWing.Velocity = Vector3.down * 2f;
             var controller = new BirdFlightController(input, Vector3.zero);
             controller.Step(0.25f);
-            Assert.That(controller.State.Position.y, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(controller.State.Position.y, Is.GreaterThan(0f));
             Assert.That(controller.State.Position.z, Is.GreaterThan(0f));
             Assert.That(controller.State.Phase, Is.EqualTo(FlightPhase.Flapping));
         }
@@ -54,7 +54,7 @@ namespace VoarVR.Tests
             if (gesture == SyntheticGesture.BankLeft) Assert.That(first.State.Position.x, Is.LessThan(0f));
             if (gesture == SyntheticGesture.BankRight) Assert.That(first.State.Position.x, Is.GreaterThan(0f));
             if (gesture == SyntheticGesture.Dive) Assert.That(first.State.Position.y, Is.LessThan(0f));
-            if (gesture == SyntheticGesture.Flare) Assert.That(first.State.Position.y, Is.GreaterThan(0f));
+            // A prolonged flare stalls and descends; it cannot supply free ascent.
         }
 
         [Test]
@@ -73,7 +73,7 @@ namespace VoarVR.Tests
             input.Frame.ResetPressed = true;
             controller.Step(0.1f);
             Assert.That(controller.State.Position, Is.EqualTo(Vector3.up));
-            Assert.That(controller.State.Speed, Is.Zero);
+            Assert.That(controller.State.Speed, Is.EqualTo(BirdFlightProfile.Default.InitialSpeedMps));
         }
 
         [Test]

@@ -1,4 +1,7 @@
-.PHONY: quest-run quest-connect quest-install quest-launch
+.PHONY: quest-build quest-run quest-connect quest-install quest-launch
+
+quest-build:
+	python3 tools/scripts/unity.py build-quest
 
 quest-run:
 	python3 tools/scripts/quest.py run

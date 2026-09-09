@@ -8,7 +8,7 @@ Inspect the related implementation and tests, make a narrow change, run `python3
 
 ## Unity editor
 
-Open the pinned `unity/` project in Hub. After the first import run VoarVR > Configure Foundation and restart if Input System requests it. Inspect Console, open Bootstrap and play. Select Bird to set input mode before Play; in Synthetic mode, adjust Gesture during Play. Run EditMode and PlayMode tests through Window > General > Test Runner. For scene changes check camera framing, scale and material rendering in Game View and save outside Play mode.
+Open the pinned `unity/` project in Hub. After the first import run VoarVR > Configure Foundation and restart if Input System requests it. Inspect Console, open Bootstrap and play. Select Bird to set input mode before Play; in Synthetic mode, adjust Gesture during Play. For duck scene reconstruction use VoarVR > Configure Duck Prototype explicitly. Run EditMode and PlayMode tests through Window > General > Test Runner. For scene changes check camera framing, scale, skinned deformation and material rendering in Game View and save outside Play mode.
 
 Batch equivalents:
 
@@ -26,7 +26,7 @@ Follow [VR setup](VR_SETUP.md), switch Android, run OpenXR Project Validation, t
 
 ## Blender assets
 
-Save source in `blender/source/`, validate and export through the scripts. Inspect the output and promote only approved runtime FBX into `unity/Assets/Art/Models/`. In Unity confirm meter scale, pivot, forward axis, materials and import settings. Run the Blender smoke test after pipeline changes. See [Blender pipeline](BLENDER_PIPELINE.md).
+Save source in `blender/source/`, validate and export through the scripts. Inspect the output and promote only approved runtime FBX into `unity/Assets/Art/Models/`. In Unity confirm meter scale, pivot, forward axis, bone/skin bindings, deformation, materials and import settings. Run the static and rig smoke tests after pipeline changes. See [Blender pipeline](BLENDER_PIPELINE.md).
 
 ## Agent-assisted work
 
