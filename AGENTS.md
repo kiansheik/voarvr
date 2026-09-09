@@ -51,3 +51,7 @@ git status --short
 Run the narrowest useful checks. Use Unity Test Runner when the editor is open. Run a Quest development build for XR/build configuration changes when tools are installed, and report separately whether it was tested on hardware. Do not leave known compilation errors. If editor/license/modules/hardware are absent, record the exact validation gap and reproducible command; never claim those checks passed.
 
 After significant work update `docs/agent/current-state.md`, `docs/agent/log.md` and a new dated file in `docs/agent/session-handoffs/`. Each handoff includes Goal, Files inspected, Files changed, Commands run, What worked, What failed, Remaining questions and Suggested next prompt. Keep notes concise and linked; summarize broad exploration in the repo map or a domain page.
+
+## Player-facing quality loop
+
+For substantial visual/player-facing work, follow [quality-loop.md](docs/agent/quality-loop.md): builder -> independent visual, VR/player and Quest technical critics -> synthesis -> a small revision -> fresh evidence. Use separate agents; each inspects the current artifact before seeing other conclusions. Findings need severity, concrete evidence, objective-versus-preference labels, 1–10 rubric scores and actionable fixes. Use at most three rounds, stop when the documented gates are met, and never treat screenshot scores as Quest hardware validation. Trivial docs and small deterministic changes need only their relevant checks.

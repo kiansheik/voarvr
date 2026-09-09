@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Run the pinned Unity project without depending on a fixed Mac installation path."""
 import argparse
-import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from tool_discovery import discover_unity
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -26,9 +25,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["configure", "test-edit", "test-play", "build-quest"])
     args = parser.parse_args()
-    editor = os.environ.get("UNITY_EDITOR") or shutil.which("Unity")
-    if not editor or not Path(editor).is_file() or not os.access(editor, os.X_OK):
-        parser.error("Set UNITY_EDITOR to the executable inside your installed Unity.app (see README).")
+    found = discover_unity(ROOT)
+    if found.status != "FOUND":
+        parser.error(f"{found.status}: {found.detail}")
+    editor = str(found.path)
     artifacts = ROOT / "artifacts" / "unity"
     artifacts.mkdir(parents=True, exist_ok=True)
     run_dir = Path(tempfile.mkdtemp(prefix=args.command + "-", dir=artifacts))

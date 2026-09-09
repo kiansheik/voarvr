@@ -73,15 +73,24 @@ namespace VoarVR.Editor
                 QualitySettings.renderPipeline = pipeline;
             }
             QualitySettings.SetQualityLevel(quality, false);
-            ConfigureXR();
+            bool xrConfigured = ConfigureXR();
             EditorBuildSettings.scenes = Array.ConvertAll(Scenes, path => new EditorBuildSettingsScene(path, true));
             AssetDatabase.SaveAssets();
-            Debug.Log("Foundation configured. Restart Editor if input backend changed; run tests and Android XR Project Validation.");
+            Debug.Log(xrConfigured
+                ? "Foundation configured, including Android OpenXR. Run tests and Android XR Project Validation."
+                : "Desktop foundation configured. Android OpenXR features remain unconfigured until Android Build Support is installed.");
         }
 
-        private static void ConfigureXR()
+        private static bool ConfigureXR()
         {
-            if (!EditorBuildSettings.TryGetConfigObject<XRGeneralSettingsPerBuildTarget>(XRGeneralSettings.k_SettingsKey, out var perTarget))
+            // OpenXR 1.18 intentionally returns null settings for unsupported targets.
+            // Keep desktop setup usable while reporting the missing Hub module clearly.
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+            {
+                Debug.LogWarning($"Install Android Build Support (SDK & NDK Tools and OpenJDK) for Unity {Application.unityVersion} in Unity Hub, then rerun Configure Foundation. Android XR configuration is deferred.");
+                return false;
+            }
+            if (!EditorBuildSettings.TryGetConfigObject<XRGeneralSettingsPerBuildTarget>(XRGeneralSettings.settingsKey, out var perTarget))
             {
                 const string path = "Assets/Settings/XRGeneralSettings.asset";
                 perTarget = AssetDatabase.LoadAssetAtPath<XRGeneralSettingsPerBuildTarget>(path);
@@ -90,7 +99,7 @@ namespace VoarVR.Editor
                     perTarget = ScriptableObject.CreateInstance<XRGeneralSettingsPerBuildTarget>();
                     AssetDatabase.CreateAsset(perTarget, path);
                 }
-                EditorBuildSettings.AddConfigObject(XRGeneralSettings.k_SettingsKey, perTarget, true);
+                EditorBuildSettings.AddConfigObject(XRGeneralSettings.settingsKey, perTarget, true);
             }
             const BuildTargetGroup target = BuildTargetGroup.Android;
             if (!perTarget.HasSettingsForBuildTarget(target)) perTarget.CreateDefaultSettingsForBuildTarget(target);
@@ -114,6 +123,7 @@ namespace VoarVR.Editor
             EditorUtility.SetDirty(general);
             EditorUtility.SetDirty(general.Manager);
             EditorUtility.SetDirty(perTarget);
+            return true;
         }
 
         [MenuItem("VoarVR/Build Quest Development APK")]

@@ -75,5 +75,38 @@ namespace VoarVR.Tests
             Assert.That(controller.State.Position, Is.EqualTo(Vector3.up));
             Assert.That(controller.State.Speed, Is.Zero);
         }
+
+        [Test]
+        public void WingHeightAsymmetryBanksTowardLowerWing()
+        {
+            var input = new SuppliedInput();
+            input.Frame.LeftWing.Position += Vector3.up * 0.3f;
+            input.Frame.RightWing.Position += Vector3.down * 0.3f;
+            var controller = new BirdFlightController(input, Vector3.zero);
+            for (int i = 0; i < 60; i++) controller.Step(1f / 60f);
+            Assert.That(controller.State.Position.x, Is.GreaterThan(0f));
+        }
+
+        [Test]
+        public void ApproachingPerchAtLowSpeedLandsAndFlapLaunches()
+        {
+            var input = new SuppliedInput();
+            var perches = new[] { new PerchInfo(new Vector3(0f, 0f, 3f), Quaternion.identity) };
+            var controller = new BirdFlightController(input, Vector3.zero, perches);
+            bool perched = false;
+            for (int i = 0; i < 180 && !perched; i++)
+            {
+                controller.Step(1f / 60f);
+                if (controller.State.Phase == FlightPhase.Perched) perched = true;
+            }
+            Assert.That(perched, Is.True);
+            Assert.That(controller.State.Velocity, Is.EqualTo(Vector3.zero));
+
+            input.Frame.LeftWing.Velocity = input.Frame.RightWing.Velocity = Vector3.down * 3f;
+            controller.Step(1f / 60f);
+            Assert.That(controller.State.Phase, Is.EqualTo(FlightPhase.Flapping));
+            Assert.That(controller.State.Velocity.y, Is.GreaterThan(0f));
+            Assert.That(controller.State.Velocity.z, Is.GreaterThan(0f));
+        }
     }
 }

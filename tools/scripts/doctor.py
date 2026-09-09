@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""Read-only tool discovery; missing tools are reported without installing anything."""
-import os
+"""Read-only discovery: explicit overrides, matching macOS app installs, then PATH."""
 from pathlib import Path
 import shutil
 import subprocess
+from tool_discovery import discover_unity, discover_blender, discover_adb, project_version
 
 ROOT = Path(__file__).resolve().parents[2]
-print((ROOT / "unity/ProjectSettings/ProjectVersion.txt").read_text().strip())
-for name, override in [("git", None), ("git-lfs", None), ("Unity", "UNITY_EDITOR"),
-                       ("blender", "BLENDER"), ("adb", "ADB")]:
-    path = os.environ.get(override, "") if override else ""
-    path = path or shutil.which(name)
-    valid = path and Path(path).is_file() and os.access(path, os.X_OK)
-    print(f"{name}: {path if valid else 'MISSING'}" + (f" (override: {override})" if override else ""))
-subprocess.run(["git", "status", "--short"], cwd=ROOT, check=True)
+
+
+def main():
+    print('Project Unity:', project_version(ROOT), flush=True)
+    for name in ['git', 'git-lfs']:
+        path = shutil.which(name)
+        print(f'{name}: {"FOUND" if path else "MISSING"} {path or ""}', flush=True)
+    unity = discover_unity(ROOT)
+    for name, tool in [('Unity', unity), ('Blender', discover_blender(expected='5.2.1')), ('adb', discover_adb(unity))]:
+        print(f'{name}: {tool.status} {tool.path or ""} {tool.version or ""}\n  {tool.detail}', flush=True)
+    subprocess.run(['git', 'status', '--short'], cwd=ROOT, check=True)
+
+
+if __name__ == '__main__':
+    main()

@@ -11,4 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Prototypes/BirdFlight.unity
     guid: beb3f430c9f05ddcadb0543db47c54e5
-  m_configObjects: {}
+  m_configObjects:
+    com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 769f6f731e1c3442e9ea38a5ccf6bae0, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 7fef7708042ff4695af6de34cbab4089, type: 2}
