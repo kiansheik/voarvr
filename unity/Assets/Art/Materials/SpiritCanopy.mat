@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: SpiritCanopy
-  m_Shader: {fileID: 4800000, guid: 8bff320aae1b5f73ae8db01cfb225c84, type: 3}
+  m_Shader: {fileID: 4800000, guid: cd305f287aae54aecb55aa19b067b43b, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

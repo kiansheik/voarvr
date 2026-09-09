@@ -63,9 +63,9 @@ namespace VoarVR.Editor
             var wind=worldObject.GetComponent<WindField>() ?? Undo.AddComponent<WindField>(worldObject);
             var world=worldObject.GetComponent<ProceduralFlightWorld>() ?? Undo.AddComponent<ProceduralFlightWorld>(worldObject);
             world.Configure(wind,
-                GetMaterial("Assets/Art/Materials/SpiritCity.mat", "VoarVR/PrototypeUnlit", new Color(.18f,.27f,.38f,1f)),
-                GetMaterial("Assets/Art/Materials/SpiritForest.mat", "VoarVR/PrototypeUnlit", new Color(.12f,.28f,.21f,1f)),
-                GetMaterial("Assets/Art/Materials/SpiritCanopy.mat", "VoarVR/PrototypeUnlit", new Color(.18f,.55f,.38f,1f)),
+                GetMaterial("Assets/Art/Materials/SpiritCity.mat", "VoarVR/SpiritSurface", new Color(.18f,.27f,.38f,1f)),
+                GetMaterial("Assets/Art/Materials/SpiritForest.mat", "VoarVR/SpiritSurface", new Color(.12f,.28f,.21f,1f)),
+                GetMaterial("Assets/Art/Materials/SpiritCanopy.mat", "VoarVR/SpiritSurface", new Color(.18f,.55f,.38f,1f)),
                 GetMaterial("Assets/Art/Materials/SpiritGlow.mat", "VoarVR/PrototypeUnlit", new Color(.35f,.92f,.72f,1f)),
                 GetMaterial("Assets/Art/Materials/WindHelpful.mat", "VoarVR/WindRibbon", new Color(.25f,.9f,1f,.62f)),
                 GetMaterial("Assets/Art/Materials/WindHazard.mat", "VoarVR/WindRibbon", new Color(1f,.28f,.18f,.68f)));
@@ -101,12 +101,13 @@ namespace VoarVR.Editor
         private static Material GetMaterial(string path, string shaderName, Color color)
         {
             var material=AssetDatabase.LoadAssetAtPath<Material>(path);
+            var shader=Shader.Find(shaderName);
+            if(shader == null) throw new InvalidOperationException("Missing shader "+shaderName);
             if(material == null)
             {
-                var shader=Shader.Find(shaderName);
-                if(shader == null) throw new InvalidOperationException("Missing shader "+shaderName);
                 material=new Material(shader);AssetDatabase.CreateAsset(material,path);
             }
+            material.shader=shader;
             material.SetColor("_BaseColor",color);EditorUtility.SetDirty(material);return material;
         }
     }

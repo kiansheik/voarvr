@@ -22,6 +22,7 @@ MonoBehaviour:
   - Face
   - Neck
   RestArmSpan: 0.56
+  WingAreaMultiplier: 1
   Size: 1
   Speed: 0.5
   Power: 0.5

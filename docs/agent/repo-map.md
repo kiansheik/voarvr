@@ -8,13 +8,13 @@
 | `unity/Assets/Game/Debug/` | FlightDiagnostics inspector fields and desktop overlay |
 | `unity/Assets/Game/Editor/` | ProjectSetup.Configure/BuildQuest plus explicit duck import/wiring and review helpers |
 | `unity/Assets/Game/Tests/` | EditMode simulation/calibration and PlayMode scene/rig/camera assemblies |
-| `unity/Assets/Game/{Birds,World,AI,Interaction,Fitness}/` | Reserved empty domains; no systems implemented |
-| `unity/Assets/Scenes/` | Bootstrap and Prototypes/BirdFlight authored scenes |
+| `unity/Assets/Game/World/` | Deterministic moving WindField and generated spirit-city/forest course |
+| `unity/Assets/Scenes/` | Bootstrap, Menu/CharacterSelect and Prototypes/BirdFlight authored scenes |
 | `unity/Assets/Art/Materials/`, `Art/Models/` | Prototype materials/shaders and curated rigged duck FBX |
 | `unity/Assets/{Art,Audio,ThirdParty}/` | Curated runtime assets; most folders initially empty |
 | `unity/Packages/`, `ProjectSettings/` | Pinned dependency manifest and initial shared settings |
-| `blender/scripts/` | Static/rigged validation/export smoke tests and reproducible duck generation |
-| `blender/source/` | Authored LFS `.blend` sources, including the current DuckV1 rig |
+| `blender/scripts/` | Static/rigged validation/export smoke tests and reproducible duck/dragon generation |
+| `blender/source/` | Authored LFS `.blend` sources, including DuckV1 and the broad membrane DragonV1 rig |
 | `tools/scripts/` | doctor, check_repo, Unity CLI wrapper and host tests |
 | `docs/`, `design/` | Operational architecture and intended gameplay; distinguish intended from real |
 

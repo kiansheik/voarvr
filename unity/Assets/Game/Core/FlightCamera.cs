@@ -12,8 +12,7 @@ namespace VoarVR.Core
         private Vector3 lastValidPosition;
         private Quaternion lastValidRotation = Quaternion.identity;
         private TextMesh calibrationPrompt;
-        private string displayedCalibrationStatus;
-        private string displayedCoachStatus;
+        private string displayedPrompt;
         public bool FirstPerson { get => firstPerson; set => firstPerson=value; }
         private void OnEnable()
         {
@@ -36,29 +35,35 @@ namespace VoarVR.Core
                 if (candidateRotation != default(Quaternion)) lastValidRotation = candidateRotation;
                 lastValidPosition = position.ReadValue<Vector3>();
             }
+            var cameraTrackingHeading = bird.Calibration.Heading * Quaternion.Euler(0f, bird.PhysicalYawOffsetDeg, 0f);
             bool useFirstPerson = bird.ViewMode == FlightViewMode.FirstPerson && (bird.UsesXR || firstPerson);
             if (rig != null) rig.SetFirstPersonVisibility(useFirstPerson);
             if (useFirstPerson)
             {
                 var headRotation = bird.UsesXR ? lastValidRotation : Quaternion.identity;
                 var offset = bird.UsesXR && bird.Calibration.HeadCaptured
-                    ? bird.Calibration.HeadOffset(lastValidPosition) : Vector3.zero;
+                    ? Quaternion.Inverse(cameraTrackingHeading) * (lastValidPosition - bird.Calibration.HeadOrigin) : Vector3.zero;
                 // Yaw-only basis: simulation bank/pitch never rotates the headset or its room offset.
-                transform.SetPositionAndRotation(bird.transform.position + bird.Heading * (BirdTrackingCalibration.EyeAnchor + offset),
+                transform.SetPositionAndRotation(bird.transform.position + bird.Heading * (bird.CameraEyeAnchor + offset),
                     bird.Heading * Quaternion.Euler(6f,0f,0f)
-                    * (bird.UsesXR ? Quaternion.Inverse(bird.Calibration.Heading) : Quaternion.identity) * headRotation);
+                    * (bird.UsesXR
+                        ? Quaternion.Inverse(cameraTrackingHeading)
+                        : Quaternion.identity) * headRotation);
                 UpdateCalibrationPrompt();
             }
             else
             {
+                float extraWingReach = Mathf.Max(0f, bird.CharacterRestHalfSpan - .56f);
+                float chaseDistance = 2.35f + extraWingReach * 1.7f;
+                float chaseHeight = .95f + extraWingReach * .6f;
                 var physicalOffset = bird.UsesXR && bird.Calibration.HeadCaptured
-                    ? bird.Calibration.HeadOffset(lastValidPosition) : Vector3.zero;
-                transform.position = bird.transform.position + bird.Heading * (new Vector3(0f, .95f, -2.35f) + physicalOffset);
-                var baseRotation = Quaternion.LookRotation(
-                    bird.transform.position + bird.Heading * new Vector3(0f, .12f, .25f) - transform.position,
-                    Vector3.up);
+                    ? Quaternion.Inverse(cameraTrackingHeading) * (lastValidPosition - bird.Calibration.HeadOrigin) : Vector3.zero;
+                transform.position = bird.transform.position + bird.Heading
+                    * (new Vector3(0f, chaseHeight, -chaseDistance) + physicalOffset);
+                var baseRotation = ChaseBaseRotation(bird.Heading, chaseHeight, chaseDistance, extraWingReach);
                 var headDelta = bird.UsesXR
-                    ? Quaternion.Inverse(bird.Calibration.Heading) * lastValidRotation : Quaternion.identity;
+                    ? Quaternion.Inverse(cameraTrackingHeading) * lastValidRotation
+                    : Quaternion.identity;
                 transform.rotation = baseRotation * headDelta;
                 UpdateCalibrationPrompt();
             }
@@ -73,6 +78,7 @@ namespace VoarVR.Core
                 prompt.transform.SetParent(transform, false);
                 prompt.transform.localPosition = new Vector3(0f, -.12f, .7f);
                 calibrationPrompt = prompt.AddComponent<TextMesh>();
+                displayedPrompt = null;
                 calibrationPrompt.anchor = TextAnchor.MiddleCenter;
                 calibrationPrompt.alignment = TextAlignment.Center;
                 calibrationPrompt.fontSize = 48;
@@ -81,22 +87,23 @@ namespace VoarVR.Core
             }
             calibrationPrompt.gameObject.SetActive(!bird.Calibration.Captured || !string.IsNullOrEmpty(bird.CoachStatus));
             if (!calibrationPrompt.gameObject.activeSelf) return;
-            if (!bird.Calibration.Captured)
-            {
-                if (displayedCalibrationStatus == bird.CalibrationStatus) return;
-                displayedCalibrationStatus = bird.CalibrationStatus;
-                calibrationPrompt.text = bird.CalibrationStatus.StartsWith("Platform recentered")
-                    ? "HOLD COMFORTABLE T POSE\nLOOK FORWARD"
-                    : bird.CalibrationStatus.StartsWith("Calibration rejected")
-                        ? "TRACK HEAD + HANDS\nSPREAD ARMS 0.7-2.2 m\nPRESS RIGHT PRIMARY"
-                        : "SPREAD ARMS\nPRESS RIGHT PRIMARY";
-            }
-            else if (displayedCoachStatus != bird.CoachStatus)
-            {
-                displayedCoachStatus = bird.CoachStatus;
-                calibrationPrompt.text = bird.CoachStatus;
-            }
+            string text = ResolvePrompt(bird.Calibration.Captured, bird.CalibrationStatus, bird.CoachStatus);
+            if (displayedPrompt == text) return;
+            displayedPrompt = text;
+            calibrationPrompt.text = text;
         }
+
+        public static Quaternion ChaseBaseRotation(Quaternion heading, float height, float distance, float extraReach) =>
+            heading * Quaternion.LookRotation(new Vector3(0f, .12f + extraReach * .15f - height, .25f + distance), Vector3.up);
+
+        public static string ResolvePrompt(bool calibrated, string calibrationStatus, string coachStatus) =>
+            calibrated ? coachStatus ?? ""
+                : (calibrationStatus != null && calibrationStatus.StartsWith("Calibration rejected")
+                    ? "POSE NOT ACCEPTED: LEVEL YOUR WINGS\nPRESS A: START + CALIBRATE\nLEFT MENU: CHANGE CHARACTER"
+                    : (calibrationStatus != null && calibrationStatus.StartsWith("Platform recentered")
+                        ? "HOLD COMFORTABLE SPREAD STILL\nRECENTER CALIBRATES HERE"
+                        : "HOLD A LEVEL COMFORTABLE T POSE\nPRESS A: START + CALIBRATE\nLEFT MENU: CHANGE CHARACTER"));
+
         private void OnDisable()
         {
             Application.onBeforeRender -= ApplyPose;

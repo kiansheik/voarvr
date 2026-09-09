@@ -1,4 +1,4 @@
-"""Validate authored Duck skin and export/import roundtrip. Run with DuckV1.blend open."""
+"""Validate authored duck/dragon skin and FBX roundtrip. Run with the source .blend open."""
 from pathlib import Path
 import sys
 import tempfile
@@ -8,7 +8,8 @@ from asset_common import validate, export_objects
 from export_asset import export
 objects=validate(export_objects())
 rig=next(o for o in objects if o.type=='ARMATURE')
-mesh=next(o for o in objects if o.name=='DuckWings')
+mesh=next(o for o in objects if o.type=='MESH' and o.name.endswith('Wings'))
+is_dragon=mesh.name.startswith('Dragon')
 original=(mesh.name,mesh.parent,mesh.modifiers[0].object,len(mesh.data.vertices),tuple(rig.data.bones.keys()))
 # Negative cases: missing influence, posed source, omitted rig.
 group=mesh.vertex_groups[mesh.data.vertices[0].groups[0].group]
@@ -27,16 +28,19 @@ try: validate([o for o in objects if o != rig])
 except ValueError: pass
 else: raise AssertionError('Accepted dangling armature')
 with tempfile.TemporaryDirectory(prefix='voarvr-rig-') as tmp:
-    path=Path(tmp)/'Duck.fbx';export(path)
+    path=Path(tmp)/'Rig.fbx';export(path)
     assert original==(mesh.name,mesh.parent,mesh.modifiers[0].object,len(mesh.data.vertices),tuple(rig.data.bones.keys()))
     bpy.ops.object.select_all(action='DESELECT')
     bpy.ops.import_scene.fbx(filepath=str(path))
     imported=list(bpy.context.selected_objects)
     imported_rig=next(o for o in imported if o.type=='ARMATURE')
     assert len(imported_rig.data.bones)==9
-    wings=next(o for o in imported if o.type=='MESH' and o.name.startswith('DuckWings'))
+    wings=next(o for o in imported if o.type=='MESH' and o.name.startswith(original[0]))
     assert len(wings.data.vertices)==original[3]
-    assert .9 < wings.dimensions.x < 1.6, wings.dimensions
+    minimum, maximum=(6.5,7.5) if is_dragon else (.9,1.6)
+    assert minimum < wings.dimensions.x < maximum, wings.dimensions
+    if is_dragon:
+        assert any(len(v.groups)>1 for v in wings.data.vertices), 'Dragon membrane must blend across joints'
     assert wings.modifiers[0].object==imported_rig
     deps=bpy.context.evaluated_depsgraph_get()
     before=[v.co.copy() for v in wings.evaluated_get(deps).data.vertices]

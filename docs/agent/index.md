@@ -12,3 +12,5 @@ Source code/tests/configuration outrank these compiled notes. Update notes when 
 - [Foundation handoff](session-handoffs/2026-09-08-foundation.md)
 - [First editor playtest handoff](session-handoffs/2026-09-08-first-playtest.md)
 - [Duck flight v1 handoff](session-handoffs/2026-09-09-duck-flight-v1.md)
+- [Dragon flight v2 handoff](session-handoffs/2026-09-09-dragon-flight-v2.md)
+- [Dragon effort v3 handoff](session-handoffs/2026-09-09-dragon-effort-v3.md)

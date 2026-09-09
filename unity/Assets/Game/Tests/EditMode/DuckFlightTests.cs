@@ -21,6 +21,56 @@ namespace VoarVR.Tests
             public string ModeName=>"Fixture wind";
             public Vector3 Sample(Vector3 position,float time)=>value;
         }
+        // Human controller arc, 36 cm peak-to-peak at 0.8 Hz, with torso-relative
+        // derivatives through the same tracking adapter used by XR. No trigger or wrist tilt.
+        private sealed class ComfortableWingbeats : IFlightInput
+        {
+            private float time;
+            private readonly TrackedBodyFrame body = new TrackedBodyFrame();
+            public bool Rest;
+            public string Mode => "Comfortable controller arc";
+            public FlightInputFrame Sample(float dt)
+            {
+                time += dt;
+                float h = Rest ? 0f : .18f * Mathf.Sin(time * Mathf.PI * 1.6f);
+                float reach = Mathf.Sqrt(.65f * .65f - h * h);
+                var f = FlightInputFrame.Neutral;
+                f.HeadTracked = true; f.HeadPosition = Vector3.up * 1.6f;
+                f.LeftWing.Position = new Vector3(-reach, 1.35f + h, 0f);
+                f.RightWing.Position = new Vector3(reach, 1.35f + h, 0f);
+                body.Sample(ref f, dt);
+                return f;
+            }
+        }
+
+        [Test] public void DragonComfortableHumanWingbeatsSustainStillAirFlight()
+        {
+            var input = new ComfortableWingbeats();
+            var p = Resources.Load<BirdCharacterDefinition>("Characters/Dragon").BuildProfile();
+            var c = new BirdFlightController(input, Vector3.up * 12f, profile:p, groundHeight:0f);
+            c.Calibrate(input.Sample(0f));
+            for(int i=0;i<3600;i++) c.Step(1f/120f);
+            Assert.That(c.State.Position.y, Is.GreaterThan(12f), "Moderate real controller arcs must sustain flight without thermals.");
+            Assert.That(c.State.Speed, Is.InRange(4f, 16f));
+            float height = c.State.Position.y;
+            input.Rest = true;
+            for(int i=0;i<360;i++) c.Step(1f/120f);
+            Assert.That(c.State.Position.y, Is.GreaterThan(height - 8f), "The player needs useful glide breaks.");
+            Assert.That(c.StrokeForce.sqrMagnitude, Is.LessThan(.001f));
+        }
+
+        [Test] public void DragonCanTakeOffWithComfortableHumanWingbeats()
+        {
+            var input = new ComfortableWingbeats();
+            var p = Resources.Load<BirdCharacterDefinition>("Characters/Dragon").BuildProfile();
+            p.InitialSpeedMps = 0f;
+            var c = new BirdFlightController(input, Vector3.zero, profile:p, groundHeight:0f);
+            c.Calibrate(input.Sample(0f));
+            for(int i=0;i<1200;i++) c.Step(1f/120f);
+            Assert.That(c.State.Position.y, Is.GreaterThan(3f));
+            Assert.That(c.State.Position.z, Is.GreaterThan(25f));
+            Assert.That(c.State.Phase, Is.Not.EqualTo(FlightPhase.Perched));
+        }
         private static BirdFlightController Run(SyntheticGesture gesture, float seconds=2f, float dt=1f/120f, float amplitude=.3f)
         {
             var c=new BirdFlightController(new SyntheticFlightInput(gesture){FlapAmplitude=amplitude},Vector3.up*20f);
@@ -126,6 +176,49 @@ namespace VoarVR.Tests
             Assert.That(calibration.HeadOffset(frame.HeadPosition),Is.EqualTo(Vector3.zero));
         }
 
+        [Test] public void SpeciesSpanDrivesTrackedNeutralWingTargets()
+        {
+            var calibration = new BirdTrackingCalibration();
+            calibration.ConfigureBirdHalfSpan(2.45f);
+            var frame = FlightInputFrame.Neutral;
+            frame.HeadTracked = true;
+            Assert.That(calibration.Capture(frame), Is.True);
+            Assert.That(calibration.WingTarget(frame.LeftWing, true).x, Is.EqualTo(-2.45f).Within(.001f));
+            Assert.That(calibration.WingTarget(frame.RightWing, false).x, Is.EqualTo(2.45f).Within(.001f));
+        }
+
+        [Test] public void WholeBodyTurnKeepsNeutralWingsInTheirCalibratedPose()
+        {
+            var calibration = new BirdTrackingCalibration();
+            var frame = FlightInputFrame.Neutral;
+            frame.HeadTracked = true;
+            frame.HeadPosition = new Vector3(0f, 1.65f, 0f);
+            frame.LeftWing.Position = new Vector3(-.7f, 1.25f, .1f);
+            frame.RightWing.Position = new Vector3(.7f, 1.25f, .1f);
+            Assert.That(calibration.Capture(frame), Is.True);
+            var expected = calibration.WingTarget(frame.LeftWing, true, frame.HeadPosition, frame.HeadOrientation);
+            var turn = Quaternion.Euler(0f, 90f, 0f);
+            frame.HeadOrientation = turn;
+            frame.LeftWing.Position = frame.HeadPosition + turn * new Vector3(-.7f, -.4f, .1f);
+            frame.RightWing.Position = frame.HeadPosition + turn * new Vector3(.7f, -.4f, .1f);
+            var actual = calibration.WingTarget(frame.LeftWing, true, frame.HeadPosition, frame.HeadOrientation);
+            Assert.That(Vector3.Distance(expected, actual), Is.LessThan(.001f));
+        }
+
+        [Test] public void HeadOnlyYawKeepsBirdCourseUnchanged()
+        {
+            var input = new Input();
+            input.Frame.HeadTracked = true;
+            var controller = new BirdFlightController(input, Vector3.up * 50f);
+            controller.Calibrate(input.Frame);
+            input.Frame.HeadOrientation = Quaternion.Euler(0f, 30f, 0f);
+            controller.Step(.25f);
+            Assert.That(Mathf.DeltaAngle(0f, controller.State.Rotation.eulerAngles.y), Is.EqualTo(0f).Within(1f));
+            Assert.That(Mathf.Atan2(controller.State.Velocity.x, controller.State.Velocity.z) * Mathf.Rad2Deg,
+                Is.EqualTo(0f).Within(1f));
+            Assert.That(controller.PhysicalYawOffsetDeg, Is.EqualTo(0f).Within(.1f));
+        }
+
         [Test] public void CalibrationRejectsInvalidHeadAndNarrowStartupPose()
         {
             var calibration = new BirdTrackingCalibration();
@@ -214,9 +307,50 @@ namespace VoarVR.Tests
             field.SetMode(WindMode.Assisted);
             Assert.That(field.Sample(WindField.ThermalCenters[0]+Vector3.up*8f,1f).y,Is.GreaterThan(3f));
             field.SetMode(WindMode.Wild);
-            Assert.That(field.Sample(WindField.ThermalCenters[2]+Vector3.up*8f,1f).y,Is.LessThan(-2f));
+            Assert.That(field.Sample(field.GetThermalCenter(2,1f)+Vector3.up*8f,1f).y,Is.LessThan(-3f));
             field.SetMode(WindMode.StillAir);
             Assert.That(field.Sample(Vector3.one*99f,123f),Is.EqualTo(Vector3.zero));
+            Object.DestroyImmediate(go);
+        }
+
+        [Test] public void ThermalCoreMeandersAndRemainsRideable()
+        {
+            var go = new GameObject("MovingWindFixture"); var field = go.AddComponent<WindField>();
+            field.SetMode(WindMode.Assisted);
+            var early = field.GetThermalCenter(0, 0f);
+            var later = field.GetThermalCenter(0, 30f);
+            Assert.That(Vector3.Distance(early, later), Is.GreaterThan(2f));
+            Assert.That(field.Sample(later + Vector3.up * 8f, 30f).y, Is.GreaterThan(5f));
+            Object.DestroyImmediate(go);
+        }
+
+        [Test] public void DragonBroadWingsProduceAUsableGlideEnvelope()
+        {
+            var dragon = Resources.Load<BirdCharacterDefinition>("Characters/Dragon");
+            Assert.That(dragon, Is.Not.Null);
+            Assert.That(dragon.RestArmSpan, Is.GreaterThan(2f));
+            Assert.That(dragon.BuildProfile().WingAreaM2, Is.GreaterThan(5f));
+            var controller = new BirdFlightController(new SyntheticFlightInput(), Vector3.up * 100f,
+                profile: dragon.BuildProfile());
+            for (int i = 0; i < 600; i++) controller.Step(1f / 120f);
+            Assert.That(controller.State.Position.y, Is.GreaterThan(75f));
+            Assert.That(controller.State.Velocity.z, Is.GreaterThan(2f));
+        }
+
+        [Test] public void DragonCanGainHeightInMovingThermalsWithoutFlapping()
+        {
+            var go = new GameObject("SoaringFixture");
+            var wind = go.AddComponent<WindField>();
+            var profile = Resources.Load<BirdCharacterDefinition>("Characters/Dragon").BuildProfile();
+            var input = new Input();
+            input.Frame.Bank = .553f; // Sustained moderate bank, no wing stroke or artificial climb.
+            var spawn = wind.GetThermalCenter(0, 0f) + new Vector3(-5f, 25f, 0f);
+            var soaring = new BirdFlightController(input, spawn, profile: profile, wind: wind);
+            var still = new BirdFlightController(input, spawn, profile: profile);
+            for (int i = 0; i < 2400; i++) { soaring.Step(1f / 120f); still.Step(1f / 120f); }
+            Assert.That(soaring.State.Position.y, Is.GreaterThan(spawn.y + 5f));
+            Assert.That(soaring.State.Position.y, Is.GreaterThan(still.State.Position.y + 15f));
+            Assert.That(soaring.StrokeForce.sqrMagnitude, Is.LessThan(.0001f));
             Object.DestroyImmediate(go);
         }
 
@@ -265,6 +399,126 @@ namespace VoarVR.Tests
             var flareInput=new Input();flareInput.Frame.Flare=1f;
             var flare=new BirdFlightController(flareInput,Vector3.up*20f,perch);
             flare.Step(1f/120f);Assert.That(flare.State.Phase,Is.EqualTo(FlightPhase.Perching));
+        }
+
+        private static FlightInputFrame StandingPose()
+        {
+            var f = FlightInputFrame.Neutral;
+            f.HeadTracked = true;
+            f.HeadPosition = new Vector3(0f, 1.65f, 0f);
+            f.LeftWing.Position = new Vector3(-.7f, 1.25f, 0f);
+            f.RightWing.Position = new Vector3(.7f, 1.25f, 0f);
+            return f;
+        }
+
+        [Test] public void TorsoHeadingIgnoresHeadLookAndHoldsThroughTuckAndDropout()
+        {
+            var body = new TrackedBodyFrame(); var f = StandingPose();
+            body.Sample(ref f, .02f);
+            f.HeadOrientation = Quaternion.Euler(0f, 80f, 0f);
+            body.Sample(ref f, .02f);
+            Assert.That(Quaternion.Angle(f.BodyOrientation, Quaternion.identity), Is.LessThan(.01f));
+            f.LeftWing.Position.x = -.1f; f.RightWing.Position.x = .1f;
+            body.Sample(ref f, .02f);
+            Assert.That(Quaternion.Angle(f.BodyOrientation, Quaternion.identity), Is.LessThan(.01f));
+            f.LeftWing.Tracked = f.RightWing.Tracked = false;
+            body.Sample(ref f, .02f);
+            Assert.That(f.LeftWing.Velocity, Is.EqualTo(Vector3.zero));
+            Assert.That(Quaternion.Angle(f.BodyOrientation, Quaternion.identity), Is.LessThan(.01f));
+        }
+
+        [TestCase(90f)] [TestCase(180f)]
+        public void WholeBodyTurnPreservesNeutralWingPoseAndProducesNoStroke(float yaw)
+        {
+            var body = new TrackedBodyFrame(); var f = StandingPose(); body.Sample(ref f, .02f);
+            var calibration = new BirdTrackingCalibration(); calibration.ConfigureBirdHalfSpan(1.1f);
+            Assert.That(calibration.CaptureComfortableGlide(f), Is.True);
+            var before = calibration.WingTarget(f.LeftWing, true, f.HeadPosition, f.BodyOrientation);
+            var q = Quaternion.Euler(0f, yaw, 0f);
+            f.LeftWing.Position = f.HeadPosition + q * (f.LeftWing.Position - f.HeadPosition);
+            f.RightWing.Position = f.HeadPosition + q * (f.RightWing.Position - f.HeadPosition);
+            f.LeftWing.Orientation = f.RightWing.Orientation = f.HeadOrientation = q;
+            body.Sample(ref f, .02f);
+            var after = calibration.WingTarget(f.LeftWing, true, f.HeadPosition, f.BodyOrientation);
+            Assert.That(Vector3.Distance(before, after), Is.LessThan(.0001f));
+            Assert.That(f.LeftWing.Velocity.magnitude, Is.LessThan(.0001f));
+            Assert.That(Quaternion.Angle(calibration.WingRotation(f.LeftWing, true, f.BodyOrientation), Quaternion.identity), Is.LessThan(.01f));
+        }
+
+        [Test] public void PhysicalBodyYawSteersButHeadLookDoesNotAndCalibrationDoesNotTeleport()
+        {
+            var input = new Input(); var body = new TrackedBodyFrame();
+            input.Frame = StandingPose(); body.Sample(ref input.Frame, .02f);
+            var c = new BirdFlightController(input, Vector3.up * 100f); c.Calibrate(input.Frame);
+            input.Frame.HeadOrientation = Quaternion.Euler(0f, 70f, 0f);
+            body.Sample(ref input.Frame, .02f); c.Step(.02f);
+            Assert.That(c.PhysicalYawOffsetDeg, Is.EqualTo(0f).Within(.001f));
+            var q = Quaternion.Euler(0f, 30f, 0f);
+            input.Frame.LeftWing.Position = input.Frame.HeadPosition + q * (input.Frame.LeftWing.Position - input.Frame.HeadPosition);
+            input.Frame.RightWing.Position = input.Frame.HeadPosition + q * (input.Frame.RightWing.Position - input.Frame.HeadPosition);
+            input.Frame.LeftWing.Orientation = input.Frame.RightWing.Orientation = q;
+            body.Sample(ref input.Frame, .02f);
+            for (int i = 0; i < 30; i++) c.Step(.02f);
+            Assert.That(c.PhysicalYawOffsetDeg, Is.EqualTo(30f).Within(.01f));
+            Assert.That(c.StrokeForce.magnitude, Is.LessThan(.001f));
+            var pos = c.State.Position; var velocity = c.State.Velocity;
+            c.Calibrate(input.Frame);
+            Assert.That(c.State.Position, Is.EqualTo(pos));
+            Assert.That(c.State.Velocity, Is.EqualTo(velocity));
+            input.Frame.RecalibratePressed = true; c.Step(.02f);
+            Assert.That(Vector3.Distance(c.State.Position, pos), Is.LessThan(1f));
+        }
+
+        [Test] public void PlatformOriginInvalidationRequiresDeliberateCaptureAgain()
+        {
+            var body = new TrackedBodyFrame(); var f = StandingPose(); body.Sample(ref f, .02f);
+            var calibration = new BirdTrackingCalibration(); calibration.CaptureComfortableGlide(f);
+            calibration.BeginPlatformRecenter(); body.Reset();
+            for (int i = 0; i < 60; i++) { body.Sample(ref f, .02f); calibration.UpdateBody(f); }
+            Assert.That(calibration.Captured, Is.False);
+            Assert.That(calibration.CaptureComfortableGlide(f), Is.True);
+        }
+
+        [Test] public void RepeatedCalibrationPromptReplacesCoachAndChaseAimHasNoLeanInput()
+        {
+            var first = VoarVR.Core.FlightCamera.ResolvePrompt(false, "Platform recentered", "LANDING");
+            var coach = VoarVR.Core.FlightCamera.ResolvePrompt(true, "Calibrated", "LANDING");
+            var repeated = VoarVR.Core.FlightCamera.ResolvePrompt(false, "Platform recentered", coach);
+            Assert.That(repeated, Is.EqualTo(first));
+            Assert.That(repeated, Does.Contain("RECENTER CALIBRATES HERE"));
+            var heading = Quaternion.Euler(0f, 35f, 0f);
+            var aim = VoarVR.Core.FlightCamera.ChaseBaseRotation(heading, .95f, 2.35f, 0f);
+            Assert.That(Mathf.DeltaAngle(35f, aim.eulerAngles.y), Is.EqualTo(0f).Within(.01f));
+        }
+
+        [Test] public void HeadTrackingLossAtNinetyDegreeCalibrationNeutralizesWingsAndRecoveryVelocity()
+        {
+            var body = new TrackedBodyFrame(); var frame = StandingPose();
+            var yaw = Quaternion.Euler(0f, 90f, 0f);
+            frame.LeftWing.Position = frame.HeadPosition + yaw * (frame.LeftWing.Position - frame.HeadPosition);
+            frame.RightWing.Position = frame.HeadPosition + yaw * (frame.RightWing.Position - frame.HeadPosition);
+            frame.LeftWing.Orientation = frame.RightWing.Orientation = frame.HeadOrientation = yaw;
+            body.Sample(ref frame, .02f);
+            var input = new Input { Frame = frame };
+            var controller = new BirdFlightController(input, Vector3.up * 100f);
+            controller.Calibrate(frame);
+            var valid = frame;
+            frame.HeadTracked = false;
+            frame.HeadPosition = Vector3.zero;
+            frame.Bank = frame.Tuck = frame.Flare = 1f;
+            body.Sample(ref frame, .02f);
+            input.Frame = frame; controller.Step(.02f);
+            Assert.That(controller.LastInput.LeftWing.Tracked, Is.False);
+            Assert.That(controller.LastInput.RightWing.Tracked, Is.False);
+            Assert.That(controller.StrokeForce.sqrMagnitude, Is.LessThan(.0001f));
+            Assert.That(frame.Bank + frame.Tuck + frame.Flare, Is.EqualTo(0f));
+            frame = valid;
+            // Return at a different tracked position: first recovered sample is not a flap.
+            frame.HeadPosition += new Vector3(.3f, .2f, .1f);
+            body.Sample(ref frame, .02f);
+            Assert.That(frame.LeftWing.Tracked, Is.True);
+            Assert.That(frame.LeftWing.Velocity, Is.EqualTo(Vector3.zero));
+            Assert.That(frame.RightWing.Velocity, Is.EqualTo(Vector3.zero));
         }
     }
 }

@@ -115,13 +115,17 @@ namespace VoarVR.Editor
             if (xr == null) throw new InvalidOperationException("OpenXR settings were not created.");
             var quest = xr.GetFeature<MetaQuestFeature>();
             var touch = xr.GetFeature<OculusTouchControllerProfile>();
-            if (quest == null || touch == null) throw new InvalidOperationException("Required Quest/Touch features missing.");
+            var touchPlus = xr.GetFeature<MetaQuestTouchPlusControllerProfile>();
+            if (quest == null || touch == null || touchPlus == null)
+                throw new InvalidOperationException("Required Quest/Touch/Touch Plus features missing.");
             quest.enabled = true;
-            touch.enabled = true;
+            touch.enabled = true; // Kept for older Quest 1/2 Touch controllers.
+            touchPlus.enabled = true; // Quest 3's actual controllers (and Quest 3S).
             xr.renderMode = OpenXRSettings.RenderMode.SinglePassInstanced;
             xr.latencyOptimization = OpenXRSettings.LatencyOptimization.PrioritizeInputPolling;
             EditorUtility.SetDirty(quest);
             EditorUtility.SetDirty(touch);
+            EditorUtility.SetDirty(touchPlus);
             EditorUtility.SetDirty(xr);
             EditorUtility.SetDirty(general);
             EditorUtility.SetDirty(general.Manager);
@@ -141,8 +145,10 @@ namespace VoarVR.Editor
             if (general == null || !general.InitManagerOnStart || general.Manager == null
                 || !System.Linq.Enumerable.Any(general.Manager.activeLoaders, loader => loader is OpenXRLoader)
                 || xr == null || xr.GetFeature<MetaQuestFeature>()?.enabled != true
-                || xr.GetFeature<OculusTouchControllerProfile>()?.enabled != true)
-                throw new BuildFailedException("Android OpenXR/Quest setup is incomplete. Run Configure Foundation.");
+                || xr.GetFeature<OculusTouchControllerProfile>()?.enabled != true
+                || xr.GetFeature<MetaQuestTouchPlusControllerProfile>()?.enabled != true)
+                throw new BuildFailedException("Android OpenXR/Quest setup is incomplete (Touch and/or Touch Plus profile disabled). Run Configure Foundation.");
+            ValidateCharacterCatalog();
             Directory.CreateDirectory("../builds/quest");
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
@@ -153,6 +159,40 @@ namespace VoarVR.Editor
             });
             if (report.summary.result != BuildResult.Succeeded)
                 throw new BuildFailedException("Quest build failed: " + report.summary.result);
+        }
+
+        // A successful BuildPlayer() call only proves an APK was written, not that it will do
+        // anything once launched - this is what actually caught the CharacterSelect regression
+        // (a broken xrRigPrefab reference or a character missing its RigModel builds fine and
+        // then renders a blank menu on device). Checked before every Quest build.
+        private static void ValidateCharacterCatalog()
+        {
+            foreach (var scenePath in Scenes)
+                if (!System.IO.File.Exists(scenePath))
+                    throw new BuildFailedException("Missing scene: " + scenePath);
+
+            var selectScene = System.IO.File.ReadAllText("Assets/Scenes/Menu/CharacterSelect.unity");
+            if (!System.Text.RegularExpressions.Regex.IsMatch(selectScene, @"xrRigPrefab: \{fileID: -?\d+, guid: [0-9a-f]{32}"))
+                throw new BuildFailedException("CharacterSelect's CharacterSelectController has no xrRigPrefab assigned.");
+
+            var guids = AssetDatabase.FindAssets("t:" + nameof(VoarVR.Flight.BirdCharacterDefinition));
+            if (guids.Length == 0) throw new BuildFailedException("No BirdCharacterDefinition assets exist under Resources/Characters.");
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var character = AssetDatabase.LoadAssetAtPath<VoarVR.Flight.BirdCharacterDefinition>(path);
+                if (character.RigModel == null)
+                    throw new BuildFailedException(character.DisplayName + " (" + path + ") has no RigModel. Run VoarVR/Configure Characters.");
+                if (character.BodyMaterial == null)
+                    throw new BuildFailedException(character.DisplayName + " (" + path + ") has no BodyMaterial.");
+                var bones = character.RigModel.GetComponentsInChildren<Transform>();
+                foreach (var required in new[] { "LeftUpper", "LeftForearm", "LeftHand", "LeftTip", "RightUpper", "RightForearm", "RightHand", "RightTip" })
+                    if (!System.Linq.Enumerable.Any(bones, t => t.name == required))
+                        throw new BuildFailedException(character.DisplayName + " RigModel is missing bone \"" + required + "\".");
+                var renderers = character.RigModel.GetComponentsInChildren<Renderer>();
+                if (!System.Linq.Enumerable.Any(renderers, r => r.name.EndsWith("Face")))
+                    throw new BuildFailedException(character.DisplayName + " RigModel has no renderer ending in \"Face\".");
+            }
         }
     }
 }

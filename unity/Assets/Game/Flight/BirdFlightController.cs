@@ -87,8 +87,10 @@ namespace VoarVR.Flight
         public float TuckedAreaFraction = 0.12f;
         public float FlareDragCoefficient = 0.9f;
         public float StrokeForcePerSpeedSquared = 9f; // N / (m/s)^2, active wing work
+        public float StrokeForwardRatio;
         public float InitialSpeedMps = 8f;
         public float AttitudeResponseSeconds = 0.3f;
+        public float MaxPhysicalYawRateDeg = 240f;
         public float MaxIntegrationStep = 1f / 120f;
 
         // Perching.
@@ -131,6 +133,10 @@ namespace VoarVR.Flight
         private Vector3 perchVel;
         private float perchPitchVel, perchRollVel, perchYawVel;
         private float simulationTime;
+        private float lastTrackedBodyYaw;
+        private bool hasTrackedBodyYaw;
+        public float PhysicalYawOffsetDeg { get; private set; }
+        public float SimulationTime => simulationTime;
         public float NearestPerchDistance { get; private set; } = float.PositiveInfinity;
         public Vector3 NearestPerchPosition { get; private set; }
         public Vector3 WindVelocity { get; private set; }
@@ -179,10 +185,35 @@ namespace VoarVR.Flight
             Reset();
         }
 
+        // Calibration changes the input neutral only; it never changes position or velocity.
         public void Calibrate(FlightInputFrame frame)
         {
+            var local = NormalizeBodyFrame(frame);
             if (frame.LeftWing.Tracked && frame.RightWing.Tracked)
-                calibration = WingCalibration.Capture(frame.LeftWing, frame.RightWing, frame.HeadOrientation);
+                calibration = WingCalibration.Capture(local.LeftWing, local.RightWing,
+                    frame.BodyTracked ? Quaternion.identity : frame.HeadOrientation);
+            if (frame.BodyTracked)
+            {
+                lastTrackedBodyYaw = frame.BodyOrientation.eulerAngles.y;
+                hasTrackedBodyYaw = true;
+                PhysicalYawOffsetDeg = 0f;
+            }
+        }
+
+        public static FlightInputFrame NormalizeBodyFrame(FlightInputFrame frame)
+        {
+            if (!frame.BodyTracked) return frame;
+            var inverse = Quaternion.Inverse(frame.BodyOrientation);
+            WingInput Local(WingInput wing)
+            {
+                wing.Position = inverse * (wing.Position - frame.HeadPosition);
+                wing.Orientation = inverse * wing.Orientation;
+                wing.Velocity = inverse * wing.Velocity;
+                return wing;
+            }
+            frame.LeftWing = Local(frame.LeftWing);
+            frame.RightWing = Local(frame.RightWing);
+            return frame;
         }
 
         public void Reset()
@@ -192,6 +223,8 @@ namespace VoarVR.Flight
             pitchDeg = rollDeg = yawDeg = 0f;
             perchCooldown = 0f;
             simulationTime = 0f;
+            PhysicalYawOffsetDeg = 0f;
+            hasTrackedBodyYaw = false;
             LastInput = FlightInputFrame.Neutral;
             State = new BirdState { Position = spawn, Velocity = Vector3.forward * profile.InitialSpeedMps, Rotation = Quaternion.identity, Phase = FlightPhase.Gliding };
         }
@@ -200,7 +233,7 @@ namespace VoarVR.Flight
         {
             if (float.IsNaN(deltaTime) || float.IsInfinity(deltaTime) || deltaTime <= 0f)
                 throw new ArgumentOutOfRangeException(nameof(deltaTime));
-            LastInput = input.Sample(deltaTime);
+            LastInput = NormalizeBodyFrame(input.Sample(deltaTime));
 
             if (LastInput.ResetPressed)
             {
@@ -254,6 +287,25 @@ namespace VoarVR.Flight
             var velocity = State.Velocity;
             var position = State.Position;
             var rotation = State.Rotation;
+            if (LastInput.BodyTracked)
+            {
+                float currentBodyYaw = LastInput.BodyOrientation.eulerAngles.y;
+                if (hasTrackedBodyYaw)
+                {
+                    float physicalYawDelta = Mathf.Clamp(Mathf.DeltaAngle(lastTrackedBodyYaw, currentBodyYaw),
+                        -profile.MaxPhysicalYawRateDeg * deltaTime, profile.MaxPhysicalYawRateDeg * deltaTime);
+                    if (Mathf.Abs(physicalYawDelta) > .001f)
+                    {
+                        lastTrackedBodyYaw += physicalYawDelta;
+                        PhysicalYawOffsetDeg += physicalYawDelta;
+                        yawDeg += physicalYawDelta;
+                        velocity = Quaternion.Euler(0f, physicalYawDelta, 0f) * velocity;
+                    }
+                }
+                if (!hasTrackedBodyYaw) lastTrackedBodyYaw = currentBodyYaw;
+                hasTrackedBodyYaw = true;
+            }
+            else hasTrackedBodyYaw = false;
             int steps = Mathf.Max(1, Mathf.CeilToInt(deltaTime / profile.MaxIntegrationStep));
             float dt = deltaTime / steps;
             for (int step = 0; step < steps; step++)
@@ -411,7 +463,11 @@ namespace VoarVR.Flight
             var normalBody = relative * Vector3.up;
             var velocityBody = Quaternion.Inverse(calibration.Heading) * wing.Velocity;
             float speed = Mathf.Clamp(Vector3.Dot(-velocityBody, normalBody), 0f, profile.MaxStrokeSpeed);
-            return bodyRotation * normalBody * (speed * speed * profile.StrokeForcePerSpeedSquared * .5f);
+            // The authored large wing sweeps backward during a human downstroke. A species
+            // can convert that work to forward thrust without demanding a tilted wrist.
+            // No motion (or an upstroke) still produces no active force.
+            var reaction = normalBody + Vector3.forward * (profile.StrokeForwardRatio * Mathf.Max(0f, normalBody.y));
+            return bodyRotation * reaction * (speed * speed * profile.StrokeForcePerSpeedSquared * .5f);
         }
 
         private PerchInfo? FindEligiblePerch(Vector3 pos, Vector3 velocity, float flare)

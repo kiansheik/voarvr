@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR;
+using UnityEngine.SceneManagement;
 using VoarVR.Input;
 using VoarVR.World;
 
@@ -24,12 +25,19 @@ namespace VoarVR.Flight
         private WindField wind;
         private readonly List<XRInputSubsystem> xrSubsystems = new List<XRInputSubsystem>();
         private bool platformRecenterPending;
-        private float recenterStableTime;
+        private float stableRecenterSeconds;
+        private FlightInputFrame previousRecenterFrame;
+        private bool hasRecenterFrame;
+        private bool returningToSelection;
         private float coachUntil;
         public BirdTrackingCalibration Calibration => calibration;
-        public string CalibrationStatus { get; private set; } = "Using safe default; spread arms and press reset";
+        public string CalibrationStatus { get; private set; } = "Spread arms and press A to start + calibrate";
         public string CoachStatus { get; private set; }
         public FlightViewMode ViewMode => viewMode;
+        public float PhysicalYawOffsetDeg => Controller != null ? Controller.PhysicalYawOffsetDeg : 0f;
+        public float CharacterRestHalfSpan => character != null ? character.RestArmSpan : .56f;
+        public Vector3 CameraEyeAnchor => BirdTrackingCalibration.EyeAnchor
+            + Vector3.up * (Mathf.Max(0f, CharacterRestHalfSpan - .56f) * .22f);
         public string WindModeName => wind != null ? wind.ModeName : "Still air";
         public Quaternion Heading => Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
         public SyntheticGesture Gesture { get => gesture; set => gesture = value; }
@@ -60,6 +68,7 @@ namespace VoarVR.Flight
             {
                 SpawnCharacterRig(character);
                 profile = character.BuildProfile();
+                calibration.ConfigureBirdHalfSpan(character.RestArmSpan);
             }
             var perches = FindObjectsByType<PerchPoint>(FindObjectsInactive.Exclude);
             var perchInfos = new PerchInfo[perches.Length];
@@ -123,12 +132,18 @@ namespace VoarVR.Flight
 
         private void Update()
         {
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                ReturnToCharacterSelect();
+                return;
+            }
             if (Time.deltaTime > 0f) Tick(Mathf.Min(Time.deltaTime, .05f));
         }
 
         // Explicit runtime step also used by scene regression tests and editor evidence capture.
         public void Tick(float deltaTime)
         {
+            if (returningToSelection) return;
             if (input is SyntheticFlightInput synthetic) synthetic.Gesture = gesture;
             // Once per rendered frame so Input System poses and derivative sampling agree.
             // Tests use explicit fixed steps; presentation delta is capped after editor stalls.
@@ -136,7 +151,9 @@ namespace VoarVR.Flight
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
             var xr = input as XRFlightInput;
             var frame = xr != null ? xr.LastRawFrame : Controller.LastInput;
+            if (frame.CharacterSelectPressed) { ReturnToCharacterSelect(); return; }
             if (xr != null && !calibration.HeadCaptured) calibration.CaptureHead(frame);
+            if (xr != null) calibration.UpdateBody(frame);
             if (frame.ViewTogglePressed)
             {
                 ToggleView();
@@ -149,64 +166,101 @@ namespace VoarVR.Flight
                 CoachStatus = "WIND: " + wind.ModeName.ToUpperInvariant();
                 coachUntil = Time.unscaledTime + 3f;
             }
-            if (platformRecenterPending)
-            {
-                bool calm = frame.LeftWing.Velocity.magnitude < .45f && frame.RightWing.Velocity.magnitude < .45f;
-                bool candidate = calibration.IsComfortableGlidePose(frame) && calm;
-                recenterStableTime = candidate ? recenterStableTime + deltaTime : 0f;
-                if (recenterStableTime >= .15f && calibration.CaptureComfortableGlide(frame))
-                {
-                    Controller.Calibrate(frame);
-                    xr.WingsEnabled = true;
-                    platformRecenterPending = false;
-                    CalibrationStatus = $"Recentered neutral glide: {calibration.HumanSpanMeters:F2} m span";
-                    CoachStatus = "NEUTRAL GLIDE RECENTERED";
-                    coachUntil = Time.unscaledTime + 3f;
-                }
-            }
-            if (frame.ResetPressed)
-            {
-                if (calibration.CaptureComfortableGlide(frame))
-                {
-                    Controller.Calibrate(frame);
-                    if (xr != null) xr.WingsEnabled = true;
-                    platformRecenterPending = false;
-                    recenterStableTime = 0f;
-                    coachUntil = Time.unscaledTime + 3f;
-                    CalibrationStatus = $"Calibrated: {calibration.HumanSpanMeters:F2} m span, {calibration.MotionScale:F2} wing scale";
-                }
-                else CalibrationStatus = "Calibration rejected: hold a level comfortable T pose";
-            }
+            if (frame.RecalibratePressed) RestartAndCalibrate(frame);
+            else if (platformRecenterPending) TryCompletePlatformRecenter(frame, deltaTime);
             if (!platformRecenterPending && Time.unscaledTime >= coachUntil)
             {
-                if (Controller.NearestPerchDistance < 18f)
+                if (Controller.State.Phase == FlightPhase.Paused)
+                    CoachStatus = "PAUSED - X TO RESUME\nLEFT MENU: CHANGE CHARACTER\nA: START + CALIBRATE";
+                else if (Controller.NearestPerchDistance < 18f)
                 {
                     CoachStatus = Controller.State.Speed > profile.FlarePerchMaxCaptureSpeed
                         ? "LANDING RING AHEAD\nFLARE: LEFT TRIGGER + SLOW BELOW 10 m/s"
                         : "LANDING RING AHEAD\nGLIDE THROUGH IT + FLARE";
                 }
+                else if (Controller.WindVelocity.y > 2f)
+                    CoachStatus = "RISING AIR: SPREAD WINGS\nGENTLE BANK + CIRCLE TO STAY IN CORE";
+                else if (Controller.WindVelocity.y < -2f)
+                    CoachStatus = "DESCENDING DRAFT\nLEAVE THE RED STREAM";
                 else CoachStatus = null;
             }
             var presentationFrame = xr != null && !calibration.Captured ? FlightInputFrame.Neutral : frame;
             if (rig != null) rig.Present(presentationFrame, calibration, Heading, deltaTime);
         }
 
+        // A is the explicit recovery action: restart flight and capture the held neutral.
+        public bool RestartAndCalibrate(FlightInputFrame frame)
+        {
+            Controller.Reset();
+            transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
+            viewMode = FlightViewMode.FirstPerson;
+            platformRecenterPending = false;
+            if (CaptureNeutral(frame, "READY - GLIDE + FLAP\nB: VIEW / X: PAUSE / LEFT MENU: CHARACTERS")) return true;
+            calibration.BeginPlatformRecenter();
+            if (input is XRFlightInput xr) { xr.WingsEnabled = false; xr.ResetDerivatives(); }
+            CalibrationStatus = "Calibration rejected: hold a level comfortable T pose";
+            CoachStatus = "HOLD A LEVEL T POSE\nPRESS A: START + CALIBRATE";
+            coachUntil = Time.unscaledTime + 3f;
+            return false;
+        }
+
+        private bool CaptureNeutral(FlightInputFrame frame, string message)
+        {
+            if (!calibration.CaptureComfortableGlide(frame)) return false;
+            Controller.Calibrate(frame);
+            if (input is XRFlightInput xr) { xr.WingsEnabled = true; xr.ResetDerivatives(); }
+            platformRecenterPending = false;
+            CalibrationStatus = $"Calibrated: {calibration.HumanSpanMeters:F2} m span, {calibration.MotionScale:F2} wing scale";
+            CoachStatus = message;
+            coachUntil = Time.unscaledTime + 4f;
+            return true;
+        }
+
+        // OpenXR exposes an origin-change notification, not the reserved Meta button.
+        // Wait for fresh, stable tracking after that event before accepting a neutral pose.
         public void NotifyTrackingOriginUpdated()
         {
             if (!UsesXR || Controller == null) return;
             platformRecenterPending = true;
-            recenterStableTime = 0f;
-            viewMode = FlightViewMode.FirstPerson;
+            stableRecenterSeconds = 0f;
+            hasRecenterFrame = false;
             calibration.BeginPlatformRecenter();
             if (input is XRFlightInput xr)
             {
                 xr.WingsEnabled = false;
-                xr.ResetDerivatives();
+                xr.ResetTrackingOrigin();
             }
-            Controller.Reset();
-            CalibrationStatus = "Platform recentered: hold a comfortable level T pose";
-            CoachStatus = "HOLD COMFORTABLE T POSE\nLOOK FORWARD";
+            CalibrationStatus = "Platform recentered: hold your comfortable spread still";
+            CoachStatus = "HOLD COMFORTABLE SPREAD STILL\nRECENTER CALIBRATES HERE";
             coachUntil = float.PositiveInfinity;
+        }
+
+        public bool TryCompletePlatformRecenter(FlightInputFrame frame, float deltaTime)
+        {
+            if (!platformRecenterPending) return false;
+            bool comfortable = calibration.IsComfortableGlidePose(frame);
+            bool stable = comfortable && hasRecenterFrame
+                && Vector3.Distance(frame.HeadPosition, previousRecenterFrame.HeadPosition) < .025f
+                && Vector3.Distance(frame.LeftWing.Position, previousRecenterFrame.LeftWing.Position) < .025f
+                && Vector3.Distance(frame.RightWing.Position, previousRecenterFrame.RightWing.Position) < .025f
+                && Quaternion.Angle(frame.HeadOrientation, previousRecenterFrame.HeadOrientation) < 3f
+                && Quaternion.Angle(frame.LeftWing.Orientation, previousRecenterFrame.LeftWing.Orientation) < 5f
+                && Quaternion.Angle(frame.RightWing.Orientation, previousRecenterFrame.RightWing.Orientation) < 5f;
+            stableRecenterSeconds = stable ? stableRecenterSeconds + Mathf.Min(deltaTime, .05f) : 0f;
+            // Compare against the start of the hold window, not the preceding frame:
+            // continuous slow motion must not become "still" at high headset frame rates.
+            if (!stable) previousRecenterFrame = frame;
+            hasRecenterFrame = comfortable;
+            return stableRecenterSeconds >= .35f && CaptureNeutral(frame, "WING NEUTRAL RECALIBRATED\nA: START / LEFT MENU: CHARACTERS");
+        }
+
+        public void ReturnToCharacterSelect()
+        {
+            if (returningToSelection) return;
+            returningToSelection = true;
+            Time.timeScale = 1f;
+            CharacterSelection.Chosen = null;
+            SceneManager.LoadScene("CharacterSelect");
         }
 
         public void ToggleView() =>

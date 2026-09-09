@@ -59,17 +59,21 @@ namespace VoarVR.Flight
         public void Present(FlightInputFrame frame, BirdTrackingCalibration calibration, Quaternion heading, float dt)
         {
             if (left == null || right == null) return;
-            LeftReachError=Pose(left,frame.LeftWing,true,calibration,heading,dt);
-            RightReachError=Pose(right,frame.RightWing,false,calibration,heading,dt);
+            LeftReachError=Pose(left,frame.LeftWing,true,calibration,heading,frame.BodyTracked ? frame.HeadPosition : calibration.HeadOrigin,
+                frame.BodyTracked ? frame.BodyOrientation : calibration.Heading,dt);
+            RightReachError=Pose(right,frame.RightWing,false,calibration,heading,frame.BodyTracked ? frame.HeadPosition : calibration.HeadOrigin,
+                frame.BodyTracked ? frame.BodyOrientation : calibration.Heading,dt);
             LeftTarget = transform.position + heading * left.LocalTarget;
             RightTarget = transform.position + heading * right.LocalTarget;
         }
-        private float Pose(Wing wing, WingInput input, bool isLeft, BirdTrackingCalibration calibration, Quaternion heading, float dt)
+        private float Pose(Wing wing, WingInput input, bool isLeft, BirdTrackingCalibration calibration,
+            Quaternion heading, Vector3 headPosition, Quaternion headOrientation, float dt)
         {
             // Targets live in the same yaw-only world basis as the HMD, while shoulders follow body attitude.
             var rest = new Vector3(isLeft ? -restArmSpan : restArmSpan,.04f,.005f);
-            var desiredLocal = input.Tracked ? calibration.WingTarget(input,isLeft) : rest;
-            var twist = input.Tracked ? calibration.WingRotation(input,isLeft) : Quaternion.identity;
+            var desiredLocal = input.Tracked
+                ? calibration.WingTarget(input,isLeft,headPosition,headOrientation) : rest;
+            var twist = input.Tracked ? calibration.WingRotation(input,isLeft,headOrientation) : Quaternion.identity;
             float blend = 1f-Mathf.Exp(-dt/(input.Tracked ? .035f : .25f));
             // Smooth only the tracked displacement. Root travel and yaw are applied after
             // smoothing so locomotion cannot consume reach or leave the wing behind.

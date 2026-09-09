@@ -11,9 +11,10 @@ namespace VoarVR.Input
     {
         private readonly InputActionMap actions = new InputActionMap("Flight");
         private readonly InputAction leftPosition, rightPosition, leftRotation, rightRotation;
-        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, reset, pause, viewToggle, windMode;
+        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect;
         private WingInput previousLeft, previousRight;
-        private bool resetHeld, pauseHeld, viewHeld, windHeld;
+        private readonly TrackedBodyFrame body = new TrackedBodyFrame();
+        private bool recalibrateHeld, pauseHeld, viewHeld, windHeld, menuHeld;
         public FlightInputFrame LastRawFrame { get; private set; }
         public bool WingsEnabled { get; set; }
         public string Mode => "XR / OpenXR";
@@ -31,10 +32,11 @@ namespace VoarVR.Input
             headRotation = Action("HeadRotation", "<XRHMD>/centerEyeRotation");
             tuck = Action("Tuck", "<XRController>{RightHand}/trigger");
             flare = Action("Flare", "<XRController>{LeftHand}/trigger");
-            reset = Action("Reset", "<XRController>{RightHand}/primaryButton");
+            recalibrate = Action("Recalibrate", "<XRController>{RightHand}/primaryButton");
             pause = Action("Pause", "<XRController>{LeftHand}/primaryButton");
             viewToggle = Action("ViewToggle", "<XRController>{RightHand}/secondaryButton");
             windMode = Action("WindMode", "<XRController>{LeftHand}/secondaryButton");
+            characterSelect = Action("CharacterSelect", "<XRController>{LeftHand}/menuButton");
             actions.Enable();
         }
 
@@ -73,23 +75,28 @@ namespace VoarVR.Input
                 ? Mathf.Clamp(frame.LeftWing.Position.y - frame.RightWing.Position.y, -1f, 1f) : 0f;
             frame.Tuck = tuck.ReadValue<float>();
             frame.Flare = flare.ReadValue<float>();
-            bool resetNow = reset.ReadValue<float>() > 0.5f;
+            bool recalibrateNow = recalibrate.ReadValue<float>() > 0.5f;
             bool pauseNow = pause.ReadValue<float>() > 0.5f;
             bool viewNow = viewToggle.ReadValue<float>() > 0.5f;
             bool windNow = windMode.ReadValue<float>() > 0.5f;
-            frame.ResetPressed = resetNow && !resetHeld;
+            frame.RecalibratePressed = recalibrateNow && !recalibrateHeld;
+            frame.ResetPressed = frame.RecalibratePressed;
+            bool menuNow = characterSelect.ReadValue<float>() > .5f;
+            frame.CharacterSelectPressed = menuNow && !menuHeld;
+            menuHeld = menuNow;
             frame.PausePressed = pauseNow && !pauseHeld;
             frame.ViewTogglePressed = viewNow && !viewHeld;
             frame.WindModePressed = windNow && !windHeld;
-            resetHeld = resetNow;
+            recalibrateHeld = recalibrateNow;
             pauseHeld = pauseNow;
             viewHeld = viewNow;
             windHeld = windNow;
-            if (frame.ResetPressed)
+            if (frame.RecalibratePressed)
             {
-                // App-space recenter captures this pose; avoid an asynchronous origin jump.
+                // Restart captures this pose; avoid carrying an old derivative into flight.
                 previousLeft = previousRight = default;
             }
+            body.Sample(ref frame, deltaTime);
             LastRawFrame = frame;
             if (!WingsEnabled)
             {
@@ -98,14 +105,18 @@ namespace VoarVR.Input
                 frame.LeftWing = FlightInputFrame.Neutral.LeftWing;
                 frame.RightWing = FlightInputFrame.Neutral.RightWing;
                 frame.Bank = frame.Tuck = frame.Flare = 0f;
+                frame.BodyTracked = false;
             }
             return frame;
         }
 
         public void ResetDerivatives()
         {
+            body.ResetDerivatives();
             previousLeft = previousRight = default;
         }
+
+        public void ResetTrackingOrigin() { body.Reset(); ResetDerivatives(); }
 
         public void Dispose() => actions.Dispose();
     }

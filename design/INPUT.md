@@ -1,20 +1,25 @@
 # Input contract and current mappings
 
-All devices supply `FlightInputFrame` via `IFlightInput`. Keep physical/controller API details outside BirdFlightController.
+All devices supply `FlightInputFrame` via `IFlightInput`. Device APIs remain in Input.
 
-| Value | XR provider | Gamepad provider | Synthetic provider |
-| --- | --- | --- | --- |
-| Wing position/orientation | Actual tracked controller pose in local tracking space | Fixed neutral poses | Neutral poses; flap varies height |
-| Wing velocity | Finite difference of local poses; zero on tracking reacquisition | South button held emulates a downward stroke | Analytic sinusoidal flap velocity |
-| Look direction | Head rotation applied to forward | Forward placeholder | Forward placeholder |
-| Bank | Left-minus-right wing height clamped to [-1,1] | Left stick X | Left/right gesture +/-1 |
-| Tuck/dive | Right trigger | Right trigger | Dive gesture |
-| Flare | Left trigger | Left trigger | Flare gesture |
-| Reset/recenter | Spread arms, then right primary captures tracked head/hands and resets bird | Select/back resets bird | Tests can supply frame flags |
-| Pause | Left primary button edge | Start button edge | Not sequenced yet; tests can supply frame flags |
+| Action | Quest | Gamepad |
+| --- | --- | --- |
+| Wing pose | Tracked controllers, scaled to selected species after calibration | Neutral pose; South held supplies a downward stroke |
+| Restart and calibrate | Right primary (A), in a comfortable level spread | Select/back resets |
+| Calibrate here | Platform Meta/Oculus recenter notification, then hold spread still | Not needed for emulated poses |
+| Switch first/third person | Right secondary | North |
+| Cycle Assisted/Touring/Wild/StillAir | Left secondary | West |
+| Bank | Lower the wing toward the turn | Left stick X |
+| Turn physically | Spread-hand axis estimates torso yaw | Not applicable |
+| Tuck/dive | Right trigger | Right trigger |
+| Flare | Left trigger | Left trigger |
+| Pause | Left primary (X) | Start |
+| Character selection | Left Menu button | East/B; Escape on keyboard |
 
-XR wing physics and presentation stay at a safe neutral pose until deliberate calibration succeeds. Calibration requires a valid HMD, both tracked hands and 0.7-2.2 m separation. It captures neutral positions/rotations, yaw heading and human span; all three controller-position axes scale to the 1.12 m duck span, while head translation remains physical 1:1. A temporary in-world prompt reports the required action. Reset suppresses derivative spikes.
+Right primary (A) resets the flight to spawn/first person and captures the current tracked head/hands in one action, requiring a level 0.7–2.2 m comfortable spread. Invalid capture leaves neutral wings and an explicit retry prompt. Each species supplies its rest reach and motion scale. A platform recenter only invalidates/rebuilds calibration in place: it leaves simulation position, velocity and view mode intact, suppresses wing derivatives, and waits for 0.35 seconds of fresh stable comfortable tracking before automatically capturing. Meta's reserved system button is not directly bound by the app: the app receives `XRInputSubsystem.trackingOriginUpdated`. This event may also originate from other runtime tracking-origin changes.
 
-Auto input chooses XR for an Android player, gamepad if present at startup in the Editor/desktop, otherwise Synthetic/Glide. Missing controller tracking contributes no flap and the rig eases toward rest; reacquisition suppresses the first velocity derivative. The camera retains its last valid HMD pose through loss. There is no dominant-hand setting, replay file format, haptics or accessibility effort control yet.
+Left Menu returns to CharacterSelect, clearing the consumed character pick and restoring scene time scale. X still pauses. The calibration and pause prompts show character-selection help.
 
-Calibration, controller bindings, stereo scale and effort still require an on-headset playtest. Synthetic fixtures cover neutral glide, symmetric flap, both banks, tuck/dive, flare, stall recovery, takeoff and tracking loss.
+`TrackedBodyFrame` estimates heading from the horizontal line between spread controllers. Independent head look does not steer. With tucked/missing hands it holds the last heading; head yaw is only an initial fallback. This is an approximation without a torso tracker: unusual asymmetric or crossed-hand poses remain a physical testing concern. Torso-relative wing derivatives prevent a whole-body turn from acting like a flap. Camera math removes the physical yaw already applied to the bird, preserving head look without doubling it; head translation stays 1:1.
+
+Auto uses XR on Android, a connected gamepad on desktop, otherwise synthetic input. Missing/reacquired tracking suppresses velocity spikes. First and third person both retain head tracking; camera bank/roll is not inherited. Quest recenter behavior, physical effort and comfort need an on-headset session for each release.

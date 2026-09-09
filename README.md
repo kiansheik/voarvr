@@ -2,7 +2,7 @@
 
 Bird flight simulation / fitness game for Meta Quest 3, with a future non-VR gamepad mode. Unity is the runtime engine; Blender is the source DCC tool. **Current status: foundation / prototype stage.**
 
-The current prototype contains a low-poly rigged duck embodied at the HMD, controller-to-wing analytic IK, explicit arm-span calibration, persistent force-integrated flight, perching/ground takeoff, XR/gamepad/synthetic input, a measured flight field, diagnostics, Unity tests and validated static/rigged Blender export. Fitness, wildlife, general collision, production environments and a finished gamepad experience are future work.
+The prototype lets you choose a rigged duck or a broad-winged dragon, calibrate your arm span, flap and glide through a generated spirit-city/forest course, and use visible moving thermals. It includes controller-to-wing IK, first/third-person views, perching/ground takeoff and deterministic flight tests. Fitness scoring, wildlife, general obstacle collision and production environments are future work.
 
 **Validation status:** Unity 6000.6.0f1 and Blender 5.2.1 LTS are the tested local baselines. Editor compilation, deterministic simulation/rig tests, Blender static and rigged FBX roundtrips and desktop visual review pass. Android tooling is installed; the final APK build result and Quest hardware boundary are recorded in [current state](docs/agent/current-state.md). Nothing was committed or pushed.
 
@@ -63,8 +63,8 @@ python3 -m unittest discover -s tools/scripts -p 'test_*.py'
 2. Wait for package resolution and import. Package Manager > In Project should show Input System, Universal RP, XR Plug-in Management, OpenXR Plugin and Test Framework. Versions are in `unity/Packages/manifest.json`; URP 17.3 and Test Framework 1.6 are editor-core packages. No Asset Store download, Meta All-in-One SDK or XR Interaction Toolkit is needed.
 3. Run **VoarVR > Configure Foundation**. This creates URP renderer/pipeline and Android XR settings assets, sets Input System-only input, ARM64/IL2CPP, Vulkan, Linear color, 4x MSAA without HDR, and the two build scenes. Restart the editor if requested for the input backend. The command preserves the authored scenes; rerunning it reapplies foundation player/XR defaults.
 4. Verify Graphics and Quality settings reference `VoarVRPipeline`. Confirm the Console has no compiler/import errors.
-5. Open `Assets/Scenes/Bootstrap/Bootstrap.unity` and press Play. It loads BirdFlight. Without a gamepad, Auto uses deterministic synthetic glide. On the Bird object, choose Synthetic and change Gesture to inspect flap, bank, tuck/dive, flare, stall recovery and tracking loss.
-6. On Quest, spread both tracked arms comfortably and press the right primary button. Valid calibration requires head and both hands tracked with 0.7-2.2 m hand separation; an in-world prompt remains visible until accepted. Head translation stays 1:1 while arm motion scales to the duck skeleton. The desktop HUD exposes speed, vertical speed, phase, energy, angle of attack and calibration status.
+5. Run **VoarVR > Configure Characters** after regenerating a character FBX. Open `Assets/Scenes/Bootstrap/Bootstrap.unity` and press Play to select Duck or Dragon. Without a gamepad, Auto uses deterministic synthetic glide. On the Bird object, choose Synthetic and change Gesture to inspect flap, bank, tuck/dive, flare, stall recovery and tracking loss.
+6. On Quest, spread both tracked arms comfortably and press **A** to restart and calibrate together (level 0.7–2.2 m spread). **B** switches viewpoint; **Y** cycles Assisted, Touring, Wild and Still Air; **X** pauses. Left trigger flares; right trigger tucks. Holding Meta to recenter recalibrates **in place** after you hold the spread still. **Left Menu** returns to character selection. Dragon is tuned for slow moderate wingbeats and glide breaks; extra-fast flapping reaches a force ceiling.
 
 To configure from the command line instead, **close the editor for this project**:
 
@@ -151,3 +151,5 @@ Track first-party code, scene/prefab/material text, Unity `.meta`, package manif
 - [Blender pipeline](docs/BLENDER_PIPELINE.md) · [Asset guidelines](docs/ASSET_GUIDELINES.md)
 - [Roadmap](docs/ROADMAP.md) · [Future Switch notes](docs/SWITCH_NOTES.md)
 - [Game design](design/GAME.md) · [Agent index](docs/agent/index.md) · [Tools](tools/README.md)
+
+The installed **VoarVR** app stays on Quest after disconnect/reboot. Open **Library → Unknown Sources → VoarVR**; sideloaded apps do not appear in the main app grid. If the tab is missing, reopen Library. See [Meta’s current instructions](https://developers.meta.com/horizon/documentation/android-apps/enable-developer-mode/).

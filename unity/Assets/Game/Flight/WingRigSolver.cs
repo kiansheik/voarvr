@@ -28,16 +28,17 @@ namespace VoarVR.Flight
     {
         public Vector3 HeadOrigin;
         public Quaternion Heading = Quaternion.identity;
+        public Quaternion BodyHeading { get; private set; } = Quaternion.identity;
         public Vector3 LeftNeutral = FlightInputFrame.Neutral.LeftWing.Position;
         public Vector3 RightNeutral = FlightInputFrame.Neutral.RightWing.Position;
         public Quaternion LeftRotation = Quaternion.identity, RightRotation = Quaternion.identity;
         public float HumanSpanMeters = 1.2f;
-        public float DuckSpanMeters = 1.12f;
+        public float BirdHalfSpanMeters = .56f;
         public float MinimumCalibrationSpanMeters = .7f;
         public float MaximumCalibrationSpanMeters = 2.2f;
         public bool Captured;
         public bool HeadCaptured;
-        public float MotionScale => DuckSpanMeters / Mathf.Max(.35f, HumanSpanMeters);
+        public float MotionScale => BirdHalfSpanMeters * 2f / Mathf.Max(.35f, HumanSpanMeters);
         // Raised and moved aft after headset feedback so the wing roots enter peripheral vision.
         public static Vector3 EyeAnchor => new Vector3(0f, .50f, -.42f);
 
@@ -48,7 +49,8 @@ namespace VoarVR.Flight
                 || span < MinimumCalibrationSpanMeters || span > MaximumCalibrationSpanMeters)
                 return false;
             HeadOrigin = frame.HeadPosition;
-            Heading = Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
+            Heading = frame.BodyTracked ? frame.BodyOrientation : Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
+            BodyHeading = Heading;
             HeadCaptured = true;
             LeftNeutral = frame.LeftWing.Position;
             RightNeutral = frame.RightWing.Position;
@@ -65,7 +67,7 @@ namespace VoarVR.Flight
             if (!frame.HeadTracked || !frame.LeftWing.Tracked || !frame.RightWing.Tracked
                 || span < MinimumCalibrationSpanMeters || span > MaximumCalibrationSpanMeters)
                 return false;
-            var heading = Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
+            var heading = frame.BodyTracked ? frame.BodyOrientation : Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
             var left = Quaternion.Inverse(heading) * (frame.LeftWing.Position - frame.HeadPosition);
             var right = Quaternion.Inverse(heading) * (frame.RightWing.Position - frame.HeadPosition);
             bool oppositeSides = left.x < -.25f && right.x > .25f;
@@ -83,7 +85,8 @@ namespace VoarVR.Flight
         {
             if (!frame.HeadTracked) return false;
             HeadOrigin = frame.HeadPosition;
-            Heading = Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
+            Heading = frame.BodyTracked ? frame.BodyOrientation : Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
+            BodyHeading = Heading;
             HeadCaptured = true;
             return true;
         }
@@ -94,15 +97,30 @@ namespace VoarVR.Flight
             HeadCaptured = false;
         }
 
-        public Vector3 WingTarget(WingInput wing, bool left)
+        public void ConfigureBirdHalfSpan(float halfSpanMeters)
+        {
+            BirdHalfSpanMeters = Mathf.Max(.1f, halfSpanMeters);
+        }
+
+        public Vector3 WingTarget(WingInput wing, bool left, Vector3 currentHeadPosition, Quaternion currentBodyOrientation)
         {
             var neutral = left ? LeftNeutral : RightNeutral;
-            return new Vector3(left ? -.56f : .56f, .04f, .005f)
-                + Quaternion.Inverse(Heading) * (wing.Position - neutral) * MotionScale;
+            var currentHeading = Quaternion.Euler(0f, currentBodyOrientation.eulerAngles.y, 0f);
+            var neutralLocal = Quaternion.Inverse(Heading) * (neutral - HeadOrigin);
+            var currentLocal = Quaternion.Inverse(currentHeading) * (wing.Position - currentHeadPosition);
+            return new Vector3(left ? -BirdHalfSpanMeters : BirdHalfSpanMeters, .04f, .005f)
+                + (currentLocal - neutralLocal) * MotionScale;
         }
-        public Quaternion WingRotation(WingInput wing, bool left) => Quaternion.Inverse(Heading)
+        public Vector3 WingTarget(WingInput wing, bool left) =>
+            WingTarget(wing, left, HeadOrigin, Heading);
+        public void UpdateBody(FlightInputFrame frame)
+        {
+            if (frame.BodyTracked) BodyHeading = frame.BodyOrientation;
+        }
+        public Quaternion WingRotation(WingInput wing, bool left) => WingRotation(wing, left, Heading);
+        public Quaternion WingRotation(WingInput wing, bool left, Quaternion bodyHeading) => Quaternion.Inverse(bodyHeading)
             * wing.Orientation * Quaternion.Inverse(left ? LeftRotation : RightRotation) * Heading;
         // Head translation stays at physical scale; arm-span scaling applies only to wings.
-        public Vector3 HeadOffset(Vector3 position) => Quaternion.Inverse(Heading) * (position - HeadOrigin);
+        public Vector3 HeadOffset(Vector3 position) => Quaternion.Inverse(BodyHeading) * (position - HeadOrigin);
     }
 }

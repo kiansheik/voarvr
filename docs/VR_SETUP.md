@@ -56,7 +56,9 @@ python3 tools/scripts/unity.py build-quest
 
 For multiple devices use `"$ADB" -s SERIAL install -r builds/quest/VoarVR.apk`. Launch from the headset's developer/unknown-sources app library after adb installation. Build output is ignored. No production signing key is stored; Unity uses development signing for this prototype.
 
-On device Auto selects XR. Physical controller position/orientation is read through Input System/OpenXR, velocity is differenced in tracking coordinates, and head pose drives the camera. Right trigger tucks/dives; left trigger flares; right primary button resets/recenters; left primary button toggles pause. Recenter support depends on the active XR tracking origin/runtime; check its actual effect on hardware. Meta system menu remains a system control. Returning from tracking loss suppresses the first wing velocity sample.
+On device Auto selects XR. Physical controller position/orientation is read through Input System/OpenXR; torso-relative derivatives suppress body-turn and tracking-recovery spikes. A restarts and calibrates together; B toggles view; X pauses; Y cycles weather; left Menu returns to character selection. Meta platform recenter recalibrates in place after stable tracking. The reserved system button is not directly bound. See [input contract](../design/INPUT.md).
+
+Installed APKs persist locally after disconnect/reboot. Find **VoarVR** in **Library → Unknown Sources**, not the main app grid. If the tab is absent after installation, reopen Library. [Meta documents this location](https://developers.meta.com/horizon/documentation/android-apps/enable-developer-mode/).
 
 Confirm head rotation/translation, left/right controller assignment, reasonable wing velocity signs, pause/reset and consistent stereo rendering before developing the workout loop. Smooth yaw/forward motion and direct physical wing mappings are provisional and not comfort-tested. The simulation keeps moving forward with no collision/perch response. The desktop HUD is deliberately disabled in XR; inspect values through Unity tooling/logging until an in-world HUD is designed.
 

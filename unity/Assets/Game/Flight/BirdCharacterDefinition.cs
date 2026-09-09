@@ -26,6 +26,12 @@ namespace VoarVR.Flight
         // Rest-pose glide target distance from shoulder, meters; scale with the rig's actual
         // bone lengths so the idle pose neither overreaches nor folds a longer/shorter wing.
         public float RestArmSpan = 0.56f;
+        [Tooltip("Aerodynamic wing area beyond overall Size scaling. Match this to unusually broad or narrow authored wings.")]
+        [Min(0.25f)] public float WingAreaMultiplier = 1f;
+        [Tooltip("Forward work from a neutral downstroke, relative to its lift. Keeps broad-winged species moving without wrist contortions.")]
+        [Range(0f, 1f)] public float StrokeForwardRatio;
+        [Tooltip("Hand-speed ceiling for active stroke force; faster effort beyond this does not launch the bird violently.")]
+        [Range(1f, 4.2f)] public float StrokeSpeedLimit = 4.2f;
 
         [Header("Stats (relative to the Duck baseline)")]
         [Tooltip("Overall body/wing scale, used for the stat bar and to derive wing area/drag/mass. The rig's visual mesh size is authored separately in Blender.")]
@@ -46,13 +52,19 @@ namespace VoarVR.Flight
         public BirdFlightProfile BuildProfile()
         {
             float sizeSq = Size * Size;
+            float mass = 1.1f * Size * sizeSq * Mathf.Lerp(0.4f, 1.6f, Weight);
             return new BirdFlightProfile
             {
-                MassKg = 1.1f * Size * sizeSq * Mathf.Lerp(0.4f, 1.6f, Weight),
-                WingAreaM2 = 0.28f * sizeSq,
+                MassKg = mass,
+                WingAreaM2 = 0.28f * sizeSq * WingAreaMultiplier,
                 BodyDragAreaM2 = 0.018f * sizeSq,
-                MaxStrokeSpeed = Mathf.Lerp(1.8f, 4.2f, Speed),
-                StrokeForcePerSpeedSquared = Mathf.Lerp(3f, 15f, Power) * Mathf.Max(Size, 0.5f),
+                MaxStrokeSpeed = Mathf.Min(StrokeSpeedLimit, Mathf.Lerp(1.8f, 4.2f, Speed)),
+                // Controller velocity is human-scale, even for a huge rig. Preserve the
+                // Power stat's acceleration per unit hand effort instead of cubing the burden.
+                StrokeForcePerSpeedSquared = Mathf.Lerp(3f, 15f, Power) * (mass / 1.1f),
+                StrokeForwardRatio = StrokeForwardRatio,
+                TakeoffFlapThreshold = Mathf.Min(1.2f, StrokeSpeedLimit * .45f),
+                TakeoffForwardSpeed = 6f + StrokeForwardRatio * 3f,
                 InitialSpeedMps = Mathf.Lerp(5f, 11f, Speed),
                 StallSpeedMps = Mathf.Lerp(2.5f, 5.5f, Weight),
                 MaxRollDeg = Mathf.Lerp(35f, 65f, Agility),

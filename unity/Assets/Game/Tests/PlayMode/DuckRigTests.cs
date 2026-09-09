@@ -128,6 +128,7 @@ namespace VoarVR.Tests
             var hazard=GameObject.Find("Thermal_2_0").GetComponent<LineRenderer>();
             Assert.That(hazard.enabled,Is.True);
             Assert.That(hazard.sharedMaterial.name,Does.Contain("WindHazard"));
+            Assert.That(GameObject.Find("TravelingDraft_00"), Is.Not.Null);
             foreach(var renderer in world.GetComponentsInChildren<Renderer>())
                 Assert.That(renderer.sharedMaterial?.shader?.isSupported,Is.True,renderer.name);
         }

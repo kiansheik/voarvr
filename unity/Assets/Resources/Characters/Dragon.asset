@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Dragon
   m_EditorClassIdentifier: 
   DisplayName: Dragon
-  FlavorText: Huge and powerful. Slow to turn, hard to slow down, and needs real wingbeats to get airborne.
+  FlavorText: Broad wings and flowing turns. Slow, comfortable wingbeats build speed; spread out to soar.
   SortOrder: 1
   RigModel: {fileID: 919132149155446097, guid: 410fc84cc47794b22b40b1742875e94a, type: 3}
   ModelAssetPath: Assets/Art/Models/Dragon.fbx
@@ -21,7 +21,10 @@ MonoBehaviour:
   FirstPersonHiddenParts:
   - Face
   - Neck
-  RestArmSpan: 1.1
+  RestArmSpan: 2.45
+  WingAreaMultiplier: 5.5
+  StrokeForwardRatio: 0.8
+  StrokeSpeedLimit: 1.6
   Size: 2
   Speed: 0.55
   Power: 0.85
