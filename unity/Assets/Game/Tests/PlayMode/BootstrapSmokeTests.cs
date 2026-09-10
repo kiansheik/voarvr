@@ -30,8 +30,13 @@ namespace VoarVR.Tests
             Assert.That(driver, Is.Not.Null);
             Assert.That(driver.Controller, Is.Not.Null);
             Assert.That(Camera.main, Is.Not.Null);
-            Assert.That(GameObject.Find("Ground"), Is.Not.Null);
-            Assert.That(GameObject.Find("Perch_03"), Is.Not.Null);
+            Assert.That(Object.FindAnyObjectByType<VoarVR.World.WorldStreamer>(), Is.Not.Null);
+            Assert.That(driver.ViewMode, Is.EqualTo(FlightViewMode.ThirdPerson));
+            Assert.That(Object.FindAnyObjectByType<VoarVR.World.UnityFlightEnvironment>(), Is.Not.Null);
+            var bridge = Object.FindAnyObjectByType<VoarVR.World.ProceduralFlightWorld>();
+            Assert.That(bridge.LandingMaterial, Is.Not.Null, "Landing shader needs a serialized build dependency");
+            var guide = driver.GetComponent<VoarVR.World.LandingGuide>().GetComponentInChildren<LineRenderer>();
+            Assert.That(guide.sharedMaterial.shader, Is.EqualTo(bridge.LandingMaterial.shader));
             foreach (var renderer in Object.FindObjectsByType<Renderer>())
             {
                 Assert.That(renderer.sharedMaterial, Is.Not.Null, renderer.name + " has a missing material");

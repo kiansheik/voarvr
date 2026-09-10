@@ -19,10 +19,13 @@ namespace VoarVR.Flight
         [SerializeField] private SyntheticGesture gesture = SyntheticGesture.Glide;
         [SerializeField] private BirdFlightProfile profile = BirdFlightProfile.Duck();
         [SerializeField] private BirdTrackingCalibration calibration = new BirdTrackingCalibration();
-        [SerializeField] private FlightViewMode viewMode = FlightViewMode.FirstPerson;
+        [SerializeField] private FlightViewMode viewMode = FlightViewMode.ThirdPerson;
         private BirdRigDriver rig;
         private BirdCharacterDefinition character;
         private WindField wind;
+        private WorldStreamer world;
+        private Vector3 originalSpawn;
+        private int lastLandingCount;
         private readonly List<XRInputSubsystem> xrSubsystems = new List<XRInputSubsystem>();
         private bool platformRecenterPending;
         private float stableRecenterSeconds;
@@ -52,6 +55,7 @@ namespace VoarVR.Flight
 
         private void Start()
         {
+            viewMode = FlightViewMode.ThirdPerson;
             // Auto chooses XR on device; macOS Editor remains hardware-independent.
             UsesXR = inputMode == FlightInputMode.XR || (inputMode == FlightInputMode.Auto
                 && Application.platform == RuntimePlatform.Android && !Application.isEditor);
@@ -70,23 +74,23 @@ namespace VoarVR.Flight
                 profile = character.BuildProfile();
                 calibration.ConfigureBirdHalfSpan(character.RestArmSpan);
             }
-            var perches = FindObjectsByType<PerchPoint>(FindObjectsInactive.Exclude);
-            var perchInfos = new PerchInfo[perches.Length];
-            for (int i = 0; i < perches.Length; i++)
-            {
-                var perchTransform = perches[i].transform;
-                var renderer = perches[i].GetComponent<Renderer>();
-                float topOffset = renderer != null ? renderer.bounds.max.y - perchTransform.position.y : 0f;
-                perchInfos[i] = new PerchInfo(perchTransform.position, perchTransform.rotation, topOffset);
-            }
             wind = FindAnyObjectByType<WindField>();
-            Controller = new BirdFlightController(input, transform.position, perchInfos, profile, groundHeight: .15f, wind: wind);
+            world = FindAnyObjectByType<WorldStreamer>();
+            originalSpawn = transform.position;
+            var environment = gameObject.AddComponent<UnityFlightEnvironment>();
+            Controller = new BirdFlightController(input, originalSpawn, profile:profile, wind:wind, environment:environment);
             rig = GetComponent<BirdRigDriver>();
             if (UsesXR)
             {
                 SubsystemManager.GetSubsystems(xrSubsystems);
                 foreach (var subsystem in xrSubsystems) subsystem.trackingOriginUpdated += OnTrackingOriginUpdated;
             }
+            // Complete essential rig/input wiring before optional landing presentation.
+            var worldPresentation = FindAnyObjectByType<ProceduralFlightWorld>();
+            gameObject.AddComponent<LandingGuide>().Configure(this, worldPresentation != null ? worldPresentation.LandingMaterial : null);
+            gameObject.AddComponent<VoarVR.UI.FlightHud>().Configure(this, Camera.main, world);
+            gameObject.AddComponent<BirdAirflowTrails>().Configure(this, worldPresentation != null ? worldPresentation.AirflowMaterial : null,
+                world != null ? world.Space : null);
             if (UsesXR) Debug.Log("Duck calibration: spread both tracked arms comfortably, then press the right primary button.");
         }
 
@@ -147,7 +151,14 @@ namespace VoarVR.Flight
             if (input is SyntheticFlightInput synthetic) synthetic.Gesture = gesture;
             // Once per rendered frame so Input System poses and derivative sampling agree.
             // Tests use explicit fixed steps; presentation delta is capped after editor stalls.
+            Controller.StreamingBlocked = world != null && (!world.IsReadyAt(Controller.State.Position)
+                || !world.IsReadyAt(Controller.State.Position + Controller.State.Velocity * deltaTime));
             Controller.Step(deltaTime);
+            if (world != null && (Mathf.Abs(Controller.State.Position.x)>768f || Mathf.Abs(Controller.State.Position.z)>768f))
+            {
+                var p=Controller.State.Position;
+                RebaseWorld(new Vector3(Mathf.Floor(p.x/128f)*128f,0f,Mathf.Floor(p.z/128f)*128f));
+            }
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
             var xr = input as XRFlightInput;
             var frame = xr != null ? xr.LastRawFrame : Controller.LastInput;
@@ -168,15 +179,26 @@ namespace VoarVR.Flight
             }
             if (frame.RecalibratePressed) RestartAndCalibrate(frame);
             else if (platformRecenterPending) TryCompletePlatformRecenter(frame, deltaTime);
+            if (Controller.LandingCount != lastLandingCount)
+            {
+                lastLandingCount=Controller.LandingCount;
+                CoachStatus="LANDED - FLAP TO TAKE OFF"; coachUntil=Time.unscaledTime+3f;
+            }
             if (!platformRecenterPending && Time.unscaledTime >= coachUntil)
             {
                 if (Controller.State.Phase == FlightPhase.Paused)
                     CoachStatus = "PAUSED - X TO RESUME\nLEFT MENU: CHANGE CHARACTER\nA: START + CALIBRATE";
-                else if (Controller.NearestPerchDistance < 18f)
+                else if (Controller.State.Phase == FlightPhase.Perched)
+                    CoachStatus = Controller.LandingCount != lastLandingCount ? "LANDED - FLAP TO TAKE OFF" : null;
+                else if (Controller.MissedLanding)
+                    CoachStatus = "MISSED LANDING - FLAP UP + TRY AGAIN";
+                else if (Controller.NearestPerchDistance < 10f && Controller.State.Velocity.y < -.25f)
                 {
-                    CoachStatus = Controller.State.Speed > profile.FlarePerchMaxCaptureSpeed
-                        ? "LANDING RING AHEAD\nFLARE: LEFT TRIGGER + SLOW BELOW 10 m/s"
-                        : "LANDING RING AHEAD\nGLIDE THROUGH IT + FLARE";
+                    float horizontal=new Vector2(Controller.State.Velocity.x,Controller.State.Velocity.z).magnitude;
+                    CoachStatus = horizontal>8f ? "TOO FAST - RAISE + SPREAD WINGS TO BRAKE"
+                        : Controller.State.Velocity.y < -FlightContactSolver.SafeDownwardSpeed(Controller.LandingBrake > .5f) ? "SLOW YOUR DESCENT - SPREAD WINGS"
+                        : Controller.LandingBrake < .5f && horizontal>6f ? "LAND: RAISE + HOLD WINGS SPREAD\nLEFT TRIGGER HELPS BRAKE"
+                        : "GOOD APPROACH - TOUCH DOWN GENTLY";
                 }
                 else if (Controller.WindVelocity.y > 2f)
                     CoachStatus = "RISING AIR: SPREAD WINGS\nGENTLE BANK + CIRCLE TO STAY IN CORE";
@@ -191,9 +213,11 @@ namespace VoarVR.Flight
         // A is the explicit recovery action: restart flight and capture the held neutral.
         public bool RestartAndCalibrate(FlightInputFrame frame)
         {
+            if(world!=null) world.ResetOrigin();
+            Controller.SetSpawn(originalSpawn);
             Controller.Reset();
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
-            viewMode = FlightViewMode.FirstPerson;
+            viewMode = FlightViewMode.ThirdPerson;
             platformRecenterPending = false;
             if (CaptureNeutral(frame, "READY - GLIDE + FLAP\nB: VIEW / X: PAUSE / LEFT MENU: CHARACTERS")) return true;
             calibration.BeginPlatformRecenter();
@@ -252,6 +276,15 @@ namespace VoarVR.Flight
             if (!stable) previousRecenterFrame = frame;
             hasRecenterFrame = comfortable;
             return stableRecenterSeconds >= .35f && CaptureNeutral(frame, "WING NEUTRAL RECALIBRATED\nA: START / LEFT MENU: CHARACTERS");
+        }
+
+        public void RebaseWorld(Vector3 delta)
+        {
+            if (world == null) return;
+            Controller.RebaseOrigin(delta);
+            transform.position -= delta;
+            if (Camera.main != null) Camera.main.transform.position -= delta;
+            world.Space.Shift(delta);
         }
 
         public void ReturnToCharacterSelect()

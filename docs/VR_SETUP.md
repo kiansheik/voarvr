@@ -60,7 +60,7 @@ On device Auto selects XR. Physical controller position/orientation is read thro
 
 Installed APKs persist locally after disconnect/reboot. Find **VoarVR** in **Library → Unknown Sources**, not the main app grid. If the tab is absent after installation, reopen Library. [Meta documents this location](https://developers.meta.com/horizon/documentation/android-apps/enable-developer-mode/).
 
-Confirm head rotation/translation, left/right controller assignment, reasonable wing velocity signs, pause/reset and consistent stereo rendering before developing the workout loop. Smooth yaw/forward motion and direct physical wing mappings are provisional and not comfort-tested. The simulation keeps moving forward with no collision/perch response. The desktop HUD is deliberately disabled in XR; inspect values through Unity tooling/logging until an in-world HUD is designed.
+Confirm head rotation/translation, left/right controller assignment, reasonable wing velocity signs, pause/reset and consistent stereo rendering before developing the workout loop. Smooth yaw/forward motion and direct physical wing mappings are provisional and not comfort-tested. The simulation uses swept scenery contact and safe contact landing; start in third person, use B to toggle, and raise/hold spread wings to brake before gentle contact. The desktop HUD is deliberately disabled in XR; inspect values through Unity tooling/logging until an in-world HUD is designed.
 
 ## Mac testing boundary
 
@@ -72,3 +72,7 @@ Desktop Play mode supports synthetic/gamepad testing. A connected USB Quest does
 - [Unity XR Plug-in Management](https://docs.unity3d.com/6000.3/Documentation/Manual/xr-plugin-management.html)
 - [Meta headset developer setup](https://developers.meta.com/horizon/documentation/unity/unity-env-device-setup/)
 - [Meta Horizon Link requirements](https://developers.meta.com/horizon/documentation/unity/unity-link/)
+
+## Infinite-world iteration validation
+
+Validate third-person default/A recovery and view-preserving Meta recenter, modest calibrated head-down descent, unchanged Duck effort and longer Dragon glide. Fly across several chunk boundaries, glance a wall/tree, brake onto ground and an elevated canopy/roof, and flap off again. Follow upward-moving traces through a drifting lift feature; cyan horizontal wind alone does not promise lift. Watch for hitches and camera clipping. Automated scene/physics tests and adb launch do not establish worn comfort or sustained Quest frame rate. See the [current handoff](agent/session-handoffs/2026-09-09-infinite-world-landing-v1.md).

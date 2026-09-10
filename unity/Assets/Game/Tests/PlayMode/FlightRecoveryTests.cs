@@ -37,6 +37,7 @@ namespace VoarVR.Tests
             Assert.That(driver.Controller.State.Position, Is.EqualTo(spawn));
             Assert.That(driver.Calibration.Captured, Is.True);
             Assert.That(driver.Controller.SimulationTime, Is.Zero);
+            Assert.That(driver.ViewMode, Is.EqualTo(FlightViewMode.ThirdPerson));
             for (int i = 0; i < 60; i++) driver.Tick(1f / 120f);
             driver.SetViewMode(FlightViewMode.ThirdPerson);
             var state = driver.Controller.State;

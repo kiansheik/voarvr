@@ -91,8 +91,8 @@ namespace VoarVR.Tests
         public void ApproachingPerchAtLowSpeedLandsAndFlapLaunches()
         {
             var input = new SuppliedInput();
-            var perches = new[] { new PerchInfo(new Vector3(0f, 0f, 3f), Quaternion.identity) };
-            var controller = new BirdFlightController(input, Vector3.zero, perches);
+            var profile = BirdFlightProfile.Duck(); profile.InitialSpeedMps=3f;
+            var controller = new BirdFlightController(input, Vector3.up*.3f, profile:profile, environment:new PlaneFlightEnvironment(0f));
             bool perched = false;
             for (int i = 0; i < 180 && !perched; i++)
             {

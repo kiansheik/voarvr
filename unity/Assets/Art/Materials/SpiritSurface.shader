@@ -15,6 +15,7 @@ Shader "VoarVR/SpiritSurface"
             #pragma fragment Frag
             #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
             struct Attributes { float4 positionOS:POSITION; float3 normalOS:NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS:SV_POSITION; float3 positionWS:TEXCOORD0; half shade:TEXCOORD1; UNITY_VERTEX_OUTPUT_STEREO };
             CBUFFER_START(UnityPerMaterial)
@@ -34,9 +35,10 @@ Shader "VoarVR/SpiritSurface"
             half4 Frag(Varyings input):SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-                half haze = saturate((distance(input.positionWS, _WorldSpaceCameraPos) - 35.0) / 200.0) * 0.8h;
+                // Fade completely before the nearest streamed edge; altitude does not erase nearby ground.
+                half haze = smoothstep(65.0, 235.0, distance(input.positionWS.xz, _WorldSpaceCameraPos.xz));
                 half3 color = _BaseColor.rgb * input.shade;
-                return half4(lerp(color, half3(0.32h, 0.52h, 0.59h), haze), 1.0h);
+                return half4(lerp(color, SRGBToLinear(half3(0.42h, 0.65h, 0.76h)), haze), 1.0h);
             }
             ENDHLSL
         }

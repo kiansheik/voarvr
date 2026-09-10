@@ -25,6 +25,8 @@ MonoBehaviour:
   WingAreaMultiplier: 5.5
   StrokeForwardRatio: 0.8
   StrokeSpeedLimit: 1.6
+  GlideDragMultiplier: 0.7
+  WingPitchSensitivity: 0.3
   Size: 2
   Speed: 0.55
   Power: 0.85

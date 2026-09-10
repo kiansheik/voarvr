@@ -32,6 +32,10 @@ namespace VoarVR.Flight
         [Range(0f, 1f)] public float StrokeForwardRatio;
         [Tooltip("Hand-speed ceiling for active stroke force; faster effort beyond this does not launch the bird violently.")]
         [Range(1f, 4.2f)] public float StrokeSpeedLimit = 4.2f;
+        [Tooltip("Profile and induced drag multiplier; lower values represent more efficient soaring wings without adding lift.")]
+        [Range(.25f, 2f)] public float GlideDragMultiplier = 1f;
+        [Tooltip("Effective wrist pitch for wing incidence and body pitch. Visual wrist articulation remains one-to-one.")]
+        [Range(.1f, 1f)] public float WingPitchSensitivity = 1f;
 
         [Header("Stats (relative to the Duck baseline)")]
         [Tooltip("Overall body/wing scale, used for the stat bar and to derive wing area/drag/mass. The rig's visual mesh size is authored separately in Blender.")]
@@ -57,6 +61,10 @@ namespace VoarVR.Flight
             {
                 MassKg = mass,
                 WingAreaM2 = 0.28f * sizeSq * WingAreaMultiplier,
+                WingDragCoefficient = .07f * GlideDragMultiplier,
+                WingPitchSensitivity = WingPitchSensitivity,
+                InducedDragCoefficient = .12f * GlideDragMultiplier,
+                CollisionRadius = Mathf.Lerp(.22f, .55f, Mathf.Clamp01(Size - 1f)),
                 BodyDragAreaM2 = 0.018f * sizeSq,
                 MaxStrokeSpeed = Mathf.Min(StrokeSpeedLimit, Mathf.Lerp(1.8f, 4.2f, Speed)),
                 // Controller velocity is human-scale, even for a huge rig. Preserve the

@@ -148,7 +148,8 @@ namespace VoarVR.Tests
         }
         [Test] public void GroundContactAllowsTakeoffAndKeepsLaunchInertia()
         {
-            var input=new Input();var c=new BirdFlightController(input,Vector3.up*.2f,groundHeight:.15f);
+            var input=new Input();var profile=BirdFlightProfile.Duck();profile.InitialSpeedMps=3f;
+            var c=new BirdFlightController(input,Vector3.up*.2f,profile:profile,groundHeight:.15f);
             for(int i=0;i<240;i++) c.Step(1f/120f);
             Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
             input.Frame.LeftWing.Velocity=input.Frame.RightWing.Velocity=Vector3.down*3;
@@ -301,29 +302,6 @@ namespace VoarVR.Tests
                 Is.EqualTo(.12f).Within(.0001f));
         }
 
-        [Test] public void WindModesExposeHelpfulThermalsHazardsAndStillAir()
-        {
-            var go=new GameObject("WindFixture");var field=go.AddComponent<WindField>();
-            field.SetMode(WindMode.Assisted);
-            Assert.That(field.Sample(WindField.ThermalCenters[0]+Vector3.up*8f,1f).y,Is.GreaterThan(3f));
-            field.SetMode(WindMode.Wild);
-            Assert.That(field.Sample(field.GetThermalCenter(2,1f)+Vector3.up*8f,1f).y,Is.LessThan(-3f));
-            field.SetMode(WindMode.StillAir);
-            Assert.That(field.Sample(Vector3.one*99f,123f),Is.EqualTo(Vector3.zero));
-            Object.DestroyImmediate(go);
-        }
-
-        [Test] public void ThermalCoreMeandersAndRemainsRideable()
-        {
-            var go = new GameObject("MovingWindFixture"); var field = go.AddComponent<WindField>();
-            field.SetMode(WindMode.Assisted);
-            var early = field.GetThermalCenter(0, 0f);
-            var later = field.GetThermalCenter(0, 30f);
-            Assert.That(Vector3.Distance(early, later), Is.GreaterThan(2f));
-            Assert.That(field.Sample(later + Vector3.up * 8f, 30f).y, Is.GreaterThan(5f));
-            Object.DestroyImmediate(go);
-        }
-
         [Test] public void DragonBroadWingsProduceAUsableGlideEnvelope()
         {
             var dragon = Resources.Load<BirdCharacterDefinition>("Characters/Dragon");
@@ -335,23 +313,6 @@ namespace VoarVR.Tests
             for (int i = 0; i < 600; i++) controller.Step(1f / 120f);
             Assert.That(controller.State.Position.y, Is.GreaterThan(75f));
             Assert.That(controller.State.Velocity.z, Is.GreaterThan(2f));
-        }
-
-        [Test] public void DragonCanGainHeightInMovingThermalsWithoutFlapping()
-        {
-            var go = new GameObject("SoaringFixture");
-            var wind = go.AddComponent<WindField>();
-            var profile = Resources.Load<BirdCharacterDefinition>("Characters/Dragon").BuildProfile();
-            var input = new Input();
-            input.Frame.Bank = .553f; // Sustained moderate bank, no wing stroke or artificial climb.
-            var spawn = wind.GetThermalCenter(0, 0f) + new Vector3(-5f, 25f, 0f);
-            var soaring = new BirdFlightController(input, spawn, profile: profile, wind: wind);
-            var still = new BirdFlightController(input, spawn, profile: profile);
-            for (int i = 0; i < 2400; i++) { soaring.Step(1f / 120f); still.Step(1f / 120f); }
-            Assert.That(soaring.State.Position.y, Is.GreaterThan(spawn.y + 5f));
-            Assert.That(soaring.State.Position.y, Is.GreaterThan(still.State.Position.y + 15f));
-            Assert.That(soaring.StrokeForce.sqrMagnitude, Is.LessThan(.0001f));
-            Object.DestroyImmediate(go);
         }
 
         [Test] public void UpdraftPreservesMoreHeightThanStillAir()
@@ -391,23 +352,12 @@ namespace VoarVR.Tests
             Assert.That(calibration.IsComfortableGlidePose(frame),Is.False);
         }
 
-        [Test] public void FlareExtendsReadablePerchCaptureEnvelope()
-        {
-            var perch=new[]{new PerchInfo(new Vector3(0f,20f,1.9f),Quaternion.identity)};
-            var glideInput=new Input();var glide=new BirdFlightController(glideInput,Vector3.up*20f,perch);
-            glide.Step(1f/120f);Assert.That(glide.State.Phase,Is.Not.EqualTo(FlightPhase.Perching));
-            var flareInput=new Input();flareInput.Frame.Flare=1f;
-            var flare=new BirdFlightController(flareInput,Vector3.up*20f,perch);
-            flare.Step(1f/120f);Assert.That(flare.State.Phase,Is.EqualTo(FlightPhase.Perching));
-        }
-
         private static FlightInputFrame StandingPose()
         {
-            var f = FlightInputFrame.Neutral;
-            f.HeadTracked = true;
-            f.HeadPosition = new Vector3(0f, 1.65f, 0f);
-            f.LeftWing.Position = new Vector3(-.7f, 1.25f, 0f);
-            f.RightWing.Position = new Vector3(.7f, 1.25f, 0f);
+            var f=FlightInputFrame.Neutral; f.HeadTracked=true;
+            f.HeadPosition=new Vector3(0f,1.65f,0f);
+            f.LeftWing.Position=new Vector3(-.7f,1.25f,0f);
+            f.RightWing.Position=new Vector3(.7f,1.25f,0f);
             return f;
         }
 

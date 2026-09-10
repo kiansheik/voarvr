@@ -43,6 +43,7 @@ namespace VoarVR.Tests
         {
             yield return SceneManager.LoadSceneAsync("BirdFlight");yield return null;
             var driver=Object.FindAnyObjectByType<BirdFlightDriver>();driver.enabled=false;
+            driver.SetViewMode(FlightViewMode.FirstPerson);
             driver.transform.rotation=Quaternion.Euler(30,0,45);
             yield return null;
             Assert.That(Mathf.Abs(Vector3.Dot(Camera.main.transform.right,Vector3.up)),Is.LessThan(.01f));
@@ -115,20 +116,11 @@ namespace VoarVR.Tests
             var world=Object.FindAnyObjectByType<ProceduralFlightWorld>();
             var wind=Object.FindAnyObjectByType<WindField>();
             Assert.That(world,Is.Not.Null);Assert.That(wind,Is.Not.Null);
-            Assert.That(GameObject.Find("SpiritCity"),Is.Not.Null);
-            Assert.That(GameObject.Find("SpiritForest"),Is.Not.Null);
-            Assert.That(GameObject.Find("VisibleWind"),Is.Not.Null);
-            Assert.That(GameObject.Find("LandingBeacons"),Is.Not.Null);
-            foreach(var ring in GameObject.Find("LandingBeacons").GetComponentsInChildren<LineRenderer>())
-                Assert.That(ring.transform.position.y,Is.GreaterThan(.5f),ring.name);
+            Assert.That(world.Streamer.ActiveCount,Is.EqualTo(WorldStreamer.MaximumChunks));
+            Assert.That(Object.FindAnyObjectByType<WindVisualizer>(),Is.Not.Null);
+            Assert.That(Object.FindAnyObjectByType<LandingGuide>(),Is.Not.Null);
             wind.SetMode(WindMode.StillAir);yield return null;
-            foreach(var line in GameObject.Find("VisibleWind").GetComponentsInChildren<LineRenderer>(true))
-                Assert.That(line.enabled,Is.False,line.name);
-            wind.SetMode(WindMode.Wild);yield return null;
-            var hazard=GameObject.Find("Thermal_2_0").GetComponent<LineRenderer>();
-            Assert.That(hazard.enabled,Is.True);
-            Assert.That(hazard.sharedMaterial.name,Does.Contain("WindHazard"));
-            Assert.That(GameObject.Find("TravelingDraft_00"), Is.Not.Null);
+            Assert.That(Object.FindAnyObjectByType<WindVisualizer>().ActiveRibbonCount,Is.Zero);
             foreach(var renderer in world.GetComponentsInChildren<Renderer>())
                 Assert.That(renderer.sharedMaterial?.shader?.isSupported,Is.True,renderer.name);
         }
