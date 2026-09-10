@@ -14,6 +14,11 @@ namespace VoarVR.Flight
         // BirdCharacterDefinition.RestArmSpan) so a longer- or shorter-armed rig neither
         // overreaches nor folds at rest. Duck default preserves the original tuning.
         public float restArmSpan = 0.56f;
+        // Optional joint limits configured by an articulation capability; zero leaves
+        // legacy mapping untouched. Shoulder long-axis rotation preserves link length.
+        public float ShoulderSweepLimitDeg;
+        public float ShoulderPronationGain;
+        public float MaxShoulderPronationDeg = 45f;
 
         public void SetFirstPersonVisibility(bool firstPerson)
         {
@@ -73,6 +78,9 @@ namespace VoarVR.Flight
             var rest = new Vector3(isLeft ? -restArmSpan : restArmSpan,.04f,.005f);
             var desiredLocal = input.Tracked
                 ? calibration.WingTarget(input,isLeft,headPosition,headOrientation) : rest;
+            if(ShoulderSweepLimitDeg>0)
+                desiredLocal.z=Mathf.Clamp(desiredLocal.z,-Mathf.Sin(ShoulderSweepLimitDeg*Mathf.Deg2Rad)*restArmSpan,
+                    Mathf.Sin(ShoulderSweepLimitDeg*Mathf.Deg2Rad)*restArmSpan);
             var twist = input.Tracked ? calibration.WingRotation(input,isLeft,headOrientation) : Quaternion.identity;
             float blend = 1f-Mathf.Exp(-dt/(input.Tracked ? .035f : .25f));
             // Smooth only the tracked displacement. Root travel and yaw are applied after
@@ -84,6 +92,12 @@ namespace VoarVR.Flight
             var elbow=WingRigSolver.Solve(wing.Upper.position,target,transform.forward * -.8f + transform.up * -.3f,
                 wing.UpperLength,wing.LowerLength,out var reachable);
             wing.Upper.rotation=Quaternion.FromToRotation(wing.Upper.TransformDirection(wing.UpperAxis),elbow-wing.Upper.position)*wing.Upper.rotation;
+            if(ShoulderPronationGain>0)
+            {
+                float angle=Mathf.Clamp(Mathf.DeltaAngle(0,wing.Twist.eulerAngles.x)*ShoulderPronationGain,
+                    -MaxShoulderPronationDeg,MaxShoulderPronationDeg)*(isLeft?-1:1);
+                wing.Upper.rotation=Quaternion.AngleAxis(angle,(elbow-wing.Upper.position).normalized)*wing.Upper.rotation;
+            }
             wing.Lower.rotation=Quaternion.FromToRotation(wing.Lower.TransformDirection(wing.LowerAxis),reachable-wing.Lower.position)*wing.Lower.rotation;
             // Twist all three rotational axes at the hand; clamp relative angular reach anatomically.
             var bounded=Quaternion.RotateTowards(Quaternion.identity,wing.Twist,85f);

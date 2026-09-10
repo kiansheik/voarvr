@@ -22,6 +22,23 @@ MonoBehaviour:
   - Face
   - Neck
   RestArmSpan: 2.45
+  Architecture: 2
+  Morphology:
+    rid: -2
+  Articulation:
+    FanExponent: 1.35
+    FoldReachFraction: 0.55
+    ShoulderPronationGain: 0.55
+    PrimaryFanDeg: 38
+    SecondaryFanDeg: 12
+    ManusFoldDeg: 68
+    ShoulderSweepDeg: 25
+    PronationDeg: 45
+    AlulaDeg: 32
+    TailFanDeg: 32
+    TailBrakePitchDeg: 25
+    TailYawDeg: 16
+  RigPresentationScale: 1
   WingAreaMultiplier: 5.5
   StrokeForwardRatio: 0.8
   StrokeSpeedLimit: 1.6
@@ -32,3 +49,8 @@ MonoBehaviour:
   Power: 0.85
   Agility: 0.3
   Weight: 0.7
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }

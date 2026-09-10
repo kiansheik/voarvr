@@ -2,7 +2,9 @@
   "name": "VoarVR.Tests.EditMode",
   "rootNamespace": "VoarVR.Tests",
   "references": [
-    "VoarVR.Runtime"
+    "VoarVR.Runtime",
+    "Unity.InputSystem",
+    "Unity.XR.OpenXR"
   ],
   "includePlatforms": [
     "Editor"

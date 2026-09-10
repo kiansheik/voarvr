@@ -26,6 +26,10 @@ namespace VoarVR.Flight
         // Rest-pose glide target distance from shoulder, meters; scale with the rig's actual
         // bone lengths so the idle pose neither overreaches nor folds a longer/shorter wing.
         public float RestArmSpan = 0.56f;
+        public WingArchitecture Architecture;
+        [SerializeReference] public BirdMorphology Morphology;
+        public AvianArticulationSettings Articulation = new AvianArticulationSettings();
+        public float RigPresentationScale = 1f; // GAMEPLAY-TUNED embodiment scale, not biological size.
         [Tooltip("Aerodynamic wing area beyond overall Size scaling. Match this to unusually broad or narrow authored wings.")]
         [Min(0.25f)] public float WingAreaMultiplier = 1f;
         [Tooltip("Forward work from a neutral downstroke, relative to its lift. Keeps broad-winged species moving without wrist contortions.")]
@@ -34,7 +38,7 @@ namespace VoarVR.Flight
         [Range(1f, 4.2f)] public float StrokeSpeedLimit = 4.2f;
         [Tooltip("Profile and induced drag multiplier; lower values represent more efficient soaring wings without adding lift.")]
         [Range(.25f, 2f)] public float GlideDragMultiplier = 1f;
-        [Tooltip("Effective wrist pitch for wing incidence and body pitch. Visual wrist articulation remains one-to-one.")]
+        [Tooltip("Effective wrist pitch for aerodynamic wing incidence. Visual wrist articulation remains one-to-one.")]
         [Range(.1f, 1f)] public float WingPitchSensitivity = 1f;
 
         [Header("Stats (relative to the Duck baseline)")]
@@ -57,7 +61,7 @@ namespace VoarVR.Flight
         {
             float sizeSq = Size * Size;
             float mass = 1.1f * Size * sizeSq * Mathf.Lerp(0.4f, 1.6f, Weight);
-            return new BirdFlightProfile
+            var result = new BirdFlightProfile
             {
                 MassKg = mass,
                 WingAreaM2 = 0.28f * sizeSq * WingAreaMultiplier,
@@ -79,6 +83,19 @@ namespace VoarVR.Flight
                 MaxPitchDeg = Mathf.Lerp(24f, 46f, Agility),
                 AttitudeResponseSeconds = Mathf.Lerp(0.42f, 0.18f, Agility),
             };
+            if (Architecture == WingArchitecture.ArticulatedAvian && Morphology != null)
+            {
+                if (!Morphology.IsValid) throw new System.InvalidOperationException("Invalid species morphology: " + DisplayName);
+                result.MassKg = Morphology.MassKg;
+                result.WingAreaM2 = Morphology.BothWingAreaM2;
+                result.BodyDragAreaM2 = .004f;
+                result.StrokeForcePerSpeedSquared = 10f * Morphology.MassKg / 1.1f;
+                result.StallSpeedMps = 3.5f;
+                result.AlulaStallDelayDeg = 3f;
+                result.TailDragAreaM2 = Morphology.TailAreaM2;
+                result.TailTurnGain = .12f;
+            }
+            return result;
         }
     }
 }

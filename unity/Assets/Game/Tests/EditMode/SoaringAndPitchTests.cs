@@ -24,11 +24,31 @@ namespace VoarVR.Tests
             input.Frame.LookDirection=Look(neutral-3f); c.Step(.02f);
             Assert.That(c.HeadPitchInput,Is.EqualTo(0).Within(.0001));
             input.Frame.LookDirection=Look(neutral-12f); c.Step(.02f);
-            Assert.That(c.HeadPitchInput,Is.InRange(-.5f,-.35f));
-            input.Frame.LookDirection=Look(neutral-23f); c.Step(.02f);
+            Assert.That(c.HeadPitchInput,Is.InRange(-.15f,-.13f));
+            input.Frame.LookDirection=Look(neutral-30f); c.Step(.02f);
             Assert.That(c.HeadPitchInput,Is.EqualTo(-1).Within(.001));
             input.Frame.LookDirection=Look(neutral+12f); c.Step(.02f);
-            Assert.That(c.HeadPitchInput,Is.InRange(.2f,.35f));
+            Assert.That(c.HeadPitchInput,Is.EqualTo(1).Within(.001f));
+        }
+        [TestCase("Duck",0f)] [TestCase("Duck",6f)]
+        [TestCase("Dragon",0f)] [TestCase("Dragon",6f)]
+        public void ComfortableNeutralAndSmallUpLookSustainModerateWingbeats(string species,float upLook)
+        {
+            var input=new Input();input.Frame.HeadTracked=true;input.Frame.LookDirection=Look(-10);
+            var p=Resources.Load<BirdCharacterDefinition>("Characters/"+species).BuildProfile();
+            var c=new BirdFlightController(input,Vector3.up*100,profile:p);c.Calibrate(input.Frame);
+            input.Frame.LookDirection=Look(-10+upLook);
+            for(int i=0;i<1200;i++)
+            {
+                float phase=i/120f*2*Mathf.PI*1.1f;
+                input.Frame.LeftWing.Position.y=input.Frame.RightWing.Position.y=.3f*Mathf.Sin(phase);
+                input.Frame.LeftWing.Velocity=input.Frame.RightWing.Velocity=Vector3.up*(.3f*2*Mathf.PI*1.1f*Mathf.Cos(phase));
+                input.Frame.LeftWing.Orientation=input.Frame.RightWing.Orientation=Quaternion.Euler(20,0,0);
+                c.Step(1f/120);
+                Assert.That(c.State.Position.y,Is.GreaterThan(98),"Ordinary strokes and a comfortable gaze must not collapse into a dive");
+            }
+            Assert.That(c.State.Position.y,Is.GreaterThan(100));
+            Assert.That(c.HeadPitchInput,Is.EqualTo(upLook==0?0:.4f).Within(.001));
         }
         private static Vector3 Glide(string species)
         {
@@ -61,17 +81,17 @@ namespace VoarVR.Tests
             input.Frame.HeadTracked=false;input.Frame.LookDirection=Vector3.forward;c.Step(.02f);
             Assert.That(c.HeadPitchInput,Is.Zero);
             input.Frame.HeadTracked=true;input.Frame.LookDirection=Look(-24);c.Step(.02f);
-            Assert.That(c.HeadPitchInput,Is.LessThan(-.35f));
+            Assert.That(c.HeadPitchInput,Is.LessThan(-.13f));
         }
-        [Test] public void UnsafeImpactCannotAutoLandOnFollowingSubsteps()
+        [Test] public void FastTopContactAutomaticallySettlesWithoutFailure()
         {
             var p=BirdFlightProfile.Duck();p.InitialSpeedMps=20;p.LiftSlopePerRadian=0;
             var c=new BirdFlightController(new SyntheticFlightInput(),Vector3.up*.23f,profile:p,groundHeight:.22f);
             for(int i=0;i<120;i++)c.Step(1f/120);
             Assert.That(c.CollisionCount,Is.GreaterThan(0));
-            Assert.That(c.LandingCount,Is.Zero);
-            Assert.That(c.MissedLanding,Is.True);
-            Assert.That(c.State.Phase,Is.Not.EqualTo(FlightPhase.Perched));
+            Assert.That(c.LandingCount,Is.EqualTo(1));
+            Assert.That(c.MissedLanding,Is.False);
+            Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
         }
         [TestCase("Duck")] [TestCase("Dragon")]
         public void SlowRaisedRecoveryInOpenAirDoesNotActivateLandingBrake(string species)

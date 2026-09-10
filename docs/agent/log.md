@@ -1,3 +1,7 @@
+## 2026-09-10 — Magpie and telemetry final desktop validation / APK
+
+Original63-bone Magpie, provenance ledger, optional avian articulation, local binary telemetry/analysis/replay implemented. Final135 Edit/17 Play/18 Python pass; Blender roundtrip and MCP posed deformation verified. Actual Editor recording decoded clean with zero drops. Three critique rounds: no high/blocker, art gate remains below8 (fold6/overall7). Development APK b068a99f… built101.767s; Quest offline, wake requested. Install/real motion capture/pull/device overhead remain pending. No commit/push. [Report](../development/magpie-telemetry-validation.md), [handoff](session-handoffs/2026-09-10-magpie-telemetry.md).
+
 # Agent log
 
 ## 2026-09-08 - Foundation bootstrap
@@ -35,3 +39,9 @@ Reproduced Android stripped landing-guide shader exception freezing rig presenta
 ## 2026-09-09 - Flight instruments and Assisted-air usability
 
 Added sparse stereo HUD, actual wingtip speed wakes, gold/cyan/rose vertical-air semantics. Real entry tests exposed crosswind-induced deep stall; Assisted-only bounded aerodynamic feathering supports unpowered circles for both species while zero-air/brake/tuck/pose contracts pass.112Edit/15Play/12Python pass,3quality rounds complete. Corrected prior zero-GC claims: runtime allocation counter is unsupported (known1MB probe still0). Final build/device and wearer gates: [handoff](session-handoffs/2026-09-09-flight-instruments-v1.md). No commit/push.
+
+## 2026-09-10 - Comfortable pitch, automatic grounding and feedback
+
+HUD now defaults off with right-stick-click toggle. Automatic top-surface landing, supported left-stick walking and imported foot joints replace landing failure and lifeless grounded wings. Shared comfortable head mapping captures natural pitch, preserves level neutral glide and bounds wrist trim; duck/dragon moderate strokes sustain neutral/+6-degree gaze. Added restrained per-hand wind/contact haptics and procedural audio, pause/focus gating. Independent critics exposed selected-root, pause, stale capture and foot-readability issues; corrected and revalidated. Final checks/build/device: [handoff](session-handoffs/2026-09-10-comfort-ground-feedback.md). No commit/push.
+
+- 2026-09-10: Magpie/telemetry milestone in progress. Research distinguishes European AVONET data, North American comparative flight data and gameplay choices. Added first63-bone model, avian capability, bounded binary recording/offline tools and initial replay; independent science/technical findings triggered geometry and calibration/event revisions. Not yet built for Quest. See session-handoffs/2026-09-10-magpie-telemetry.md.

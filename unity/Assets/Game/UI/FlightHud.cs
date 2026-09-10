@@ -30,6 +30,9 @@ namespace VoarVR.UI
         private Image pitchDot;
         private float nextText, lastTime=-1, smoothSpeed, smoothClimb, smoothAir;
         public Canvas Instruments => canvas;
+        public bool Visible => canvas != null && canvas.enabled;
+        public void SetVisible(bool visible) { if(canvas == null)return; canvas.enabled=visible;lastTime=-1; }
+        public void Toggle() => SetVisible(!Visible);
         public string LiftReadout => air != null ? air.text : "";
         public void Configure(BirdFlightDriver driver, Camera camera, WorldStreamer streamer)
         {
@@ -39,7 +42,7 @@ namespace VoarVR.UI
             root.transform.SetParent(camera.transform,false);
             root.transform.localPosition=new Vector3(0,0,2);
             root.transform.localScale=Vector3.one*.001f;
-            canvas=root.GetComponent<Canvas>(); canvas.renderMode=RenderMode.WorldSpace; canvas.worldCamera=camera;
+            canvas=root.GetComponent<Canvas>(); canvas.enabled=false; canvas.renderMode=RenderMode.WorldSpace; canvas.worldCamera=camera;
             root.GetComponent<RectTransform>().sizeDelta=new Vector2(1600,1000);
             speed=Readout(root.transform,"Airspeed",new Vector2(-620,410),new Vector2(310,125));
             altitude=Readout(root.transform,"Ground clearance",new Vector2(620,410),new Vector2(310,125));
@@ -80,7 +83,7 @@ namespace VoarVR.UI
         private void LateUpdate() => TickInstruments();
         public void TickInstruments()
         {
-            if(bird==null||bird.Controller==null||canvas==null)return;
+            if(bird==null||bird.Controller==null||canvas==null||!canvas.enabled)return;
             var c=bird.Controller;float time=c.SimulationTime;
             bool reset=lastTime<0||time<lastTime;
             float blend=reset?1:1-Mathf.Exp(-Mathf.Max(0,time-lastTime)/.4f);

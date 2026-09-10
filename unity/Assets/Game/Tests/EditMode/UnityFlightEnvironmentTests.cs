@@ -34,6 +34,37 @@ namespace VoarVR.Tests
         public void Teardown() => Object.DestroyImmediate(root);
 
         [Test]
+        public void WalkingStopsAtNativeWallThenLeavesLedgeAndLandsBelow()
+        {
+            var wall=new GameObject("Walking wall") {layer=UnityFlightEnvironment.CollisionLayer};
+            wall.transform.SetParent(root.transform);wall.transform.position=new Vector3(20001,1,20000);
+            wall.AddComponent<BoxCollider>().size=new Vector3(.2f,3,10);
+            var input=new TestInput();var profile=BirdFlightProfile.Duck();profile.InitialSpeedMps=0;
+            var c=new BirdFlightController(input,new Vector3(20000,.23f,20000),profile:profile,environment:environment);
+            Physics.SyncTransforms();
+            for(int i=0;i<120;i++)c.Step(1f/120);
+            Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
+            input.Frame.GroundMove=Vector2.right;
+            for(int i=0;i<240;i++)c.Step(1f/120);
+            Assert.That(c.State.Position.x,Is.LessThanOrEqualTo(20000.70f),"Walking must stop its body before the wall");
+            Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
+            wall.SetActive(false);ground.GetComponent<BoxCollider>().size=new Vector3(2,2,20);
+            var lower=new GameObject("Lower landing") {layer=UnityFlightEnvironment.CollisionLayer};
+            lower.transform.SetParent(root.transform);lower.transform.position=new Vector3(20000,-4,20000);
+            lower.AddComponent<BoxCollider>().size=new Vector3(20,2,20);
+            lower.AddComponent<LandingSurface>().SurfaceId=124;
+            Physics.SyncTransforms();bool leftLedge=false,landedBelow=false;
+            for(int i=0;i<1200;i++)
+            {
+                c.Step(1f/120);
+                leftLedge|=c.State.Phase!=FlightPhase.Perched;
+                if(leftLedge && c.State.Phase==FlightPhase.Perched && c.State.Position.y < -2){landedBelow=true;break;}
+            }
+            Assert.That(leftLedge,Is.True,"No invisible support beyond the ledge");
+            Assert.That(landedBelow,Is.True,"The lower native surface should automatically catch the falling bird");
+        }
+
+        [Test]
         public void LoadedSurfaceAppearsAndDisappearsWithCollider()
         {
             var p = new Vector3(20000, 2, 20000);

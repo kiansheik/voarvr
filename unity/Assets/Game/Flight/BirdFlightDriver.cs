@@ -21,6 +21,10 @@ namespace VoarVR.Flight
         [SerializeField] private BirdTrackingCalibration calibration = new BirdTrackingCalibration();
         [SerializeField] private FlightViewMode viewMode = FlightViewMode.ThirdPerson;
         private BirdRigDriver rig;
+        private BirdGroundPresentation groundPresentation;
+        private FlightFeedback feedback;
+        private AvianWingPresentation avian;
+        private VoarVR.Telemetry.FlightTelemetry telemetry;
         private BirdCharacterDefinition character;
         private WindField wind;
         private WorldStreamer world;
@@ -80,6 +84,17 @@ namespace VoarVR.Flight
             var environment = gameObject.AddComponent<UnityFlightEnvironment>();
             Controller = new BirdFlightController(input, originalSpawn, profile:profile, wind:wind, environment:environment);
             rig = GetComponent<BirdRigDriver>();
+            groundPresentation = gameObject.AddComponent<BirdGroundPresentation>();
+            groundPresentation.Configure(rig,profile.CollisionRadius);
+            feedback = gameObject.AddComponent<FlightFeedback>();
+            feedback.Configure(this, wind, rig);
+            if(character!=null && character.Architecture==WingArchitecture.ArticulatedAvian)
+            {
+                avian=gameObject.AddComponent<AvianWingPresentation>();
+                avian.Configure(rig,character.Articulation,character.Morphology);
+            }
+            telemetry=gameObject.AddComponent<VoarVR.Telemetry.FlightTelemetry>();
+            telemetry.Configure(this,rig,world,character,profile);
             if (UsesXR)
             {
                 SubsystemManager.GetSubsystems(xrSubsystems);
@@ -106,7 +121,7 @@ namespace VoarVR.Flight
             rigInstance.name = selected.DisplayName + "Rig";
             rigInstance.transform.localPosition = Vector3.zero;
             rigInstance.transform.localRotation = Quaternion.identity;
-            rigInstance.transform.localScale = Vector3.one;
+            rigInstance.transform.localScale = Vector3.one * selected.RigPresentationScale;
             var renderers = rigInstance.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
             {
@@ -141,6 +156,7 @@ namespace VoarVR.Flight
                 ReturnToCharacterSelect();
                 return;
             }
+            if (Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame) GetComponent<VoarVR.UI.FlightHud>()?.Toggle();
             if (Time.deltaTime > 0f) Tick(Mathf.Min(Time.deltaTime, .05f));
         }
 
@@ -162,6 +178,7 @@ namespace VoarVR.Flight
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
             var xr = input as XRFlightInput;
             var frame = xr != null ? xr.LastRawFrame : Controller.LastInput;
+            if (frame.HudTogglePressed) GetComponent<VoarVR.UI.FlightHud>()?.Toggle();
             if (frame.CharacterSelectPressed) { ReturnToCharacterSelect(); return; }
             if (xr != null && !calibration.HeadCaptured) calibration.CaptureHead(frame);
             if (xr != null) calibration.UpdateBody(frame);
@@ -182,24 +199,17 @@ namespace VoarVR.Flight
             if (Controller.LandingCount != lastLandingCount)
             {
                 lastLandingCount=Controller.LandingCount;
-                CoachStatus="LANDED - FLAP TO TAKE OFF"; coachUntil=Time.unscaledTime+3f;
+                CoachStatus="LANDED - LEFT STICK: WALK / FLAP: FLY"; coachUntil=Time.unscaledTime+3f;
             }
             if (!platformRecenterPending && Time.unscaledTime >= coachUntil)
             {
                 if (Controller.State.Phase == FlightPhase.Paused)
-                    CoachStatus = "PAUSED - X TO RESUME\nLEFT MENU: CHANGE CHARACTER\nA: START + CALIBRATE";
+                    CoachStatus = "PAUSED - X TO RESUME\nRIGHT STICK CLICK: HUD / B: VIEW\nLEFT MENU: CHARACTERS / A: START + CALIBRATE"
+                        + (VoarVR.Telemetry.FlightTelemetry.DefaultEnabled ? "\nMARK: BOTH GRIPS + LEFT STICK CLICK" : "");
                 else if (Controller.State.Phase == FlightPhase.Perched)
-                    CoachStatus = Controller.LandingCount != lastLandingCount ? "LANDED - FLAP TO TAKE OFF" : null;
-                else if (Controller.MissedLanding)
-                    CoachStatus = "MISSED LANDING - FLAP UP + TRY AGAIN";
-                else if (Controller.NearestPerchDistance < 10f && Controller.State.Velocity.y < -.25f)
-                {
-                    float horizontal=new Vector2(Controller.State.Velocity.x,Controller.State.Velocity.z).magnitude;
-                    CoachStatus = horizontal>8f ? "TOO FAST - RAISE + SPREAD WINGS TO BRAKE"
-                        : Controller.State.Velocity.y < -FlightContactSolver.SafeDownwardSpeed(Controller.LandingBrake > .5f) ? "SLOW YOUR DESCENT - SPREAD WINGS"
-                        : Controller.LandingBrake < .5f && horizontal>6f ? "LAND: RAISE + HOLD WINGS SPREAD\nLEFT TRIGGER HELPS BRAKE"
-                        : "GOOD APPROACH - TOUCH DOWN GENTLY";
-                }
+                    CoachStatus = Controller.LandingCount != lastLandingCount ? "LANDED - LEFT STICK: WALK / FLAP: FLY" : null;
+                else if (Controller.LandingApproach > .1f)
+                    CoachStatus = "LANDING - RELAX YOUR WINGS";
                 else if (Controller.WindVelocity.y > 2f)
                     CoachStatus = "RISING AIR: SPREAD WINGS\nGENTLE BANK + CIRCLE TO STAY IN CORE";
                 else if (Controller.WindVelocity.y < -2f)
@@ -207,8 +217,19 @@ namespace VoarVR.Flight
                 else CoachStatus = null;
             }
             var presentationFrame = xr != null && !calibration.Captured ? FlightInputFrame.Neutral : frame;
-            if (rig != null) rig.Present(presentationFrame, calibration, Heading, deltaTime);
+            if (Controller.State.Phase != FlightPhase.Paused)
+            {
+                groundPresentation?.RestoreBase();
+                if (rig != null) rig.Present(presentationFrame, calibration, Heading, deltaTime);
+                groundPresentation?.Present(Controller, deltaTime);
+                avian?.Present(presentationFrame,calibration,Controller,groundPresentation.GroundBlend,deltaTime);
+            }
+            feedback?.Tick(deltaTime);
+            telemetry?.Capture(xr!=null?xr.LastDeviceFrame:frame,deltaTime,xr==null || xr.LastWingsEnabled);
         }
+
+        public void ShowTelemetryMarker(int number)
+        { CoachStatus="MARK "+number; coachUntil=Time.unscaledTime+1f; }
 
         // A is the explicit recovery action: restart flight and capture the held neutral.
         public bool RestartAndCalibrate(FlightInputFrame frame)
@@ -230,7 +251,9 @@ namespace VoarVR.Flight
 
         private bool CaptureNeutral(FlightInputFrame frame, string message)
         {
-            if (!calibration.CaptureComfortableGlide(frame)) return false;
+            if (!calibration.CaptureComfortableGlide(frame))
+            { telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.CalibrationRejected); return false; }
+            telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.CalibrationAccepted);
             Controller.Calibrate(frame);
             if (input is XRFlightInput xr) { xr.WingsEnabled = true; xr.ResetDerivatives(); }
             platformRecenterPending = false;
@@ -245,6 +268,7 @@ namespace VoarVR.Flight
         public void NotifyTrackingOriginUpdated()
         {
             if (!UsesXR || Controller == null) return;
+            telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.Recenter);
             platformRecenterPending = true;
             stableRecenterSeconds = 0f;
             hasRecenterFrame = false;
@@ -290,6 +314,7 @@ namespace VoarVR.Flight
         public void ReturnToCharacterSelect()
         {
             if (returningToSelection) return;
+            telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.CharacterReturn);
             returningToSelection = true;
             Time.timeScale = 1f;
             CharacterSelection.Chosen = null;

@@ -23,3 +23,10 @@ Follow GUID-preserving Unity asset workflows. Setup-created settings live under 
 Endless-world ownership and budgets: [architecture](../ARCHITECTURE.md). Reproducible evidence lives under ignored `artifacts/reviews/infinite-world-landing-v1/`; WorldReview exposes explicit glide, actual traversal, contact and camera captures. Scene changes use Unity editor serialization.
 
 Flight instruments: `UI/FlightHud.cs` and `World/BirdAirflowTrails.cs`, installed by BirdFlightDriver after essential rig wiring. Explicit `Editor/FlightInstrumentReview.cs` captures HUD/wake/thermal evidence; `AtmosphereLiftReview.cs` reproduces failed and successful assistance candidates. Current evidence: `artifacts/reviews/flight-instruments-v1/`.
+
+## Magpie and local motion evidence
+
+- `Flight/BirdMorphology.cs`, `AvianWingPresentation.cs`: optional avian morphology and coupled feather/manus/alula/tail capability; legacy Duck and membrane Dragon preserve defaults.
+- `Telemetry/`: versioned scalar binary schema, bounded writer, runtime capture and simple calibrated replay. Offline `tools/scripts/telemetry.py`; operational contract `docs/development/telemetry.md`.
+- `blender/scripts/create_magpie.py`, `magpie_measurements.py`: original63-bone asset and overlap-aware rest-area validation. Research provenance in `docs/research/species/magpie.md`.
+- `Editor/MagpieSetup.cs`, `MagpieReview.cs`, `TelemetryBuildStamp.cs`: explicit catalog setup, actual-frame pose evidence, build identity capture. No scene rewrites or runtime MCP dependency.

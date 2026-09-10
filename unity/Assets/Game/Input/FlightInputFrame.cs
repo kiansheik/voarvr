@@ -34,6 +34,10 @@ namespace VoarVR.Input
         public bool PausePressed;
         public bool ViewTogglePressed;
         public bool WindModePressed;
+        public bool HudTogglePressed;
+        public bool MarkerPressed;
+        public uint ButtonsHeld; // A,B,X,Y,Menu,HUD,left stick,left grip,right grip; telemetry raw state.
+        public Vector2 GroundMove;
 
         public static FlightInputFrame Neutral => new FlightInputFrame
         {

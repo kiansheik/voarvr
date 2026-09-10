@@ -57,23 +57,24 @@ namespace VoarVR.Tests
         }
 
         [Test]
-        public void ExcessiveImpactSlidesWithoutCapturingOrAddingEnergy()
+        public void FastTopImpactAutomaticallySettlesWithoutAddingEnergy()
         {
             var velocity = new Vector3(0, -12, 20);
             var r = FlightContactSolver.Resolve(new Room(), new Vector3(0, 1, 0), velocity, .2f, .55f, true);
-            Assert.That(r.Landed, Is.False);
+            Assert.That(r.Landed, Is.True);
+            Assert.That(r.ImpactSpeed, Is.EqualTo(12f));
             Assert.That(r.Velocity.y, Is.EqualTo(0f));
             Assert.That(r.Velocity.sqrMagnitude, Is.LessThan(velocity.sqrMagnitude));
             Assert.That(r.Position.y, Is.GreaterThanOrEqualTo(.55f));
         }
 
         [Test]
-        public void BrakingWidensOnlyMeasuredContactLimits()
+        public void TopContactNeedsNoBrakeButSteepFacesCannotLand()
         {
             var contact = new FlightContact { Landable = true, Normal = Vector3.up };
-            Assert.That(FlightContactSolver.CanLand(contact, new Vector3(7, -3, 0), false), Is.False);
+            Assert.That(FlightContactSolver.CanLand(contact, new Vector3(7, -3, 0), false), Is.True);
             Assert.That(FlightContactSolver.CanLand(contact, new Vector3(7, -3, 0), true), Is.True);
-            Assert.That(FlightContactSolver.CanLand(contact, new Vector3(8.1f, -3, 0), true), Is.False);
+            Assert.That(FlightContactSolver.CanLand(contact, new Vector3(8.1f, -3, 0), true), Is.True);
             contact.Normal = Quaternion.Euler(40, 0, 0) * Vector3.up;
             Assert.That(FlightContactSolver.CanLand(contact, Vector3.down, true), Is.False);
         }
@@ -89,13 +90,13 @@ namespace VoarVR.Tests
         }
 
         [Test]
-        public void CornerResolvesBothContactsWithoutCrossingEitherSurface()
+        public void GroundFirstCornerStopsBeforeCrossingEitherSurface()
         {
             var r = FlightContactSolver.Resolve(new Room(), new Vector3(0, 1, 0), new Vector3(20, -10, 5), 1, .22f, false);
-            Assert.That(r.ContactCount, Is.EqualTo(2));
+            Assert.That(r.ContactCount, Is.EqualTo(1));
             Assert.That(r.Position.x, Is.LessThan(4.78f));
             Assert.That(r.Position.y, Is.GreaterThan(.22f));
-            Assert.That(r.Landed, Is.False);
+            Assert.That(r.Landed, Is.True);
         }
     }
 }

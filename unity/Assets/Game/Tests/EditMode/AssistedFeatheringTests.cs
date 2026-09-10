@@ -88,7 +88,7 @@ namespace VoarVR.Tests
             var dive=new BirdFlightController(input,spawn,profile:Profile(species),wind:wind);
             var glide=new BirdFlightController(new Input(),spawn,profile:Profile(species),wind:wind);
             dive.Calibrate(input.Frame);
-            input.Frame.LookDirection=Quaternion.Euler(23,0,0)*Vector3.forward;
+            input.Frame.LookDirection=Quaternion.Euler(30,0,0)*Vector3.forward;
             for(int i=0;i<600;i++) { dive.Step(1f/120);glide.Step(1f/120); }
             Assert.That(dive.HeadPitchInput,Is.EqualTo(-1).Within(.001));
             Assert.That(dive.LastInput.LookDirection,Is.EqualTo(input.Frame.LookDirection));

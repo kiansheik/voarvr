@@ -6,6 +6,7 @@ namespace VoarVR.Flight
     {
         public Vector3 Position, Velocity, Normal;
         public bool Landed, UnsafeLanding;
+        public float ImpactSpeed;
         public int SurfaceId, ContactCount, UnsafeSurfaceId;
     }
 
@@ -21,9 +22,9 @@ namespace VoarVR.Flight
             if (!contact.Landable || Vector3.Dot(contact.Normal, Vector3.up) < Mathf.Cos(MaximumSlopeDegrees * Mathf.Deg2Rad)) return false;
             // A surface cannot capture a bird departing from it, even inside contact skin.
             if (Vector3.Dot(velocity, contact.Normal) > .05f) return false;
-            float downward = Mathf.Max(0f, -velocity.y);
-            float horizontal = new Vector2(velocity.x, velocity.z).magnitude;
-            return downward <= SafeDownwardSpeed(braking) && horizontal <= SafeHorizontalSpeed(braking);
+            // Top-surface contact is an automatic landing, not a scored manoeuvre.
+            // Walls, steep faces and upward takeoff still cannot capture the bird.
+            return true;
         }
 
         public static FlightContactResult Resolve(IFlightEnvironment environment, Vector3 from, Vector3 velocity,
@@ -39,6 +40,7 @@ namespace VoarVR.Flight
                 result.Position = contact.Position;
                 result.Normal = contact.Normal;
                 result.ContactCount++;
+                result.ImpactSpeed = Mathf.Max(result.ImpactSpeed, -Vector3.Dot(result.Velocity, contact.Normal));
                 result.SurfaceId = contact.SurfaceId;
                 if (allowLanding && CanLand(contact, result.Velocity, braking))
                 { result.Landed = true; result.Velocity = Vector3.zero; break; }

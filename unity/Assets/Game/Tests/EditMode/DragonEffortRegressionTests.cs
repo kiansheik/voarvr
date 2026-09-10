@@ -62,7 +62,7 @@ namespace VoarVR.Tests
             var input=new HumanArc { Frequency=.8f,Twist=20 };
             var profile=Resources.Load<BirdCharacterDefinition>("Characters/Dragon").BuildProfile();
             var flight=new BirdFlightController(input,Vector3.up*100,profile:profile);
-            flight.Calibrate(input.Sample(0));input.HeadPitch=-23;
+            flight.Calibrate(input.Sample(0));input.HeadPitch=-30;
             for(int i=0;i<600;i++) flight.Step(1f/120);
             Assert.That(flight.HeadPitchInput,Is.EqualTo(-1).Within(.001));
             Assert.That(flight.State.Position.y,Is.LessThan(95));

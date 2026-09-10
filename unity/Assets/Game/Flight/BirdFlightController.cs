@@ -48,9 +48,13 @@ namespace VoarVR.Flight
         public float MaxRollDeg = 50f;
 
         // Head pitch (climb/descend).
-        public float HeadPitchDeadzoneDeg = 4f;
-        public float FullDownPitchDeg = 23f;
-        public float FullUpPitchDeg = 32f;
+        public float HeadPitchDeadzoneDeg = 2f;
+        public float FullDownPitchDeg = 30f;
+        public float DownLookDeadzoneDeg = 9f;
+        public float NeutralClimbPitchDeg = 0f;
+        public float ComfortableClimbPitchDeg = 12f;
+        public float WalkSpeedMps = 1.25f;
+        public float FullUpPitchDeg = 12f;
         public float MaxPitchDeg = 35f;
 
         // Tuck / flare (arm span vs. trigger, additive).
@@ -75,6 +79,9 @@ namespace VoarVR.Flight
         public float WingIncidenceDeg = 8f;
         public float WingPitchSensitivity = 1f;
         public float StallAngleDeg = 24f;
+        public float AlulaStallDelayDeg; // Optional avian approximation; zero retains legacy.
+        public float TailDragAreaM2;
+        public float TailTurnGain;
         public float StallSpeedMps = 4f;
         public float TuckedAreaFraction = 0.12f;
         public float FlareDragCoefficient = 0.9f;
@@ -106,10 +113,14 @@ namespace VoarVR.Flight
         public bool MissedLanding { get; private set; }
         public int CollisionCount { get; private set; }
         public int LandingCount { get; private set; }
+        public int TakeoffCount { get; private set; }
+        public float EffectiveStallAngleDeg { get; private set; } = 24f;
+        public bool IsStalled => Mathf.Abs(AngleOfAttackDeg)>EffectiveStallAngleDeg;
         public bool StreamingBlocked { get; set; }
         private readonly BirdFlightProfile profile;
         private readonly IWindField wind;
         private bool paused;
+        private FlightPhase phaseBeforePause;
         private Vector3 pausedVelocity;
         public Vector3 LiftForce { get; private set; }
         public Vector3 DragForce { get; private set; }
@@ -127,10 +138,13 @@ namespace VoarVR.Flight
         private bool hasTrackedBodyYaw;
         public float PhysicalYawOffsetDeg { get; private set; }
         public float SimulationTime => simulationTime;
+        public float LastImpactSpeed { get; private set; }
         public float NearestPerchDistance { get; private set; } = float.PositiveInfinity;
         public Vector3 NearestPerchPosition { get; private set; }
         public Vector3 WindVelocity { get; private set; }
         public float WingFeatherDeg { get; private set; }
+        public float LandingApproach { get; private set; }
+        public Vector3 GroundVelocity { get; private set; }
         private float neutralHeadPitch, landingPoseHold;
         private bool calibratedTrackedHead;
         public float HeadPitchInput { get; private set; }
@@ -215,6 +229,7 @@ namespace VoarVR.Flight
         public void Reset()
         {
             MissedLanding = false;
+            LastImpactSpeed = 0f;
             paused = false;
             phase = FlightPhase.Gliding;
             pitchDeg = rollDeg = yawDeg = 0f;
@@ -223,7 +238,8 @@ namespace VoarVR.Flight
             PhysicalYawOffsetDeg = 0f;
             hasTrackedBodyYaw = false;
             LastInput = FlightInputFrame.Neutral;
-            landingPoseHold = LandingBrake = 0f;
+            landingPoseHold = LandingBrake = LandingApproach = WingFeatherDeg = 0f;
+            GroundVelocity = Vector3.zero;
             State = new BirdState { Position = spawn, Velocity = Vector3.forward * profile.InitialSpeedMps, Rotation = Quaternion.identity, Phase = FlightPhase.Gliding };
         }
 
@@ -231,6 +247,8 @@ namespace VoarVR.Flight
         {
             if (float.IsNaN(deltaTime) || float.IsInfinity(deltaTime) || deltaTime <= 0f)
                 throw new ArgumentOutOfRangeException(nameof(deltaTime));
+            LastImpactSpeed = 0f;
+            GroundVelocity = Vector3.zero;
             LastInput = NormalizeBodyFrame(input.Sample(deltaTime));
 
             if (LastInput.ResetPressed)
@@ -243,8 +261,8 @@ namespace VoarVR.Flight
             if (LastInput.PausePressed)
             {
                 paused = !paused;
-                if (paused) pausedVelocity = State.Velocity;
-                else { var resumed = State; resumed.Velocity = pausedVelocity; State = resumed; }
+                if (paused) { pausedVelocity = State.Velocity; phaseBeforePause = phase; }
+                else { phase=phaseBeforePause; var resumed = State; resumed.Velocity = pausedVelocity; resumed.Phase=phase; State = resumed; }
             }
             if (paused)
             {
@@ -293,9 +311,11 @@ namespace VoarVR.Flight
             float targetRollDeg = -rollSignal * profile.MaxRollDeg;
             float wingPitch = wingsTracked ? .5f * (WingPitchDeg(LastInput.LeftWing.Orientation, calibration.LeftRot)
                 + WingPitchDeg(LastInput.RightWing.Orientation, calibration.RightRot)) * profile.WingPitchSensitivity : 0f;
-            float targetPitchDeg = Mathf.Clamp(-headPitchSignal * profile.MaxPitchDeg
-                + tuckSignal * profile.TuckPitchBiasDeg - flareSignal * profile.FlarePitchBiasDeg
-                + wingPitch * .3f, -profile.MaxPitchDeg, profile.MaxPitchDeg);
+            float headTarget = headPitchSignal >= 0f
+                ? -Mathf.Lerp(profile.NeutralClimbPitchDeg, profile.ComfortableClimbPitchDeg, headPitchSignal)
+                : -headPitchSignal * profile.MaxPitchDeg - profile.NeutralClimbPitchDeg;
+            float targetPitchDeg = Mathf.Clamp(headTarget + tuckSignal * profile.TuckPitchBiasDeg
+                - flareSignal * profile.FlarePitchBiasDeg, -profile.MaxPitchDeg, profile.MaxPitchDeg);
             var velocity = State.Velocity;
             var position = State.Position;
             var rotation = State.Rotation;
@@ -326,6 +346,7 @@ namespace VoarVR.Flight
                 else if (flapPower > profile.TakeoffFlapThreshold)
                 {
                     phase = FlightPhase.Flapping;
+                    TakeoffCount++;
                     velocity = Quaternion.Euler(0f,yawDeg,0f) * Vector3.forward * profile.TakeoffForwardSpeed
                         + Vector3.up * profile.TakeoffLiftSpeed;
                     position = landedPos + Vector3.up * profile.TakeoffClearance;
@@ -333,18 +354,25 @@ namespace VoarVR.Flight
                 }
                 else
                 {
-                    State = new BirdState { Position=landedPos, Velocity=Vector3.zero,
-                        Rotation=Quaternion.Euler(0f,landedYaw,0f), Phase=FlightPhase.Perched };
+                    WalkOnSurface(deltaTime);
                     return;
                 }
             }
-            // An unsafe impact cannot become a successful landing on the next substep
-            // merely because the collision removed its impact velocity. Clear the surface
-            // and make a fresh approach before contact can settle again.
-            if (MissedLanding && (environment == null || !environment.Sweep(position,
-                position + Vector3.down * .3f, profile.CollisionRadius, out var beneath)
-                || !beneath.Landable || beneath.SurfaceId != missedSurface)) MissedLanding = false;
-            bool contactedLanding = false;
+            MissedLanding = false;
+            LandingApproach = 0f;
+            if(environment != null && perchCooldown <= 0 && velocity.y < .1f
+                && environment.Sweep(position, position + velocity * .65f + Vector3.down * .35f,
+                    profile.CollisionRadius, out var ahead)
+                && ahead.Landable && ahead.Normal.y >= Mathf.Cos(FlightContactSolver.MaximumSlopeDegrees*Mathf.Deg2Rad))
+            {
+                LandingApproach = 1f;
+                // A short automatic flare dissipates speed before actual swept contact.
+                velocity.x *= Mathf.Exp(-deltaTime*2.5f); velocity.z *= Mathf.Exp(-deltaTime*2.5f);
+                if(velocity.y < -1.5f)velocity.y=Mathf.Lerp(velocity.y,-1.5f,1-Mathf.Exp(-deltaTime*3f));
+                targetPitchDeg = -8f;
+            }
+
+            bool contactedLanding=false;
             int steps = Mathf.Max(1, Mathf.CeilToInt(deltaTime / profile.MaxIntegrationStep));
             float dt = deltaTime / steps;
             for (int step = 0; step < steps; step++)
@@ -361,7 +389,10 @@ namespace VoarVR.Flight
                 var airDirection = speed > .001f ? airVelocity / speed : forward;
                 // Signed incidence relative to incoming flow, including each controller's twist.
                 float pathAngle = Mathf.Atan2(Vector3.Dot(airDirection, up), Vector3.Dot(airDirection, forward)) * Mathf.Rad2Deg;
-                AngleOfAttackDeg = profile.WingIncidenceDeg - pathAngle - wingPitch * .5f + flareSignal * 10f;
+                // Wrist articulation trims the wing; it must not reverse neutral lift
+                // simply because a human rolls their hands during an ordinary stroke.
+                float wristTrim = Mathf.Clamp(wingPitch * .5f, -4f, 4f);
+                AngleOfAttackDeg = profile.WingIncidenceDeg - pathAngle - wristTrim + flareSignal * 10f;
                 // In Assisted air, birds feather into changing airflow before a deep stall.
                 // This only adjusts aerodynamic incidence: no added force or pose rewriting.
                 // Explicit braking/tucking retain their original stall/dive behavior.
@@ -370,7 +401,9 @@ namespace VoarVR.Flight
                     ? Mathf.Clamp(AngleOfAttackDeg - (profile.StallAngleDeg - 4f), 0f, 45f) : 0f;
                 AngleOfAttackDeg -= WingFeatherDeg;
                 float alpha = Mathf.Clamp(AngleOfAttackDeg, -85f, 85f);
-                float stall = Mathf.Clamp01((Mathf.Abs(alpha) - profile.StallAngleDeg) / 25f);
+                float alula = AvianWingPresentation.AlulaDeployment(speed,alpha,Mathf.Max(flareSignal,LandingApproach),tuckSignal);
+                EffectiveStallAngleDeg=profile.StallAngleDeg+(alpha>0?alula*profile.AlulaStallDelayDeg:0);
+                float stall = Mathf.Clamp01((Mathf.Abs(alpha) - EffectiveStallAngleDeg) / 25f);
                 float cl = profile.LiftSlopePerRadian * alpha * Mathf.Deg2Rad;
                 cl = Mathf.Clamp(cl, -1.5f, 1.5f) * Mathf.Lerp(1f, .12f, stall)
                     * Mathf.Clamp01(speed / profile.StallSpeedMps);
@@ -380,7 +413,13 @@ namespace VoarVR.Flight
                 LiftForce = liftDirection * (q * area * cl);
                 float dragArea = profile.BodyDragAreaM2 + area * (profile.WingDragCoefficient
                     + profile.InducedDragCoefficient * cl * cl + flareSignal * profile.FlareDragCoefficient + stall * .4f);
+                float tailSpread = AvianWingPresentation.TailSpread(flareSignal,speed,tuckSignal);
+                dragArea += profile.TailDragAreaM2*tailSpread*.35f;
                 DragForce = -airDirection * (q * dragArea);
+                // Tail authority changes heading response, not speed or free lift. The
+                // aggregate point-mass model does not resolve a separate tail pitching moment.
+                if(profile.TailTurnGain>0f)
+                    yawDeg += -rollDeg*profile.TailTurnGain*tailSpread*Mathf.Clamp01(speed/5f)*dt;
                 // Each controller supplies a pressure direction as well as stroke speed.
                 // Sum the two wing reactions; edge-on strokes naturally do little work.
                 StrokeForce = ComputeStrokeForce(rotation);
@@ -389,9 +428,10 @@ namespace VoarVR.Flight
                 if (environment != null)
                 {
                     var contact = FlightContactSolver.Resolve(environment,position,velocity,dt,profile.CollisionRadius,
-                        flareSignal > .5f, perchCooldown <= 0f && !MissedLanding);
+                        flareSignal > .5f, perchCooldown <= 0f);
                     position=contact.Position; velocity=contact.Velocity; CollisionCount+=contact.ContactCount;
-                    if (contact.UnsafeLanding) { MissedLanding = true; missedSurface = contact.UnsafeSurfaceId; }
+                    LastImpactSpeed = Mathf.Max(LastImpactSpeed, contact.ImpactSpeed);
+
                     if (contact.Landed)
                     {
                         contactedLanding=true; landedPos=position; landedYaw=yawDeg; landedSurface=contact.SurfaceId;
@@ -411,6 +451,35 @@ namespace VoarVR.Flight
             if (environment != null && environment.TryFindLanding(position,24f,out var candidate))
             { NearestPerchDistance=candidate.Distance; NearestPerchPosition=candidate.Position; }
             State = new BirdState { Position = position, Velocity = velocity, Rotation = rotation, Phase = phase };
+        }
+
+        private void WalkOnSurface(float dt)
+        {
+            GroundVelocity=Vector3.zero;
+            landedYaw=yawDeg;
+            var move=Vector2.ClampMagnitude(LastInput.GroundMove,1f);
+            if(move.magnitude > .15f && environment != null)
+            {
+                var wish=Quaternion.Euler(0,yawDeg,0)*new Vector3(move.x,0,move.y)*profile.WalkSpeedMps;
+                var next=landedPos+wish*dt;
+                const float step=.18f;
+                // Keep collision protection while stepping over small terrain changes.
+                if(environment.Sweep(landedPos+Vector3.up*step,next+Vector3.up*step,profile.CollisionRadius,out var obstacle))
+                    next=new Vector3(obstacle.Position.x,next.y,obstacle.Position.z);
+                if(environment.Sweep(next+Vector3.up*step,next-Vector3.up*step,profile.CollisionRadius,out var support)
+                    && support.Landable && support.Normal.y >= Mathf.Cos(FlightContactSolver.MaximumSlopeDegrees*Mathf.Deg2Rad))
+                {
+                    GroundVelocity=(support.Position-landedPos)/dt;
+                    landedPos=support.Position; landedSurface=support.SurfaceId;
+                }
+                else
+                {
+                    phase=FlightPhase.Gliding;
+                    State=new BirdState {Position=next,Velocity=wish,Rotation=Quaternion.Euler(0,yawDeg,0),Phase=phase};
+                    return;
+                }
+            }
+            State=new BirdState {Position=landedPos,Velocity=GroundVelocity,Rotation=Quaternion.Euler(0,landedYaw,0),Phase=FlightPhase.Perched};
         }
 
         public void RebaseOrigin(Vector3 delta)
@@ -446,9 +515,10 @@ namespace VoarVR.Flight
         {
             if (calibratedTrackedHead && !LastInput.HeadTracked) return 0f;
             float headPitchDeg = LookPitch(LastInput.LookDirection) - neutralHeadPitch;
-            float deadzoned = ApplyDeadzone(headPitchDeg, profile.HeadPitchDeadzoneDeg);
+            float deadzone = headPitchDeg < 0f ? profile.DownLookDeadzoneDeg : profile.HeadPitchDeadzoneDeg;
+            float deadzoned = ApplyDeadzone(headPitchDeg, deadzone);
             float full = headPitchDeg < 0f ? profile.FullDownPitchDeg : profile.FullUpPitchDeg;
-            return Mathf.Clamp(deadzoned / Mathf.Max(1f, full - profile.HeadPitchDeadzoneDeg), -1f, 1f);
+            return Mathf.Clamp(deadzoned / Mathf.Max(1f, full - deadzone), -1f, 1f);
         }
         private static float LookPitch(Vector3 direction) => Mathf.Asin(Mathf.Clamp(direction.normalized.y, -1f, 1f)) * Mathf.Rad2Deg;
 

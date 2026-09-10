@@ -63,3 +63,7 @@ This creates a disposable cube, verifies rejection of unapplied scale, checks so
 ```
 
 The rig smoke rejects invalid weights, posed source and dangling rigs, then roundtrips the nine-bone meter-scale duck and proves a hand-bone pose deforms its mesh. Run both smoke tests after pipeline changes. Generated studies go in ignored `blender/generated/`; curated authored sources belong in `blender/source/`. Keep script inputs/seed explicit for future procedural assets. MCP execution should invoke these same contracts and leave repeatable scripts behind.
+
+## Magpie authoring
+
+`create_magpie.py` creates a new original63-bone `MagpieV1.blend` and stagedFBX; explicit `--overwrite` is only for deliberate iteration on that authored model. Generic validation still enforces normalized weights, finite transforms, rest pose and≤64 bones. `rig_smoke_test.py` preserves exact exported bone counts and checks Magpie10/9 remiges per wing and their parents. `magpie_measurements.py` checks .56m span and .06171m² overlap-aware projected rest wing area, separate from runtime embodiment scale. Curated Duck/Dragon exports additionally have four ground joints (13 total), while their original nine-core-bone authoring generators remain available.

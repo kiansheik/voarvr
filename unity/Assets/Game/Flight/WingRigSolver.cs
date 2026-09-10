@@ -28,6 +28,7 @@ namespace VoarVR.Flight
     {
         public Vector3 HeadOrigin;
         public Quaternion Heading = Quaternion.identity;
+        public Quaternion NeutralLookPitch = Quaternion.identity;
         public Quaternion BodyHeading { get; private set; } = Quaternion.identity;
         public Vector3 LeftNeutral = FlightInputFrame.Neutral.LeftWing.Position;
         public Vector3 RightNeutral = FlightInputFrame.Neutral.RightWing.Position;
@@ -51,6 +52,8 @@ namespace VoarVR.Flight
             HeadOrigin = frame.HeadPosition;
             Heading = frame.BodyTracked ? frame.BodyOrientation : Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
             BodyHeading = Heading;
+            var forward = frame.HeadOrientation * Vector3.forward;
+            NeutralLookPitch = Quaternion.Euler(-Mathf.Asin(Mathf.Clamp(forward.y, -1f, 1f)) * Mathf.Rad2Deg, 0f, 0f);
             HeadCaptured = true;
             LeftNeutral = frame.LeftWing.Position;
             RightNeutral = frame.RightWing.Position;
@@ -87,6 +90,8 @@ namespace VoarVR.Flight
             HeadOrigin = frame.HeadPosition;
             Heading = frame.BodyTracked ? frame.BodyOrientation : Quaternion.Euler(0f, frame.HeadOrientation.eulerAngles.y, 0f);
             BodyHeading = Heading;
+            var forward = frame.HeadOrientation * Vector3.forward;
+            NeutralLookPitch = Quaternion.Euler(-Mathf.Asin(Mathf.Clamp(forward.y, -1f, 1f)) * Mathf.Rad2Deg, 0f, 0f);
             HeadCaptured = true;
             return true;
         }

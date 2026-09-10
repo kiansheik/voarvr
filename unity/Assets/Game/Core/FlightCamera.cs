@@ -47,7 +47,7 @@ namespace VoarVR.Core
                 transform.SetPositionAndRotation(bird.transform.position + bird.Heading * (bird.CameraEyeAnchor + offset),
                     bird.Heading * Quaternion.Euler(6f,0f,0f)
                     * (bird.UsesXR
-                        ? Quaternion.Inverse(cameraTrackingHeading)
+                        ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading)
                         : Quaternion.identity) * headRotation);
                 UpdateCalibrationPrompt();
             }
@@ -62,7 +62,7 @@ namespace VoarVR.Core
                     * (new Vector3(0f, chaseHeight, -chaseDistance) + physicalOffset);
                 var baseRotation = ChaseBaseRotation(bird.Heading, chaseHeight, chaseDistance, extraWingReach);
                 var headDelta = bird.UsesXR
-                    ? Quaternion.Inverse(cameraTrackingHeading) * lastValidRotation
+                    ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading) * lastValidRotation
                     : Quaternion.identity;
                 transform.rotation = baseRotation * headDelta;
                 UpdateCalibrationPrompt();

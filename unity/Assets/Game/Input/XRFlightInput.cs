@@ -11,12 +11,14 @@ namespace VoarVR.Input
     {
         private readonly InputActionMap actions = new InputActionMap("Flight");
         private readonly InputAction leftPosition, rightPosition, leftRotation, rightRotation;
-        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect;
+        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect, hudToggle, groundMove, leftGrip, rightGrip, markerClick;
         private WingInput previousLeft, previousRight;
         private readonly TrackedBodyFrame body = new TrackedBodyFrame();
-        private bool recalibrateHeld, pauseHeld, viewHeld, windHeld, menuHeld;
+        private bool recalibrateHeld, pauseHeld, viewHeld, windHeld, menuHeld, hudHeld, markerHeld;
+        public FlightInputFrame LastDeviceFrame { get; private set; }
         public FlightInputFrame LastRawFrame { get; private set; }
         public bool WingsEnabled { get; set; }
+        public bool LastWingsEnabled { get; private set; }
         public string Mode => "XR / OpenXR";
 
         public XRFlightInput()
@@ -37,6 +39,11 @@ namespace VoarVR.Input
             viewToggle = Action("ViewToggle", "<XRController>{RightHand}/secondaryButton");
             windMode = Action("WindMode", "<XRController>{LeftHand}/secondaryButton");
             characterSelect = Action("CharacterSelect", "<XRController>{LeftHand}/menuButton");
+            hudToggle = Action("HudToggle", "<XRController>{RightHand}/{Primary2DAxisClick}");
+            groundMove = Action("GroundMove", "<XRController>{LeftHand}/primary2DAxis");
+            leftGrip = Action("LeftGrip", "<XRController>{LeftHand}/grip");
+            rightGrip = Action("RightGrip", "<XRController>{RightHand}/grip");
+            markerClick = Action("MarkerClick", "<XRController>{LeftHand}/{Primary2DAxisClick}");
             actions.Enable();
         }
 
@@ -61,6 +68,7 @@ namespace VoarVR.Input
 
         public FlightInputFrame Sample(float deltaTime)
         {
+            LastWingsEnabled=WingsEnabled;
             var frame = FlightInputFrame.Neutral;
             frame.LeftWing = ReadWing(leftPosition, leftRotation, leftTracked, previousLeft, deltaTime);
             frame.RightWing = ReadWing(rightPosition, rightRotation, rightTracked, previousRight, deltaTime);
@@ -96,7 +104,22 @@ namespace VoarVR.Input
                 // Restart captures this pose; avoid carrying an old derivative into flight.
                 previousLeft = previousRight = default;
             }
+            bool hudNow = hudToggle.ReadValue<float>() > .5f;
+            frame.HudTogglePressed = hudNow && !hudHeld; hudHeld = hudNow;
+            frame.GroundMove = Vector2.ClampMagnitude(groundMove.ReadValue<Vector2>(), 1f);
+            bool leftGripNow = leftGrip.ReadValue<float>() > .75f;
+            bool rightGripNow = rightGrip.ReadValue<float>() > .75f;
+            bool clickNow = markerClick.ReadValue<float>() > .5f;
+            bool markNow = leftGripNow && rightGripNow && clickNow;
+            frame.MarkerPressed = markNow && !markerHeld; markerHeld = markNow;
+            frame.ButtonsHeld = (recalibrateNow?1u:0u) | (viewNow?2u:0u) | (pauseNow?4u:0u)
+                | (windNow?8u:0u) | (menuNow?16u:0u) | (hudNow?32u:0u)
+                | (clickNow?64u:0u) | (leftGripNow?128u:0u) | (rightGripNow?256u:0u);
+            var deviceFrame = frame;
             body.Sample(ref frame, deltaTime);
+            deviceFrame.BodyOrientation=frame.BodyOrientation; deviceFrame.BodyTracked=frame.BodyTracked;
+            deviceFrame.LeftWing.Velocity=frame.LeftWing.Velocity; deviceFrame.RightWing.Velocity=frame.RightWing.Velocity;
+            LastDeviceFrame=deviceFrame;
             LastRawFrame = frame;
             if (!WingsEnabled)
             {

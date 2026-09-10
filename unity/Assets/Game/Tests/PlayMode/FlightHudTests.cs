@@ -17,6 +17,10 @@ namespace VoarVR.Tests
             yield return SceneManager.LoadSceneAsync("BirdFlight");yield return null;
             var d=Object.FindFirstObjectByType<BirdFlightDriver>();d.enabled=false;
             var h=d.GetComponent<FlightHud>();var t=d.GetComponent<BirdAirflowTrails>();
+            Assert.That(h.Visible,Is.False,"HUD starts hidden");
+            h.Toggle();Assert.That(h.Visible,Is.True);
+            h.Toggle();Assert.That(h.Visible,Is.False);
+            h.SetVisible(true);
             Assert.That(h.Instruments.renderMode,Is.EqualTo(RenderMode.WorldSpace));
             Assert.That(h.Instruments.transform.parent,Is.EqualTo(Camera.main.transform));
             Assert.That(h.Instruments.transform.localPosition.z,Is.EqualTo(2));
