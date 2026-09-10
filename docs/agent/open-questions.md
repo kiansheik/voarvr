@@ -13,3 +13,11 @@
 - Portability: Switch access and scope remain future M10 questions; no proprietary tooling assumed.
 
 None of the design questions block the initial toolchain validation. Do not create speculative systems just to close these questions.
+
+## Flight Game v1 acceptance questions
+
+- Quest is offline: wearer comfort,72Hz/thermal overhead, APK launch and new telemetry pull remain unverified.
+- Input-only Skyward pilot completes in180.4s; target10–20minute human journey pacing is unverified.
+- Strict art/thermal-readability gates are not yet met; bounded prototype geometry needs composition/lighting/landmark polish.
+- Natural-start acrobatic loop technique needs coaching and wearable tests; energetic-entry fixtures are insufficient user-usability proof.
+- Ridge Journey and local bests provide initial progression, not a full campaign, cosmetic unlock system or journal.

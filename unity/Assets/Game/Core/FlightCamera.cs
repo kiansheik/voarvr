@@ -43,9 +43,10 @@ namespace VoarVR.Core
                 var headRotation = bird.UsesXR ? lastValidRotation : Quaternion.identity;
                 var offset = bird.UsesXR && bird.Calibration.HeadCaptured
                     ? Quaternion.Inverse(cameraTrackingHeading) * (lastValidPosition - bird.Calibration.HeadOrigin) : Vector3.zero;
-                // Yaw-only basis: simulation bank/pitch never rotates the headset or its room offset.
-                transform.SetPositionAndRotation(bird.transform.position + bird.Heading * (bird.CameraEyeAnchor + offset),
-                    bird.Heading * Quaternion.Euler(6f,0f,0f)
+                bool embodied=bird.Controller.ControlMode==FlightControlMode.Acrobatic;
+                var basis=FirstPersonBasis(bird.Controller.ControlMode,bird.transform.rotation,bird.Heading);
+                transform.SetPositionAndRotation(bird.transform.position + basis * ((embodied?bird.ImmersiveEyeAnchor:bird.CameraEyeAnchor) + offset),
+                    basis * (embodied?Quaternion.identity:Quaternion.Euler(6f,0f,0f))
                     * (bird.UsesXR
                         ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading)
                         : Quaternion.identity) * headRotation);
@@ -85,7 +86,7 @@ namespace VoarVR.Core
                 calibrationPrompt.characterSize = .008f;
                 calibrationPrompt.color = new Color(1f, .82f, .25f);
             }
-            calibrationPrompt.gameObject.SetActive(!bird.Calibration.Captured || !string.IsNullOrEmpty(bird.CoachStatus));
+            calibrationPrompt.gameObject.SetActive(!bird.Calibration.Captured || (bird.ShowFlightText && !string.IsNullOrEmpty(bird.CoachStatus)));
             if (!calibrationPrompt.gameObject.activeSelf) return;
             string text = ResolvePrompt(bird.Calibration.Captured, bird.CalibrationStatus, bird.CoachStatus);
             if (displayedPrompt == text) return;
@@ -95,6 +96,9 @@ namespace VoarVR.Core
 
         public static Quaternion ChaseBaseRotation(Quaternion heading, float height, float distance, float extraReach) =>
             heading * Quaternion.LookRotation(new Vector3(0f, .12f + extraReach * .15f - height, .25f + distance), Vector3.up);
+
+        public static Quaternion FirstPersonBasis(FlightControlMode mode,Quaternion body,Quaternion heading) =>
+            mode==FlightControlMode.Acrobatic?body:heading;
 
         public static string ResolvePrompt(bool calibrated, string calibrationStatus, string coachStatus) =>
             calibrated ? coachStatus ?? ""

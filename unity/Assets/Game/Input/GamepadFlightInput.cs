@@ -5,6 +5,7 @@ namespace VoarVR.Input
 {
     public sealed class GamepadFlightInput : IFlightInput
     {
+        private readonly ControlModeGesture modeGesture=new ControlModeGesture();
         private bool resetHeld;
         private bool pauseHeld;
         private bool viewHeld;
@@ -22,6 +23,7 @@ namespace VoarVR.Input
                 resetHeld = pauseHeld = viewHeld = windHeld = menuHeld = hudHeld = false;
                 return frame;
             }
+            frame.ControlModePressed=modeGesture.Sample(pad.leftStickButton.isPressed,false,deltaTime);
             frame.Bank = pad.leftStick.x.ReadValue();
             frame.GroundMove = pad.leftStick.ReadValue();
             frame.HudTogglePressed = pad.rightStickButton.isPressed && !hudHeld;

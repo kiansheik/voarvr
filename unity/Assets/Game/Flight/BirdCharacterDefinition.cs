@@ -30,6 +30,7 @@ namespace VoarVR.Flight
         [SerializeReference] public BirdMorphology Morphology;
         public AvianArticulationSettings Articulation = new AvianArticulationSettings();
         public float RigPresentationScale = 1f; // GAMEPLAY-TUNED embodiment scale, not biological size.
+        public Vector3 FirstPersonEyeAnchor = new Vector3(0,.288f,.32f); // Authored rig metres, before presentation scale.
         [Tooltip("Aerodynamic wing area beyond overall Size scaling. Match this to unusually broad or narrow authored wings.")]
         [Min(0.25f)] public float WingAreaMultiplier = 1f;
         [Tooltip("Forward work from a neutral downstroke, relative to its lift. Keeps broad-winged species moving without wrist contortions.")]

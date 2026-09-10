@@ -23,10 +23,13 @@ namespace VoarVR.Telemetry
         {
             using(var r=new BinaryReader(File.OpenRead(path),Encoding.UTF8))
             {
-                if(Encoding.ASCII.GetString(r.ReadBytes(8))!="VOARTLM1" || r.ReadInt32()!=1)throw new InvalidDataException("Unsupported telemetry format");
+                if(Encoding.ASCII.GetString(r.ReadBytes(8))!="VOARTLM1")throw new InvalidDataException("Unsupported telemetry format");
+                int version=r.ReadInt32();if(version!=1 && version!=2 && version!=3)throw new InvalidDataException("Unsupported telemetry schema");
                 int size=r.ReadInt32(); if(size<=0 || size>1048576)throw new InvalidDataException("Invalid header size");
                 Header=JsonUtility.FromJson<FlightTelemetry.Header>(Encoding.UTF8.GetString(r.ReadBytes(size)));
-                if(!Header.fields.SequenceEqual(TelemetrySample.Fields))throw new InvalidDataException("Incompatible frame schema");
+                bool current=Header.fields.SequenceEqual(TelemetrySample.Fields);
+                var legacy=Header.fields.Select(name=>typeof(TelemetrySample).GetField(name)).ToArray();
+                if(legacy.Any(f=>f==null) || version==3 && (!current || !Header.wideFields.SequenceEqual(TelemetrySample.WideFields)))throw new InvalidDataException("Incompatible frame schema");
                 while(r.BaseStream.Position<r.BaseStream.Length)
                 {
                     if(r.BaseStream.Length-r.BaseStream.Position<5)break;
@@ -35,8 +38,10 @@ namespace VoarVR.Telemetry
                     if(r.BaseStream.Length-r.BaseStream.Position<length)break;
                     if(kind==1)
                     {
-                        if(length!=TelemetrySample.Fields.Length*8)throw new InvalidDataException("Invalid frame size");
-                        samples.Add(TelemetrySample.Read(r));
+                        if(length!=(version==3?TelemetrySample.CompactSize:Header.fields.Length*8))throw new InvalidDataException("Invalid frame size");
+                        if(version==3)samples.Add(TelemetrySample.ReadCompact(r));
+                        else if(current)samples.Add(TelemetrySample.Read(r));
+                        else {object value=new TelemetrySample();foreach(var f in legacy)f.SetValue(value,r.ReadDouble());samples.Add((TelemetrySample)value);}
                     }
                     else r.BaseStream.Seek(length,SeekOrigin.Current);
                 }
@@ -51,6 +56,7 @@ namespace VoarVR.Telemetry
         public void Rewind(){index=0;current=FlightInputFrame.Neutral;}
         public static FlightInputFrame Raw(TelemetrySample s) => new FlightInputFrame
         {
+            ControlModePressed=s.raw_control_mode_pressed>0,
             LeftWing=new WingInput { Position=new Vector3((float)s.raw_left_position_x,(float)s.raw_left_position_y,(float)s.raw_left_position_z), Velocity=new Vector3((float)s.raw_left_velocity_x,(float)s.raw_left_velocity_y,(float)s.raw_left_velocity_z), Orientation=new Quaternion((float)s.raw_left_rotation_x,(float)s.raw_left_rotation_y,(float)s.raw_left_rotation_z,(float)s.raw_left_rotation_w), Tracked=s.raw_left_tracked>0 },
             RightWing=new WingInput { Position=new Vector3((float)s.raw_right_position_x,(float)s.raw_right_position_y,(float)s.raw_right_position_z), Velocity=new Vector3((float)s.raw_right_velocity_x,(float)s.raw_right_velocity_y,(float)s.raw_right_velocity_z), Orientation=new Quaternion((float)s.raw_right_rotation_x,(float)s.raw_right_rotation_y,(float)s.raw_right_rotation_z,(float)s.raw_right_rotation_w), Tracked=s.raw_right_tracked>0 },
             HeadPosition=new Vector3((float)s.raw_head_position_x,(float)s.raw_head_position_y,(float)s.raw_head_position_z),

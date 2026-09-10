@@ -45,3 +45,21 @@ Added sparse stereo HUD, actual wingtip speed wakes, gold/cyan/rose vertical-air
 HUD now defaults off with right-stick-click toggle. Automatic top-surface landing, supported left-stick walking and imported foot joints replace landing failure and lifeless grounded wings. Shared comfortable head mapping captures natural pitch, preserves level neutral glide and bounds wrist trim; duck/dragon moderate strokes sustain neutral/+6-degree gaze. Added restrained per-hand wind/contact haptics and procedural audio, pause/focus gating. Independent critics exposed selected-root, pause, stale capture and foot-readability issues; corrected and revalidated. Final checks/build/device: [handoff](session-handoffs/2026-09-10-comfort-ground-feedback.md). No commit/push.
 
 - 2026-09-10: Magpie/telemetry milestone in progress. Research distinguishes European AVONET data, North American comparative flight data and gameplay choices. Added first63-bone model, avian capability, bounded binary recording/offline tools and initial replay; independent science/technical findings triggered geometry and calibration/event revisions. Not yet built for Quest. See session-handoffs/2026-09-10-magpie-telemetry.md.
+
+## 2026-09-10 — Flight Game v1 desktop slice / Quest APK
+
+Preserved original Beginner trajectories; added separate species acrobatics and actual trajectory tricks, real lift/circling support, original15-piece Blender sky/lowland kit, deterministic activities and physical Skyward completion with saved best/unlock, telemetry2. Completed input-only route in180.4simseconds, score577.165 Edit/19 Play/19 Python pass, Blender validation+MCP inspection. Three rounds/five independent critics; fixed camera exit, loop behavior, collision identity/placement, cloud winding/gamma, route/UI issues. APK built; Quest offline. Art/readability and hardware acceptance remain unmet. No commit/push. [Report](../development/flight-game-v1-validation.md) and [handoff](session-handoffs/2026-09-10-flight-game-v1.md).
+
+## 2026-09-10 — latest Quest gameplay downloaded and diagnosed
+
+Recovered offline ADB connection and pulled two latest recordings (Magpie/Dragon), total168,212,378bytes, complete/zero drops. Confirmed installed source fingerprint, excessive advanced angular rates, failed Magpie thermal climb and hidden soaring altitude gate. Recorded timing largely72Hz; no broad collapse inferred. Raw Unity logcat unavailable/empty. No runtime changes, install or commit. [Diagnosis](../development/quest-flight-game-playtest-2026-09-10.md).
+
+## 2026-09-10 — sky-garden comfort and telemetry v3
+
+Fixed relaxed-span Assisted protection, softened Acrobatic control with loops retained, added SunMoth play and coherent kit/sky polish. Compact v3 records movement/protection/rewards and cached cross-session history with explicit coverage.172Edit/20Play/21Python pass; actual live v3 clean0drops; no current hardware validation. [Handoff](session-handoffs/2026-09-10-sky-garden-comfort.md).
+
+## 2026-09-10 — quiet cockpit
+
+Downloaded two clean latest Questv3 sessions. Replaced suspected magenta backplate path/teardown, gated ongoing text by HUD, added authored-eye full-rotation Acrobatic first-person and body-relative calibrated pitch.179Edit/22Play/21Python pass; actual device reproduction/acceptance pending. [Handoff](session-handoffs/2026-09-10-quiet-cockpit.md).
+
+Quiet-cockpit APK2cab1e99… installed successfully; PID10335 started without reported exception, then paused on headset focus loss. New rendered gameplay and magenta-bar acceptance remain unverified.

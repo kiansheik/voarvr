@@ -25,6 +25,7 @@ namespace VoarVR.Flight
         private FlightFeedback feedback;
         private AvianWingPresentation avian;
         private VoarVR.Telemetry.FlightTelemetry telemetry;
+        public VoarVR.Gameplay.ExpeditionDirector Expedition {get;private set;}
         private BirdCharacterDefinition character;
         private WindField wind;
         private WorldStreamer world;
@@ -37,16 +38,22 @@ namespace VoarVR.Flight
         private bool hasRecenterFrame;
         private bool returningToSelection;
         private float coachUntil;
+        private float comfortYaw;
+        private bool comfortTransition;
+        private FlightControlMode previousControlMode;
+        private int lastTrickCount;
         public BirdTrackingCalibration Calibration => calibration;
         public string CalibrationStatus { get; private set; } = "Spread arms and press A to start + calibrate";
         public string CoachStatus { get; private set; }
+        public bool ShowFlightText => GetComponent<VoarVR.UI.FlightHud>()?.Visible == true;
+        public Vector3 ImmersiveEyeAnchor => character!=null ? character.FirstPersonEyeAnchor*character.RigPresentationScale : new Vector3(0,.288f,.32f);
         public FlightViewMode ViewMode => viewMode;
         public float PhysicalYawOffsetDeg => Controller != null ? Controller.PhysicalYawOffsetDeg : 0f;
         public float CharacterRestHalfSpan => character != null ? character.RestArmSpan : .56f;
         public Vector3 CameraEyeAnchor => BirdTrackingCalibration.EyeAnchor
             + Vector3.up * (Mathf.Max(0f, CharacterRestHalfSpan - .56f) * .22f);
         public string WindModeName => wind != null ? wind.ModeName : "Still air";
-        public Quaternion Heading => Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        public Quaternion Heading => Quaternion.Euler(0f, Controller!=null && (Controller.ControlMode==FlightControlMode.Acrobatic || comfortTransition) ? comfortYaw : transform.eulerAngles.y, 0f);
         public SyntheticGesture Gesture { get => gesture; set => gesture = value; }
         public void SetSyntheticGesture(SyntheticGesture value, bool resetClock)
         {
@@ -80,6 +87,7 @@ namespace VoarVR.Flight
             }
             wind = FindAnyObjectByType<WindField>();
             world = FindAnyObjectByType<WorldStreamer>();
+            wind?.ConfigureSpecies(profile);
             originalSpawn = transform.position;
             var environment = gameObject.AddComponent<UnityFlightEnvironment>();
             Controller = new BirdFlightController(input, originalSpawn, profile:profile, wind:wind, environment:environment);
@@ -93,6 +101,9 @@ namespace VoarVR.Flight
                 avian=gameObject.AddComponent<AvianWingPresentation>();
                 avian.Configure(rig,character.Articulation,character.Morphology);
             }
+            Expedition=gameObject.AddComponent<VoarVR.Gameplay.ExpeditionDirector>();
+            Expedition.Configure(this,world!=null?world.Space:null);
+            if(world!=null)gameObject.AddComponent<VoarVR.Gameplay.SkyForaging>().Configure(this,world.Space,wind);
             telemetry=gameObject.AddComponent<VoarVR.Telemetry.FlightTelemetry>();
             telemetry.Configure(this,rig,world,character,profile);
             if (UsesXR)
@@ -157,6 +168,7 @@ namespace VoarVR.Flight
                 return;
             }
             if (Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame) GetComponent<VoarVR.UI.FlightHud>()?.Toggle();
+            if(Keyboard.current!=null && Keyboard.current.cKey.wasPressedThisFrame) { Controller.SetControlMode(Controller.ControlMode==FlightControlMode.Beginner?FlightControlMode.Acrobatic:FlightControlMode.Beginner); ShowMode(); }
             if (Time.deltaTime > 0f) Tick(Mathf.Min(Time.deltaTime, .05f));
         }
 
@@ -170,6 +182,18 @@ namespace VoarVR.Flight
             Controller.StreamingBlocked = world != null && (!world.IsReadyAt(Controller.State.Position)
                 || !world.IsReadyAt(Controller.State.Position + Controller.State.Velocity * deltaTime));
             Controller.Step(deltaTime);
+            var forward=Controller.State.Rotation*Vector3.forward;
+            if(previousControlMode==FlightControlMode.Acrobatic && Controller.ControlMode==FlightControlMode.Beginner)comfortTransition=true;
+            if(Controller.LastInput.ResetPressed)comfortTransition=false;
+            if(Controller.ControlMode==FlightControlMode.Beginner && !comfortTransition)comfortYaw=Controller.State.Rotation.eulerAngles.y;
+            else if(Controller.ControlMode==FlightControlMode.Beginner)
+            {
+                comfortYaw=AdvanceComfortYaw(comfortYaw,Controller.State.Rotation.eulerAngles.y,deltaTime);
+                if(Mathf.Abs(Mathf.DeltaAngle(comfortYaw,Controller.State.Rotation.eulerAngles.y))<.1f)comfortTransition=false;
+            }
+            else if(Mathf.Abs(forward.y)<.8f && Vector3.Dot(Controller.State.Rotation*Vector3.up,Vector3.up)>.2f)
+                comfortYaw=AdvanceComfortYaw(comfortYaw,Mathf.Atan2(forward.x,forward.z)*Mathf.Rad2Deg,deltaTime);
+            previousControlMode=Controller.ControlMode;
             if (world != null && (Mathf.Abs(Controller.State.Position.x)>768f || Mathf.Abs(Controller.State.Position.z)>768f))
             {
                 var p=Controller.State.Position;
@@ -178,6 +202,8 @@ namespace VoarVR.Flight
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
             var xr = input as XRFlightInput;
             var frame = xr != null ? xr.LastRawFrame : Controller.LastInput;
+            if(frame.ControlModePressed)ShowMode();
+            if(Controller.Tricks.Count!=lastTrickCount){lastTrickCount=Controller.Tricks.Count;CoachStatus=Controller.Tricks.Last.ToString().ToUpperInvariant()+"  +"+Controller.Tricks.Score;coachUntil=Time.unscaledTime+2;}
             if (frame.HudTogglePressed) GetComponent<VoarVR.UI.FlightHud>()?.Toggle();
             if (frame.CharacterSelectPressed) { ReturnToCharacterSelect(); return; }
             if (xr != null && !calibration.HeadCaptured) calibration.CaptureHead(frame);
@@ -204,14 +230,14 @@ namespace VoarVR.Flight
             if (!platformRecenterPending && Time.unscaledTime >= coachUntil)
             {
                 if (Controller.State.Phase == FlightPhase.Paused)
-                    CoachStatus = "PAUSED - X TO RESUME\nRIGHT STICK CLICK: HUD / B: VIEW\nLEFT MENU: CHARACTERS / A: START + CALIBRATE"
+                    CoachStatus = "PAUSED - X TO RESUME\nRIGHT STICK CLICK: HUD / B: VIEW\nHOLD LEFT STICK: FLIGHT MODE\nLEFT MENU: CHARACTERS / A: START + CALIBRATE"
                         + (VoarVR.Telemetry.FlightTelemetry.DefaultEnabled ? "\nMARK: BOTH GRIPS + LEFT STICK CLICK" : "");
                 else if (Controller.State.Phase == FlightPhase.Perched)
                     CoachStatus = Controller.LandingCount != lastLandingCount ? "LANDED - LEFT STICK: WALK / FLAP: FLY" : null;
                 else if (Controller.LandingApproach > .1f)
                     CoachStatus = "LANDING - RELAX YOUR WINGS";
                 else if (Controller.WindVelocity.y > 2f)
-                    CoachStatus = "RISING AIR: SPREAD WINGS\nGENTLE BANK + CIRCLE TO STAY IN CORE";
+                    CoachStatus = Controller.State.Velocity.y>.3f ? "SOARING +"+Controller.State.Velocity.y.ToString("F1")+" m/s\nRELAX YOUR WINGS · GENTLE CIRCLE" : "RISING AIR · OPEN YOUR WINGS\nEASE THE TURN TO START CLIMBING";
                 else if (Controller.WindVelocity.y < -2f)
                     CoachStatus = "DESCENDING DRAFT\nLEAVE THE RED STREAM";
                 else CoachStatus = null;
@@ -220,13 +246,19 @@ namespace VoarVR.Flight
             if (Controller.State.Phase != FlightPhase.Paused)
             {
                 groundPresentation?.RestoreBase();
-                if (rig != null) rig.Present(presentationFrame, calibration, Heading, deltaTime);
+                if (rig != null) rig.Present(presentationFrame, calibration, Controller.ControlMode==FlightControlMode.Acrobatic?Controller.State.Rotation:Heading, deltaTime);
                 groundPresentation?.Present(Controller, deltaTime);
                 avian?.Present(presentationFrame,calibration,Controller,groundPresentation.GroundBlend,deltaTime);
             }
             feedback?.Tick(deltaTime);
+            Expedition?.Tick(deltaTime);
+            GetComponent<VoarVR.Gameplay.SkyForaging>()?.Tick(deltaTime);
             telemetry?.Capture(xr!=null?xr.LastDeviceFrame:frame,deltaTime,xr==null || xr.LastWingsEnabled);
         }
+
+        public static float AdvanceComfortYaw(float current,float target,float dt)=>Mathf.MoveTowardsAngle(current,target,45*dt);
+        private void ShowMode()
+        { CoachStatus=Controller.ControlMode==FlightControlMode.Acrobatic?"ACROBATIC FLIGHT\nBANK TO ROLL / TILT BOTH WRISTS TO PITCH\nA: RECOVER / HOLD LEFT STICK: BEGINNER":"BEGINNER FLIGHT";coachUntil=Time.unscaledTime+5; }
 
         public void ShowTelemetryMarker(int number)
         { CoachStatus="MARK "+number; coachUntil=Time.unscaledTime+1f; }
@@ -237,6 +269,7 @@ namespace VoarVR.Flight
             if(world!=null) world.ResetOrigin();
             Controller.SetSpawn(originalSpawn);
             Controller.Reset();
+            Expedition?.Restart();GetComponent<VoarVR.Gameplay.SkyForaging>()?.InvalidateSweep();
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
             viewMode = FlightViewMode.ThirdPerson;
             platformRecenterPending = false;

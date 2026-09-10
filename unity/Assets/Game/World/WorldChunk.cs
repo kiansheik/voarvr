@@ -23,9 +23,9 @@ namespace VoarVR.World
         private static readonly int[] Faces = { 0,3,2,1,4,5,6,7,0,1,5,4,1,2,6,5,2,3,7,6,3,0,4,7 };
         private readonly Vector3[] corners = new Vector3[8];
         private const int Grid = 16;
-        private readonly List<Vector3>[] vertices = new List<Vector3>[4];
-        private readonly List<int>[] triangles = new List<int>[4];
-        private readonly Mesh[] meshes = new Mesh[4];
+        private readonly List<Vector3>[] vertices = new List<Vector3>[5];
+        private readonly List<int>[] triangles = new List<int>[5];
+        private readonly Mesh[] meshes = new Mesh[5];
         private readonly List<BoxCollider> boxes = new List<BoxCollider>();
         private readonly List<Vector3> boxCenters = new List<Vector3>();
         private readonly List<Vector3> boxSizes = new List<Vector3>();
@@ -33,20 +33,24 @@ namespace VoarVR.World
         private Mesh terrain;
         private Vector3[] groundVertices, groundNormals;
         private int[] groundTriangles;
+        private SkywardKit kit;
+        private readonly List<Color> kitColors=new List<Color>();
         private int seed, row, feature, boxCount;
         private bool collisionWanted;
 
         public void Initialize(Material[] materials)
         {
+            kit=Resources.Load<SkywardKit>("SkywardKit");
             gameObject.layer = WorldStreamer.CollisionLayer;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 5; i++)
             {
                 vertices[i] = new List<Vector3>(1600); triangles[i] = new List<int>(2400);
-                var go = new GameObject(new[] { "Terrain", "SpiritCityAndWater", "Forest", "Canopy" }[i]);
+                var go = new GameObject(new[] { "Terrain", "SpiritCityAndWater", "Forest", "Canopy", "Authored nature and city" }[i]);
                 go.transform.SetParent(transform, false); go.layer = WorldStreamer.CollisionLayer;
                 meshes[i] = new Mesh { name = "Reusable chunk " + i }; meshes[i].MarkDynamic();
                 go.AddComponent<MeshFilter>().sharedMesh = meshes[i];
-                var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterial = materials[i];
+                var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterial = i==4 && kit!=null?kit.Material:materials[Mathf.Min(i,3)];
+                if(i==4){var block=new MaterialPropertyBlock();block.SetFloat("_HazeStart",65);block.SetFloat("_HazeEnd",235);renderer.SetPropertyBlock(block);}
                 renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
                 renderer.lightProbeUsage = LightProbeUsage.Off; renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 if (i == 0) { terrain = meshes[i]; terrainCollider = go.AddComponent<MeshCollider>(); go.AddComponent<LandingSurface>(); }
@@ -68,10 +72,10 @@ namespace VoarVR.World
             GetComponent<LandingSurface>().SurfaceId = unchecked((int)WorldTerrain.Hash(seed, x, z, 900)) | 1;
             terrainCollider.GetComponent<LandingSurface>().SurfaceId = unchecked((int)WorldTerrain.Hash(seed, x, z, 901)) | 1;
             Ready = false; GenerationStage = row = feature = boxCount = 0;
-            boxCenters.Clear(); boxSizes.Clear(); collisionWanted = false;
+            boxCenters.Clear(); boxSizes.Clear();kitColors.Clear(); collisionWanted = false;
             terrainCollider.enabled = false; terrainCollider.sharedMesh = null;
             foreach (var box in boxes) box.enabled = false;
-            for (int i = 0; i < 4; i++) { vertices[i].Clear(); triangles[i].Clear(); meshes[i].Clear(); }
+            for (int i = 0; i < 5; i++) { vertices[i].Clear(); triangles[i].Clear(); meshes[i].Clear(); }
             gameObject.SetActive(true);
         }
         // One small work item: one row, one feature cell, or one bounded mesh upload/cook.
@@ -102,10 +106,11 @@ namespace VoarVR.World
                 GenerateCell(feature++);
                 if (feature == 36) GenerationStage++;
             }
-            else if (GenerationStage < 6)
+            else if (GenerationStage < 7)
             {
                 int i = GenerationStage - 2;
                 meshes[i].SetVertices(vertices[i]); meshes[i].SetTriangles(triangles[i], 0);
+                if(i==4)meshes[i].SetColors(kitColors);
                 meshes[i].RecalculateNormals(); meshes[i].RecalculateBounds(); GenerationStage++;
             }
             else { Ready = true; SetCollision(collisionWanted); }
@@ -148,6 +153,19 @@ namespace VoarVR.World
             if (river < 8) return;
             float biome = WorldTerrain.Biome(seed, wx, wz);
             float variety = WorldTerrain.Unit(seed, gx, gz, 3);
+            if(kit!=null)
+            {
+                string name=biome>.64f?(variety>.65f?"Tower":variety>.25f?"House":"Ruin"):biome<.57f?(variety>.22f?"Tree"+(cell%3):"DeadTree"):(variety>.8f?"Spire":variety>.5f?"Rock":"Log");
+                if(variety<.32f)return; // Fewer, richer authored landmarks preserve the standalone geometry budget.
+                float scale=.55f+variety*.4f;var mesh=kit.Find(name);var matrix=Matrix4x4.TRS(new Vector3(x,y,z),Quaternion.Euler(0,variety*360,0),Vector3.one*scale);
+                var data=kit.Data(name);int offset=vertices[4].Count;
+                foreach(var v in data.Vertices)vertices[4].Add(matrix.MultiplyPoint3x4(v));foreach(var t in data.Triangles)triangles[4].Add(offset+t);kitColors.AddRange(data.Colors);
+                bool tree=name.StartsWith("Tree") || name=="DeadTree";
+                var bounds=mesh.bounds;Vector3 size=bounds.size*scale;
+                var center=new Vector3(x,y,z);var localCenter=bounds.center*scale;
+                if(tree){size.x=size.z=.9f;localCenter=new Vector3(0,size.y*.5f,0);}
+                AddProxy(center,size,Quaternion.Euler(0,variety*360,0),localCenter);return;
+            }
             if (biome > .64f && variety > .17f)
             {
                 float h = 7 + variety * 23, w = 5 + WorldTerrain.Unit(seed, gx, gz, 4) * 4;
@@ -175,9 +193,13 @@ namespace VoarVR.World
             corners[4] = new Vector3(-h.x, h.y, -h.z); corners[5] = new Vector3(h.x, h.y, -h.z);
             corners[6] = new Vector3(h.x, h.y, h.z); corners[7] = new Vector3(-h.x, h.y, h.z);
             for(int f=0;f<6;f++) { int a=v.Count; for(int p=0;p<4;p++)v.Add(center+corners[Faces[f*4+p]]); t.Add(a);t.Add(a+2);t.Add(a+1);t.Add(a);t.Add(a+3);t.Add(a+2); }
+            AddProxy(center,size);
+        }
+        private void AddProxy(Vector3 center,Vector3 size,Quaternion rotation=default,Vector3 localCenter=default)
+        {
             boxCenters.Add(center); boxSizes.Add(size);
-            if (boxes.Count < boxCenters.Count) boxes.Add(gameObject.AddComponent<BoxCollider>());
-            var collider = boxes[boxCenters.Count - 1]; collider.enabled = false; collider.center = center; collider.size = size;
+            if (boxes.Count < boxCenters.Count){var proxy=new GameObject("Authored collision");proxy.transform.SetParent(transform,false);proxy.layer=WorldStreamer.CollisionLayer;boxes.Add(proxy.AddComponent<BoxCollider>());}
+            var collider = boxes[boxCenters.Count - 1]; collider.enabled = false; collider.transform.localPosition=center;collider.transform.localRotation=rotation==default?Quaternion.identity:rotation;collider.center = localCenter; collider.size = size;
             boxCount = boxCenters.Count;
         }
         public void SetCollision(bool enabled)
@@ -192,7 +214,8 @@ namespace VoarVR.World
             if (enabled && Ready)
             {
                 boxCount = boxCenters.Count;
-                for (int i = 0; i < boxCount; i++) { boxes[i].center = boxCenters[i]; boxes[i].size = boxSizes[i]; }
+                // Placement and mesh-local bounds are established together in AddProxy.
+                // Re-enabling collision must not apply chunk-space placement a second time.
             }
             for (int i = 0; i < boxes.Count; i++) boxes[i].enabled = enabled && Ready && i < boxCount;
         }

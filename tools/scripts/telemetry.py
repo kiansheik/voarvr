@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 MAGIC=b'VOARTLM1'
-EVENTS='SessionStart SessionEnd CalibrationAccepted CalibrationRejected Recenter TrackingLost TrackingRecovered ViewChanged WeatherChanged StallEntry StallRecovery ThermalEntry ThermalExit Collision LandingAttempt LandingSuccess Takeoff StreamingStall StreamingRecovered CharacterReturn Marker Paused Resumed FlightReset SupportLost'.split()
+EVENTS='SessionStart SessionEnd CalibrationAccepted CalibrationRejected Recenter TrackingLost TrackingRecovered ViewChanged WeatherChanged StallEntry StallRecovery ThermalEntry ThermalExit Collision LandingAttempt LandingSuccess Takeoff StreamingStall StreamingRecovered CharacterReturn Marker Paused Resumed FlightReset SupportLost ControlModeChanged TrickCompleted ObjectiveStarted ObjectiveProgress ObjectiveCompleted ObjectiveFailed RegionChanged RestStarted RestEnded CollectibleCaught EffortSummary StallProtectionLost StallProtectionRecovered'.split()
 ROOT=Path(__file__).resolve().parents[2]
 
 
@@ -24,11 +24,13 @@ def decode(path):
         head=f.read(8)
         if len(head)!=8: raise ValueError('Truncated header')
         version,length=struct.unpack('<ii',head)
-        if version!=1: raise ValueError(f'Unsupported schema {version}')
+        if version not in (1,2,3): raise ValueError(f'Unsupported schema {version}')
         if not 0<length<=1024*1024: raise ValueError('Invalid header size')
         header=json.loads(f.read(length)); names=header['fields']
         if len(names)>4096 or len(names)!=len(set(names)): raise ValueError('Invalid fields')
-        layout=struct.Struct('<'+'d'*len(names))
+        wide=header.get('wideFields',[])
+        if version==3 and (not isinstance(wide,list) or any(k not in names for k in wide)): raise ValueError('Invalid wide fields')
+        layout=struct.Struct('<'+''.join('d' if version<3 or k in wide else 'f' for k in names))
         while prefix:=f.read(5):
             if len(prefix)!=5: truncated=True; break
             kind,size=struct.unpack('<Bi',prefix)
@@ -87,7 +89,7 @@ def wrist_excursion(row,side):
 
 def summarize(data):
     rows=data['frames']; duration=sum(r['dt'] for r in rows)
-    result=dict(session=data['header'].get('session'),character=data['header'].get('character'),frames=len(rows),simulation_seconds=duration,clean_close=data['complete'],truncated=data['truncated'],dropped=data['dropped'],allocation_counter='unavailable',metrics={},inputs={},events={})
+    result=dict(utc=data['header'].get('utc'),build=data['header'].get('git'),session=data['header'].get('session'),character=data['header'].get('character'),frames=len(rows),simulation_seconds=duration,clean_close=data['complete'],truncated=data['truncated'],dropped=data['dropped'],allocation_counter='unavailable',metrics={},inputs={},events={})
     for key in ['airspeed','groundspeed','aoa','head_pitch','energy','render_dt','unscaled_dt','cpu_ms','gpu_ms','clearance','reach_left','reach_right','generation_ms','capture_cpu_ms']:
         result['metrics'][key]=stats([r.get(key,math.nan) for r in rows])
     for key in ['lift','drag','stroke','wind']:
@@ -143,6 +145,21 @@ def summarize(data):
         if r['phase']==0:segment.append(r)
     close_segment();result['glide_segments']=glides
     result['landing_approach_speed_mps']=stats([e['value'] for e in data['events'] if e['event']=='LandingAttempt'])
+    result['flight_game']={name:stats([r[name] for r in rows if name in r]) for name in ('control_mode','angular_velocity_x','angular_velocity_y','angular_velocity_z','trick_score','thermal_assist_bank','objective_progress','mission_score','island_distance')}
+    if rows and 'effort_active_seconds' in rows[-1]:
+        last=rows[-1]
+        result['effort_proxies']={k:last[k] for k in ('effort_active_seconds','effort_rest_seconds','effort_hand_travel_m','effort_strokes','food_caught','food_points')}
+        result['effort_proxies']['not_medical']='Movement proxies; no calories, fitness or fatigue diagnosis'
+        result['effort_proxies']['coverage_seconds']={
+            'clock':'recorded capped simulation dt; categories can overlap',
+            'perched':sum(r['dt'] for r in rows if r['phase']==5),
+            'paused':sum(r['dt'] for r in rows if r['phase']==6),
+            'tracking_incomplete':sum(r['dt'] for r in rows if not all(r[k] for k in ('raw_head_tracked','raw_left_tracked','raw_right_tracked'))),
+            'streaming_blocked':sum(r['dt'] for r in rows if r.get('streaming_blocked',0)),
+        }
+        result['effort_proxies']['span_ratio']=stats([r['span_ratio'] for r in rows if r['input_wings_enabled']])
+        result['effort_proxies']['rest_bouts']=sum(e['event']=='RestStarted' for e in data['events'])
+        result['effort_proxies']['rising_but_sinking_seconds']=sum(r['dt'] for r in rows if r['wind_y']>2 and r['velocity_y']<0 and r['phase'] not in (5,6))
     result['limits']=['Cadence inferred from thresholded human controller motion; inspect raw traces.', 'CPU/GPU NaN means unsupported; no zero-allocation claim.', 'Frame timings may describe earlier rendered frames.', 'Point-mass replay excludes streamed collisions and mutable wind unless supplied.']
     return result
 
@@ -161,7 +178,7 @@ def extract_window(data,number,before=5,after=10):
     start,end=marker['timestamp']-before,marker['timestamp']+after
     # Deliberately preserves only raw input, calibration and original time step.
     frames=[{k:v for k,v in r.items() if k.startswith(('raw_','calibration_')) or k in ('dt','timestamp','calibrated','human_span','bird_half_span','motion_scale','input_wings_enabled')} for r in data['frames'] if start<=r['timestamp']<=end]
-    return dict(schemaVersion=1,source_session=data['header']['session'],marker=number,header=data['header'],frames=frames,events=[e for e in data['events'] if start<=e['timestamp']<=end])
+    return dict(schemaVersion=data['header'].get('schemaVersion',1),source_session=data['header']['session'],marker=number,header=data['header'],frames=frames,events=[e for e in data['events'] if start<=e['timestamp']<=end])
 
 
 def device_path(adb,serial,override=None):
@@ -177,9 +194,36 @@ def device_path(adb,serial,override=None):
     return path
 
 
+def cached_summary(path):
+    """Reuse analysis only while the recording and analysis implementation match."""
+    path=Path(path); stat=path.stat(); cache=path.with_suffix('.history-cache.json')
+    stamp=[stat.st_size,stat.st_mtime_ns,Path(__file__).stat().st_mtime_ns]
+    try:
+        saved=json.loads(cache.read_text())
+        if saved.get('stamp')==stamp:return saved['summary']
+    except (OSError,ValueError,KeyError):pass
+    result=summarize(decode(path))
+    cache.write_text(json.dumps(dict(stamp=stamp,summary=result),allow_nan=False)+'\n')
+    return result
+
+
 def main(argv=None):
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['list','pull','summarize','export-csv','markers']);p.add_argument('file',nargs='?');p.add_argument('--output',type=Path);p.add_argument('--remote-path');p.add_argument('--serial');p.add_argument('--marker',type=int);p.add_argument('--before',type=float,default=5);p.add_argument('--after',type=float,default=10)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['list','pull','summarize','export-csv','markers','history']);p.add_argument('file',nargs='?');p.add_argument('--output',type=Path);p.add_argument('--remote-path');p.add_argument('--serial');p.add_argument('--marker',type=int);p.add_argument('--before',type=float,default=5);p.add_argument('--after',type=float,default=10)
     a=p.parse_args(argv)
+    if a.command=='history':
+        if not a.file:p.error('history requires a local recording directory')
+        results=[];seen=set()
+        for path in sorted(Path(a.file).rglob('*.voartlm')):
+            result=cached_summary(path);identity=result.get('session',str(path))
+            if identity in seen:continue
+            seen.add(identity);results.append(result)
+        results.sort(key=lambda s:s.get('utc') or '')
+        out=a.output or Path(a.file)/'history.json';out.write_text(json.dumps(results,indent=2,allow_nan=False)+'\n')
+        lines=['# Recorded flight history','', 'Valid airborne simulation-time proxies; pause, perching and tracking gaps are excluded. Compare like species/modes/builds. Quiet hands are not measured medical recovery.','', '| UTC | Bird | Minutes | Active / quiet seconds | Strokes | Food points | Rising but sinking seconds |','|---|---|---:|---|---:|---:|---:|']
+        for result in results:
+            e=result.get('effort_proxies',{})
+            lines.append('| '+str(result.get('utc'))+' | '+str(result.get('character'))+' | '+str(round(result['simulation_seconds']/60,1))+' | '+str(e.get('effort_active_seconds','unavailable'))+' / '+str(e.get('effort_rest_seconds','unavailable'))+' | '+str(e.get('effort_strokes','unavailable'))+' | '+str(e.get('food_points','unavailable'))+' | '+str(e.get('rising_but_sinking_seconds','unavailable'))+' |')
+        out.with_suffix('.md').write_text('\n'.join(lines)+'\n');print(out);return
     if a.command in ('list','pull'):
         import quest
         adb=quest.require_adb(); serial=a.serial or quest.current_device(adb); remote=device_path(adb,serial,a.remote_path)

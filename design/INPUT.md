@@ -27,3 +27,11 @@ Auto uses XR on Android, a connected gamepad on desktop, otherwise synthetic inp
 BirdFlight starts in third person for XR, desktop and synthetic paths. B toggles without resetting flight; Meta recenter preserves the selected view. Head pitch uses the comfortable elevation captured during calibration, with a4° neutral deadzone, full downward response at23° and full upward response at32°. Visual head look remains independent. Loss of previously calibrated HMD tracking neutralizes pitch until tracking returns.
 
 The physical landing brake initiates only while descending faster than0.2m/s within18m of a surface. It requires both hands at least18 cm above their calibrated neutral, horizontal spread>85% of neutral, speed<0.4 m/s, held0.3 s. Once engaged it stays active until the raised pose is released; ordinary open-air recovery strokes do not latch braking. Trigger braking remains available at any altitude. Approach coaching shares the contact solver speed limits; see [flight](FLIGHT.md).
+
+## Flight Game mode gesture
+
+Hold left-stick click0.7s without either grip to toggle Beginner/Acrobatic; release before another toggle. Either grip consumes the chord until release, preserving both-grips+left-click telemetry markers. Desktop C is equivalent. A/reset, Meta recenter, B/view, X/pause, Y/weather, left Menu/character select, right-stick click/HUD and ground stick walking remain available. Acrobatic uses wrist pitch, fore/aft hand difference for yaw and bank for roll; Beginner retains comfortable calibrated head pitch.
+
+## Quiet cockpit refinement (2026-09-10)
+
+Right-stick click/H toggles instruments **and all ongoing textual coaching, objective captions/beacons and food score**. Required calibration prompts remain available with HUD off; moths, wind visuals, sound and haptics remain. Advanced pitch measures relative controller rotation in body coordinates against each captured comfortable grip, with6° deadzone and32° full command. No absolute level-controller or90° grip requirement. Roll and yaw mapping unchanged. B selects full-rotation authored-eye first-person while Acrobatic is active; chase view remains stabilized. Beginner retains its comfortable first-person basis. A still recovers/resets/calibrates into third-person; Meta origin recenter calibrates in place.

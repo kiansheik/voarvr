@@ -153,3 +153,7 @@ Track first-party code, scene/prefab/material text, Unity `.meta`, package manif
 - [Game design](design/GAME.md) · [Agent index](docs/agent/index.md) · [Tools](tools/README.md)
 
 The installed **VoarVR** app stays on Quest after disconnect/reboot. Open **Library → Unknown Sources → VoarVR**; sideloaded apps do not appear in the main app grid. If the tab is missing, reopen Library. See [Meta’s current instructions](https://developers.meta.com/horizon/documentation/android-apps/enable-developer-mode/).
+
+## Flight Game v1 development slice
+
+Free Flight remains the default. Character select now offers Training and Skyward Expedition; completing Skyward saves a local best and unlocks Ridge Journey. Hold left-stick click without grips for0.7s to toggle optional Acrobatic flight. [Design and controls](design/FLIGHT_GAME_V1.md); [validation and known gaps](docs/development/flight-game-v1-validation.md). No current headset-performance acceptance claim.

@@ -22,6 +22,18 @@ Every record starts with uint8 kind and int32 payload byte count. Kind1: one IEE
 
 Events cover session start/end, accepted/rejected calibration, recenter, tracking changes, view/weather, effective stall, rising-air entry/exit, impacts, approach/landing, deliberate takeoff, support loss, streaming stalls, character return, marker, pause/resume and reset. Tracking event values are HMD/left/right bit masks. A landed phase transition alone is not counted as an intentional takeoff.
 
+## Schema 3 and enjoyable effort
+
+Schema 3 records 295 signals in 1200 bytes per frame (formerly 275 signals / 2200 bytes). Timestamps, simulation time and logical coordinates retain float64; other fields use float32. Both readers retain v1/v2 compatibility. The bounded writer and loss footer remain unchanged. Ground-clearance queries run at 10 Hz with a recorded age rather than every frame.
+
+New signals expose span ratio, inferred tuck, automatic feather support/angle, aerodynamic torque, quiet soaring gain, altitude objective history, food/combos, hand travel, movement speed, estimated stroke count and active/quiet intervals. Events mark protection loss/recovery, quiet bouts, periodic movement summaries and catches. Multiple catches in one tick share one event; cumulative counts preserve totals.
+
+Effort is a **movement proxy**, not calories, medical fatigue or physical recovery. Active/quiet counters integrate valid airborne capped simulation time, excluding pauses, perching, streaming blocks and missing head/hand tracking. Holding arms still can be tiring. Reports include excluded-phase coverage; categories overlap. Use mode, species, calibration, tracking quality and build together when comparing sessions. We do not automatically increase difficulty or penalize breaks from these estimates.
+
+The intended tuning loop is: compare active movement with successful climbs/catches, inspect rising-air sinking and protection loss, identify long repetitive flapping without reward, and preserve useful quiet soaring between playful bursts. Combine logs with the player's report of comfort; logs alone cannot establish exertion or neck pain.
+
+`python3 tools/scripts/telemetry.py history artifacts/telemetry --output artifacts/telemetry/history.json` creates a chronological JSON/Markdown report, deduplicated by session. Per-recording caches invalidate on source size/mtime or analysis-script changes. Initial analysis still loads a whole recording; subsequent history runs reuse summaries. Files stay local and no recording is automatically deleted.
+
 ## Pull and inspect
 
 The helper reuses existing Unity SDK/ADB discovery. It finds the app-reported directory in device logs and verifies it exists. If logs rotated, supply the actual printed `--remote-path`; it does not blindly assume an Android directory. Use `--serial` if multiple devices are connected.

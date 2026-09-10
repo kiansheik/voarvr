@@ -14,10 +14,18 @@ namespace VoarVR.Telemetry
     {
         [Serializable] public sealed class Header
         {
-            public int schemaVersion=1;
+            public int schemaVersion=3;
+            public string[] wideFields=TelemetrySample.WideFields;
+            public string effortDefinition="valid airborne simulation-time movement proxies only; capped dt excludes pause/perch/tracking gaps; hand speed threshold0.35m/s, quiet3s, EMA2s; not calories or medical fatigue";
+            public string encoding="float32 except wideFields float64; clearance sampled10Hz";
             public string session, utc, git, unity, app, device, os, character, input, worldSettings;
             public string[] fields=TelemetrySample.Fields;
             public BirdFlightProfile flight;
+            public AcrobaticProfile acrobatic;
+            public int activity;
+            public double islandCell=FlightRegions.IslandCell;
+            public float thermalWidth,thermalAssistMaximum=ThermalCentering.MaximumBankContribution;
+            public string verticalAir="persistent terrain-fed quartic columns plus finite drifting plumes; departure midpoint165 halfheight185 radius95; island midpointY-40 halfheight180 radius100; Assisted9 Touring6 Wild7 m/s";
             public BirdMorphology morphology;
             public WingArchitecture architecture;
             public AvianArticulationSettings articulation;
@@ -30,6 +38,9 @@ namespace VoarVR.Telemetry
             public string velocityConvention="raw_*_velocity: body-relative finite difference in tracking axes; native_*: XR tracking-space device feature, m/s and rad/s; unavailable values NaN";
         }
         private TelemetryWriter writer;
+        private readonly FlightEffort effort=new FlightEffort();
+        private bool resting,protection=true;private int lastFood;private float nextEffort,nextGround,groundAt;private double cachedClearance=double.NaN;
+        private VoarVR.Gameplay.SkyForaging foraging;
         private BirdFlightDriver driver;
         private BirdRigDriver rig;
         private WorldStreamer world;
@@ -37,6 +48,7 @@ namespace VoarVR.Telemetry
         private int marker, collisions, landings, takeoffs, calibrationSequence, trackingMask=-1;
         private FlightPhase previousPhase;
         private bool stall, thermal, blocked, approach, errorLogged;
+        private int previousControlMode=-1,previousTricks,previousObjective=-1,previousObjectiveStatus=-1,previousRegion=-1;
         private int previousView=-1, previousWeather=-1;
         private readonly FrameTiming[] timings=new FrameTiming[1];
         private readonly List<XRDisplaySubsystem> displays=new List<XRDisplaySubsystem>();
@@ -46,7 +58,7 @@ namespace VoarVR.Telemetry
         public void Configure(BirdFlightDriver owner,BirdRigDriver bird,WorldStreamer streamed,
             BirdCharacterDefinition character,BirdFlightProfile profile)
         {
-            driver=owner; rig=bird; world=streamed;
+            driver=owner; rig=bird; world=streamed;foraging=owner.GetComponent<VoarVR.Gameplay.SkyForaging>();
             if(!DefaultEnabled) { enabled=false; return; }
             avian=GetComponent<AvianWingPresentation>();
             SubsystemManager.GetSubsystems(displays);
@@ -55,14 +67,15 @@ namespace VoarVR.Telemetry
             var build=Resources.Load<TextAsset>("BuildRevision");
             var h=new Header { session=id,utc=DateTime.UtcNow.ToString("O"),git=build!=null?build.text.Trim():"unknown",
                 unity=Application.unityVersion,app=Application.version,device=SystemInfo.deviceModel,os=SystemInfo.operatingSystem,
-                character=character!=null?character.DisplayName:"unknown",flight=profile,morphology=character!=null?character.Morphology:null,
+                character=character!=null?character.DisplayName:"unknown",flight=profile,acrobatic=driver.Controller.AdvancedProfile,activity=(int)VoarVR.Gameplay.ActivitySelection.Chosen,morphology=character!=null?character.Morphology:null,
                 architecture=character!=null?character.Architecture:WingArchitecture.LegacyAvian,
                 articulation=character!=null?character.Articulation:null,spawn=driver.transform.position,
                 windMode=WeatherCode(driver.WindModeName),chunkRadius=WorldStreamer.Radius,chunkSize=128,
                 generationBudgetMs=world!=null?world.GenerationBudgetMilliseconds:0,
                 plumeCellSize=AtmosphereModel.CellSize,plumeEpochSeconds=AtmosphereModel.EpochSeconds,plumeLifetime=AtmosphereModel.Lifetime,
                 input=driver.Controller.InputMode,seed=world!=null?world.Space.Seed:0,
-                worldSettings="128m chunks; radius2; wind="+driver.WindModeName };
+                thermalWidth=FlightRegions.ThermalScale(profile,(WindMode)WeatherCode(driver.WindModeName)),
+                worldSettings="128m chunks; radius2; sky pool9 near520 collision260; wind="+driver.WindModeName };
             writer=new TelemetryWriter(SessionPath,JsonUtility.ToJson(h));
             Record(TelemetryEvent.SessionStart);
             Debug.Log("VOAR_TELEMETRY_PATH="+SessionPath);
@@ -118,10 +131,36 @@ namespace VoarVR.Telemetry
             double gpuMs=timingAvailable && timings[0].gpuFrameTime>0?timings[0].gpuFrameTime:double.NaN;
             float refreshHz=float.NaN; bool refreshAvailable=displays.Count>0 && displays[0].TryGetDisplayRefreshRate(out refreshHz);
             if(!refreshAvailable) refreshHz=float.NaN;
-            bool clearanceAvailable=Physics.Raycast(c.State.Position,Vector3.down,out var ground,3000f,1<<WorldStreamer.CollisionLayer,QueryTriggerInteraction.Ignore);
-            double clearance=clearanceAvailable?ground.distance:double.NaN;
+            if(Time.unscaledTime>=nextGround || raw.ResetPressed){groundAt=Time.unscaledTime;nextGround=groundAt+.1f;cachedClearance=Physics.Raycast(c.State.Position,Vector3.down,out var ground,3000f,1<<WorldStreamer.CollisionLayer,QueryTriggerInteraction.Ignore)?ground.distance:double.NaN;}
+            bool clearanceAvailable=!double.IsNaN(cachedClearance);double clearance=cachedClearance;
+            effort.Step(mapped,dt,wingsEnabled && raw.HeadTracked && raw.LeftWing.Tracked && raw.RightWing.Tracked && c.State.Phase!=FlightPhase.Paused && c.State.Phase!=FlightPhase.Perched && !c.StreamingBlocked);
+            Transition(ref resting,effort.Resting,TelemetryEvent.RestStarted,TelemetryEvent.RestEnded);
+            bool protectedNow=c.FeatherSupport>.5f;Transition(ref protection,protectedNow,TelemetryEvent.StallProtectionRecovered,TelemetryEvent.StallProtectionLost);
+            if(foraging!=null && foraging.Score.Caught>lastFood){Record(TelemetryEvent.CollectibleCaught,foraging.Score.Points);lastFood=foraging.Score.Caught;}
+            if(Time.unscaledTime>=nextEffort){Record(TelemetryEvent.EffortSummary,effort.SmoothedSpeed);nextEffort=Time.unscaledTime+10;}
+            var challenge=driver.Expedition!=null?driver.Expedition.Challenge:null;
+            int mode=(int)c.ControlMode,stage=challenge!=null?challenge.Stage:-1,status=challenge!=null?(int)challenge.Status:0;
+            if(mode!=previousControlMode){Record(TelemetryEvent.ControlModeChanged,mode);previousControlMode=mode;}
+            if(c.Tricks.Count>previousTricks)Record(TelemetryEvent.TrickCompleted,(int)c.Tricks.Last);previousTricks=c.Tricks.Count;
+            if(challenge!=null && challenge.Activity!=VoarVR.Gameplay.FlightActivity.FreeFlight)
+            {
+                if(previousObjective<0)Record(TelemetryEvent.ObjectiveStarted,(int)challenge.Activity);
+                else if(stage!=previousObjective)Record(TelemetryEvent.ObjectiveProgress,stage);
+                if(status!=previousObjectiveStatus && challenge.Status==VoarVR.Gameplay.ChallengeStatus.Completed)Record(TelemetryEvent.ObjectiveCompleted,challenge.Score);
+                if(status!=previousObjectiveStatus && challenge.Status==VoarVR.Gameplay.ChallengeStatus.Failed)Record(TelemetryEvent.ObjectiveFailed);
+            }
+            previousObjective=stage;previousObjectiveStatus=status;
+            var logicalPosition=world!=null?world.Space.ToLogical(c.State.Position):new LogicalPosition(c.State.Position.x,c.State.Position.y,c.State.Position.z);
+            int region=(int)FlightRegions.Weather(logicalPosition.X,logicalPosition.Y,logicalPosition.Z);
+            if(region!=previousRegion){Record(TelemetryEvent.RegionChanged,region);previousRegion=region;}
+            var island=FlightRegions.Island(world!=null?world.Space.Seed:7319,(long)Math.Floor(logicalPosition.X/768),(long)Math.Floor(logicalPosition.Z/768));
             var sample=new TelemetrySample
             {
+                span_ratio=c.SpanRatio,inferred_tuck=c.InferredTuck,feather_support=c.FeatherSupport,feather_degrees=c.WingFeatherDeg,
+                aero_torque_x=c.Acrobatic.AerodynamicTorque.x,aero_torque_y=c.Acrobatic.AerodynamicTorque.y,aero_torque_z=c.Acrobatic.AerodynamicTorque.z,
+                effort_active_seconds=effort.ActiveSeconds,effort_rest_seconds=effort.RestSeconds,effort_hand_travel_m=effort.HandTravelMeters,effort_speed_ema=effort.SmoothedSpeed,effort_strokes=effort.Strokes,effort_continuous_seconds=effort.ContinuousActiveSeconds,effort_resting=effort.Resting?1:0,
+                food_caught=foraging!=null?foraging.Score.Caught:0,food_points=foraging!=null?foraging.Score.Points:0,food_combo=foraging!=null?foraging.Score.Combo:0,
+                objective_quiet_gain=challenge!=null?challenge.SoaringGain:0,objective_highest_altitude=challenge!=null?challenge.HighestAltitude:0,clearance_age_seconds=Time.unscaledTime-groundAt,
                 timestamp = Time.realtimeSinceStartupAsDouble,
                 frame = Time.frameCount,
                 simulation_time = c.SimulationTime,
@@ -372,6 +411,13 @@ namespace VoarVR.Telemetry
                 avian_tailspread = avian != null ? avian.State.TailSpread : double.NaN,
                 avian_tailpitch = avian != null ? avian.State.TailPitch : double.NaN,
                 avian_tailyaw = avian != null ? avian.State.TailYaw : double.NaN,
+                raw_control_mode_pressed=raw.ControlModePressed?1:0,control_mode=mode,
+                angular_velocity_x=c.Acrobatic.AngularVelocity.x,angular_velocity_y=c.Acrobatic.AngularVelocity.y,angular_velocity_z=c.Acrobatic.AngularVelocity.z,
+                control_torque_x=c.Acrobatic.ControlTorque.x,control_torque_y=c.Acrobatic.ControlTorque.y,control_torque_z=c.Acrobatic.ControlTorque.z,
+                trick_count=c.Tricks.Count,trick_score=c.Tricks.Score,last_trick=(int)c.Tricks.Last,
+                mission_id=challenge!=null?(int)challenge.Activity:0,objective_stage=stage,objective_progress=challenge!=null?challenge.Progress:0,objective_status=status,mission_score=challenge!=null?challenge.Score:0,
+                thermal_gradient_x=c.ThermalGradient.x,thermal_gradient_z=c.ThermalGradient.z,thermal_assist_bank=c.ThermalAssist,
+                altitude_biome=(int)FlightRegions.Biome(logicalPosition.Y),weather_region=region,island_distance=VoarVR.Gameplay.FlightChallenge.HorizontalDistance(logicalPosition,island),
             };
             sample.capture_cpu_ms=(System.Diagnostics.Stopwatch.GetTimestamp()-captureStart)*1000.0/System.Diagnostics.Stopwatch.Frequency;
             sample.stalled=c.IsStalled?1:0;sample.takeoff_count=c.TakeoffCount;

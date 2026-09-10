@@ -1,9 +1,7 @@
-using System;
 using System.IO;
 namespace VoarVR.Telemetry
 {
-    // Version 1: fixed-width little-endian IEEE754 doubles. Main thread snapshots only;
-    // the worker reads scalar fields and never calls Unity APIs. NaN means unavailable.
+    // v3 uses float32 for native float/int signals; time and logical coordinates retain float64.
     public struct TelemetrySample
     {
         public double timestamp;
@@ -259,7 +257,347 @@ namespace VoarVR.Telemetry
         public double avian_tailspread;
         public double avian_tailpitch;
         public double avian_tailyaw;
-        public static readonly string[] Fields = { "timestamp", "frame", "simulation_time", "dt", "render_dt", "unscaled_dt", "raw_left_tracked", "raw_left_position_x", "raw_left_position_y", "raw_left_position_z", "raw_left_velocity_x", "raw_left_velocity_y", "raw_left_velocity_z", "raw_left_rotation_x", "raw_left_rotation_y", "raw_left_rotation_z", "raw_left_rotation_w", "raw_right_tracked", "raw_right_position_x", "raw_right_position_y", "raw_right_position_z", "raw_right_velocity_x", "raw_right_velocity_y", "raw_right_velocity_z", "raw_right_rotation_x", "raw_right_rotation_y", "raw_right_rotation_z", "raw_right_rotation_w", "raw_head_tracked", "raw_head_position_x", "raw_head_position_y", "raw_head_position_z", "raw_head_rotation_x", "raw_head_rotation_y", "raw_head_rotation_z", "raw_head_rotation_w", "raw_look_x", "raw_look_y", "raw_look_z", "raw_body_rotation_x", "raw_body_rotation_y", "raw_body_rotation_z", "raw_body_rotation_w", "raw_body_tracked", "raw_bank", "raw_tuck", "raw_flare", "raw_ground_move_x", "raw_ground_move_y", "raw_reset", "raw_recalibrate", "raw_characterselect", "raw_pause", "raw_viewtoggle", "raw_windmode", "raw_hudtoggle", "raw_marker", "raw_buttons", "mapped_left_tracked", "mapped_left_position_x", "mapped_left_position_y", "mapped_left_position_z", "mapped_left_velocity_x", "mapped_left_velocity_y", "mapped_left_velocity_z", "mapped_left_rotation_x", "mapped_left_rotation_y", "mapped_left_rotation_z", "mapped_left_rotation_w", "mapped_right_tracked", "mapped_right_position_x", "mapped_right_position_y", "mapped_right_position_z", "mapped_right_velocity_x", "mapped_right_velocity_y", "mapped_right_velocity_z", "mapped_right_rotation_x", "mapped_right_rotation_y", "mapped_right_rotation_z", "mapped_right_rotation_w", "mapped_head_tracked", "mapped_head_position_x", "mapped_head_position_y", "mapped_head_position_z", "mapped_head_rotation_x", "mapped_head_rotation_y", "mapped_head_rotation_z", "mapped_head_rotation_w", "mapped_look_x", "mapped_look_y", "mapped_look_z", "mapped_body_rotation_x", "mapped_body_rotation_y", "mapped_body_rotation_z", "mapped_body_rotation_w", "mapped_body_tracked", "mapped_bank", "mapped_tuck", "mapped_flare", "mapped_ground_move_x", "mapped_ground_move_y", "mapped_reset", "mapped_recalibrate", "mapped_characterselect", "mapped_pause", "mapped_viewtoggle", "mapped_windmode", "mapped_hudtoggle", "mapped_marker", "mapped_buttons", "native_left_velocity_available", "native_left_velocity_x", "native_left_velocity_y", "native_left_velocity_z", "native_left_angular_available", "native_left_angular_x", "native_left_angular_y", "native_left_angular_z", "native_right_velocity_available", "native_right_velocity_x", "native_right_velocity_y", "native_right_velocity_z", "native_right_angular_available", "native_right_angular_x", "native_right_angular_y", "native_right_angular_z", "calibrated", "calibration_sequence", "input_wings_enabled", "human_span", "bird_half_span", "motion_scale", "calibration_head_origin_x", "calibration_head_origin_y", "calibration_head_origin_z", "calibration_heading_x", "calibration_heading_y", "calibration_heading_z", "calibration_heading_w", "calibration_pitch_x", "calibration_pitch_y", "calibration_pitch_z", "calibration_pitch_w", "calibration_left_neutral_x", "calibration_left_neutral_y", "calibration_left_neutral_z", "calibration_left_rotation_x", "calibration_left_rotation_y", "calibration_left_rotation_z", "calibration_left_rotation_w", "target_left_x", "target_left_y", "target_left_z", "reach_left", "joint_left_upper_x", "joint_left_upper_y", "joint_left_upper_z", "joint_left_upper_w", "joint_left_forearm_x", "joint_left_forearm_y", "joint_left_forearm_z", "joint_left_forearm_w", "joint_left_hand_x", "joint_left_hand_y", "joint_left_hand_z", "joint_left_hand_w", "calibration_right_neutral_x", "calibration_right_neutral_y", "calibration_right_neutral_z", "calibration_right_rotation_x", "calibration_right_rotation_y", "calibration_right_rotation_z", "calibration_right_rotation_w", "target_right_x", "target_right_y", "target_right_z", "reach_right", "joint_right_upper_x", "joint_right_upper_y", "joint_right_upper_z", "joint_right_upper_w", "joint_right_forearm_x", "joint_right_forearm_y", "joint_right_forearm_z", "joint_right_forearm_w", "joint_right_hand_x", "joint_right_hand_y", "joint_right_hand_z", "joint_right_hand_w", "position_x", "position_y", "position_z", "velocity_x", "velocity_y", "velocity_z", "rotation_x", "rotation_y", "rotation_z", "rotation_w", "logical_x", "logical_y", "logical_z", "wind_x", "wind_y", "wind_z", "lift_x", "lift_y", "lift_z", "drag_x", "drag_y", "drag_z", "stroke_x", "stroke_y", "stroke_z", "phase", "airspeed", "groundspeed", "aoa", "head_pitch", "brake", "energy", "landing_approach", "collision_count", "landing_count", "impact_speed", "streaming_blocked", "chunks", "chunk_queue", "chunk_x", "chunk_z", "generation_ms", "view", "weather", "marker", "dropped", "capture_cpu_ms", "stalled", "takeoff_count", "cpu_ms", "gpu_ms", "timing_available", "refresh_hz", "refresh_available", "clearance", "clearance_available", "avian_leftfan", "avian_rightfan", "avian_leftfold", "avian_rightfold", "avian_alula", "avian_tailspread", "avian_tailpitch", "avian_tailyaw" };
+        public double raw_control_mode_pressed;
+        public double control_mode;
+        public double angular_velocity_x;
+        public double angular_velocity_y;
+        public double angular_velocity_z;
+        public double control_torque_x;
+        public double control_torque_y;
+        public double control_torque_z;
+        public double trick_count;
+        public double trick_score;
+        public double last_trick;
+        public double mission_id;
+        public double objective_stage;
+        public double objective_progress;
+        public double objective_status;
+        public double mission_score;
+        public double thermal_gradient_x;
+        public double thermal_gradient_z;
+        public double thermal_assist_bank;
+        public double altitude_biome;
+        public double weather_region;
+        public double island_distance;
+        public double span_ratio;
+        public double inferred_tuck;
+        public double feather_support;
+        public double feather_degrees;
+        public double aero_torque_x;
+        public double aero_torque_y;
+        public double aero_torque_z;
+        public double effort_active_seconds;
+        public double effort_rest_seconds;
+        public double effort_hand_travel_m;
+        public double effort_speed_ema;
+        public double effort_strokes;
+        public double effort_continuous_seconds;
+        public double effort_resting;
+        public double food_caught;
+        public double food_points;
+        public double food_combo;
+        public double objective_quiet_gain;
+        public double objective_highest_altitude;
+        public double clearance_age_seconds;
+        public static readonly string[] Fields = {
+            "timestamp",
+            "frame",
+            "simulation_time",
+            "dt",
+            "render_dt",
+            "unscaled_dt",
+            "raw_left_tracked",
+            "raw_left_position_x",
+            "raw_left_position_y",
+            "raw_left_position_z",
+            "raw_left_velocity_x",
+            "raw_left_velocity_y",
+            "raw_left_velocity_z",
+            "raw_left_rotation_x",
+            "raw_left_rotation_y",
+            "raw_left_rotation_z",
+            "raw_left_rotation_w",
+            "raw_right_tracked",
+            "raw_right_position_x",
+            "raw_right_position_y",
+            "raw_right_position_z",
+            "raw_right_velocity_x",
+            "raw_right_velocity_y",
+            "raw_right_velocity_z",
+            "raw_right_rotation_x",
+            "raw_right_rotation_y",
+            "raw_right_rotation_z",
+            "raw_right_rotation_w",
+            "raw_head_tracked",
+            "raw_head_position_x",
+            "raw_head_position_y",
+            "raw_head_position_z",
+            "raw_head_rotation_x",
+            "raw_head_rotation_y",
+            "raw_head_rotation_z",
+            "raw_head_rotation_w",
+            "raw_look_x",
+            "raw_look_y",
+            "raw_look_z",
+            "raw_body_rotation_x",
+            "raw_body_rotation_y",
+            "raw_body_rotation_z",
+            "raw_body_rotation_w",
+            "raw_body_tracked",
+            "raw_bank",
+            "raw_tuck",
+            "raw_flare",
+            "raw_ground_move_x",
+            "raw_ground_move_y",
+            "raw_reset",
+            "raw_recalibrate",
+            "raw_characterselect",
+            "raw_pause",
+            "raw_viewtoggle",
+            "raw_windmode",
+            "raw_hudtoggle",
+            "raw_marker",
+            "raw_buttons",
+            "mapped_left_tracked",
+            "mapped_left_position_x",
+            "mapped_left_position_y",
+            "mapped_left_position_z",
+            "mapped_left_velocity_x",
+            "mapped_left_velocity_y",
+            "mapped_left_velocity_z",
+            "mapped_left_rotation_x",
+            "mapped_left_rotation_y",
+            "mapped_left_rotation_z",
+            "mapped_left_rotation_w",
+            "mapped_right_tracked",
+            "mapped_right_position_x",
+            "mapped_right_position_y",
+            "mapped_right_position_z",
+            "mapped_right_velocity_x",
+            "mapped_right_velocity_y",
+            "mapped_right_velocity_z",
+            "mapped_right_rotation_x",
+            "mapped_right_rotation_y",
+            "mapped_right_rotation_z",
+            "mapped_right_rotation_w",
+            "mapped_head_tracked",
+            "mapped_head_position_x",
+            "mapped_head_position_y",
+            "mapped_head_position_z",
+            "mapped_head_rotation_x",
+            "mapped_head_rotation_y",
+            "mapped_head_rotation_z",
+            "mapped_head_rotation_w",
+            "mapped_look_x",
+            "mapped_look_y",
+            "mapped_look_z",
+            "mapped_body_rotation_x",
+            "mapped_body_rotation_y",
+            "mapped_body_rotation_z",
+            "mapped_body_rotation_w",
+            "mapped_body_tracked",
+            "mapped_bank",
+            "mapped_tuck",
+            "mapped_flare",
+            "mapped_ground_move_x",
+            "mapped_ground_move_y",
+            "mapped_reset",
+            "mapped_recalibrate",
+            "mapped_characterselect",
+            "mapped_pause",
+            "mapped_viewtoggle",
+            "mapped_windmode",
+            "mapped_hudtoggle",
+            "mapped_marker",
+            "mapped_buttons",
+            "native_left_velocity_available",
+            "native_left_velocity_x",
+            "native_left_velocity_y",
+            "native_left_velocity_z",
+            "native_left_angular_available",
+            "native_left_angular_x",
+            "native_left_angular_y",
+            "native_left_angular_z",
+            "native_right_velocity_available",
+            "native_right_velocity_x",
+            "native_right_velocity_y",
+            "native_right_velocity_z",
+            "native_right_angular_available",
+            "native_right_angular_x",
+            "native_right_angular_y",
+            "native_right_angular_z",
+            "calibrated",
+            "calibration_sequence",
+            "input_wings_enabled",
+            "human_span",
+            "bird_half_span",
+            "motion_scale",
+            "calibration_head_origin_x",
+            "calibration_head_origin_y",
+            "calibration_head_origin_z",
+            "calibration_heading_x",
+            "calibration_heading_y",
+            "calibration_heading_z",
+            "calibration_heading_w",
+            "calibration_pitch_x",
+            "calibration_pitch_y",
+            "calibration_pitch_z",
+            "calibration_pitch_w",
+            "calibration_left_neutral_x",
+            "calibration_left_neutral_y",
+            "calibration_left_neutral_z",
+            "calibration_left_rotation_x",
+            "calibration_left_rotation_y",
+            "calibration_left_rotation_z",
+            "calibration_left_rotation_w",
+            "target_left_x",
+            "target_left_y",
+            "target_left_z",
+            "reach_left",
+            "joint_left_upper_x",
+            "joint_left_upper_y",
+            "joint_left_upper_z",
+            "joint_left_upper_w",
+            "joint_left_forearm_x",
+            "joint_left_forearm_y",
+            "joint_left_forearm_z",
+            "joint_left_forearm_w",
+            "joint_left_hand_x",
+            "joint_left_hand_y",
+            "joint_left_hand_z",
+            "joint_left_hand_w",
+            "calibration_right_neutral_x",
+            "calibration_right_neutral_y",
+            "calibration_right_neutral_z",
+            "calibration_right_rotation_x",
+            "calibration_right_rotation_y",
+            "calibration_right_rotation_z",
+            "calibration_right_rotation_w",
+            "target_right_x",
+            "target_right_y",
+            "target_right_z",
+            "reach_right",
+            "joint_right_upper_x",
+            "joint_right_upper_y",
+            "joint_right_upper_z",
+            "joint_right_upper_w",
+            "joint_right_forearm_x",
+            "joint_right_forearm_y",
+            "joint_right_forearm_z",
+            "joint_right_forearm_w",
+            "joint_right_hand_x",
+            "joint_right_hand_y",
+            "joint_right_hand_z",
+            "joint_right_hand_w",
+            "position_x",
+            "position_y",
+            "position_z",
+            "velocity_x",
+            "velocity_y",
+            "velocity_z",
+            "rotation_x",
+            "rotation_y",
+            "rotation_z",
+            "rotation_w",
+            "logical_x",
+            "logical_y",
+            "logical_z",
+            "wind_x",
+            "wind_y",
+            "wind_z",
+            "lift_x",
+            "lift_y",
+            "lift_z",
+            "drag_x",
+            "drag_y",
+            "drag_z",
+            "stroke_x",
+            "stroke_y",
+            "stroke_z",
+            "phase",
+            "airspeed",
+            "groundspeed",
+            "aoa",
+            "head_pitch",
+            "brake",
+            "energy",
+            "landing_approach",
+            "collision_count",
+            "landing_count",
+            "impact_speed",
+            "streaming_blocked",
+            "chunks",
+            "chunk_queue",
+            "chunk_x",
+            "chunk_z",
+            "generation_ms",
+            "view",
+            "weather",
+            "marker",
+            "dropped",
+            "capture_cpu_ms",
+            "stalled",
+            "takeoff_count",
+            "cpu_ms",
+            "gpu_ms",
+            "timing_available",
+            "refresh_hz",
+            "refresh_available",
+            "clearance",
+            "clearance_available",
+            "avian_leftfan",
+            "avian_rightfan",
+            "avian_leftfold",
+            "avian_rightfold",
+            "avian_alula",
+            "avian_tailspread",
+            "avian_tailpitch",
+            "avian_tailyaw",
+            "raw_control_mode_pressed",
+            "control_mode",
+            "angular_velocity_x",
+            "angular_velocity_y",
+            "angular_velocity_z",
+            "control_torque_x",
+            "control_torque_y",
+            "control_torque_z",
+            "trick_count",
+            "trick_score",
+            "last_trick",
+            "mission_id",
+            "objective_stage",
+            "objective_progress",
+            "objective_status",
+            "mission_score",
+            "thermal_gradient_x",
+            "thermal_gradient_z",
+            "thermal_assist_bank",
+            "altitude_biome",
+            "weather_region",
+            "island_distance",
+            "span_ratio",
+            "inferred_tuck",
+            "feather_support",
+            "feather_degrees",
+            "aero_torque_x",
+            "aero_torque_y",
+            "aero_torque_z",
+            "effort_active_seconds",
+            "effort_rest_seconds",
+            "effort_hand_travel_m",
+            "effort_speed_ema",
+            "effort_strokes",
+            "effort_continuous_seconds",
+            "effort_resting",
+            "food_caught",
+            "food_points",
+            "food_combo",
+            "objective_quiet_gain",
+            "objective_highest_altitude",
+            "clearance_age_seconds",
+        };
+        public static readonly string[] WideFields = { "timestamp","simulation_time","logical_x","logical_y","logical_z" };
+        public const int CompactSize = 1200;
         public void Write(BinaryWriter w)
         {
             w.Write(timestamp);
@@ -515,8 +853,348 @@ namespace VoarVR.Telemetry
             w.Write(avian_tailspread);
             w.Write(avian_tailpitch);
             w.Write(avian_tailyaw);
+            w.Write(raw_control_mode_pressed);
+            w.Write(control_mode);
+            w.Write(angular_velocity_x);
+            w.Write(angular_velocity_y);
+            w.Write(angular_velocity_z);
+            w.Write(control_torque_x);
+            w.Write(control_torque_y);
+            w.Write(control_torque_z);
+            w.Write(trick_count);
+            w.Write(trick_score);
+            w.Write(last_trick);
+            w.Write(mission_id);
+            w.Write(objective_stage);
+            w.Write(objective_progress);
+            w.Write(objective_status);
+            w.Write(mission_score);
+            w.Write(thermal_gradient_x);
+            w.Write(thermal_gradient_z);
+            w.Write(thermal_assist_bank);
+            w.Write(altitude_biome);
+            w.Write(weather_region);
+            w.Write(island_distance);
+            w.Write(span_ratio);
+            w.Write(inferred_tuck);
+            w.Write(feather_support);
+            w.Write(feather_degrees);
+            w.Write(aero_torque_x);
+            w.Write(aero_torque_y);
+            w.Write(aero_torque_z);
+            w.Write(effort_active_seconds);
+            w.Write(effort_rest_seconds);
+            w.Write(effort_hand_travel_m);
+            w.Write(effort_speed_ema);
+            w.Write(effort_strokes);
+            w.Write(effort_continuous_seconds);
+            w.Write(effort_resting);
+            w.Write(food_caught);
+            w.Write(food_points);
+            w.Write(food_combo);
+            w.Write(objective_quiet_gain);
+            w.Write(objective_highest_altitude);
+            w.Write(clearance_age_seconds);
         }
-        public static TelemetrySample Read(BinaryReader r) => new TelemetrySample
+        public void WriteCompact(BinaryWriter w)
+        {
+            w.Write(timestamp);
+            w.Write((float)frame);
+            w.Write(simulation_time);
+            w.Write((float)dt);
+            w.Write((float)render_dt);
+            w.Write((float)unscaled_dt);
+            w.Write((float)raw_left_tracked);
+            w.Write((float)raw_left_position_x);
+            w.Write((float)raw_left_position_y);
+            w.Write((float)raw_left_position_z);
+            w.Write((float)raw_left_velocity_x);
+            w.Write((float)raw_left_velocity_y);
+            w.Write((float)raw_left_velocity_z);
+            w.Write((float)raw_left_rotation_x);
+            w.Write((float)raw_left_rotation_y);
+            w.Write((float)raw_left_rotation_z);
+            w.Write((float)raw_left_rotation_w);
+            w.Write((float)raw_right_tracked);
+            w.Write((float)raw_right_position_x);
+            w.Write((float)raw_right_position_y);
+            w.Write((float)raw_right_position_z);
+            w.Write((float)raw_right_velocity_x);
+            w.Write((float)raw_right_velocity_y);
+            w.Write((float)raw_right_velocity_z);
+            w.Write((float)raw_right_rotation_x);
+            w.Write((float)raw_right_rotation_y);
+            w.Write((float)raw_right_rotation_z);
+            w.Write((float)raw_right_rotation_w);
+            w.Write((float)raw_head_tracked);
+            w.Write((float)raw_head_position_x);
+            w.Write((float)raw_head_position_y);
+            w.Write((float)raw_head_position_z);
+            w.Write((float)raw_head_rotation_x);
+            w.Write((float)raw_head_rotation_y);
+            w.Write((float)raw_head_rotation_z);
+            w.Write((float)raw_head_rotation_w);
+            w.Write((float)raw_look_x);
+            w.Write((float)raw_look_y);
+            w.Write((float)raw_look_z);
+            w.Write((float)raw_body_rotation_x);
+            w.Write((float)raw_body_rotation_y);
+            w.Write((float)raw_body_rotation_z);
+            w.Write((float)raw_body_rotation_w);
+            w.Write((float)raw_body_tracked);
+            w.Write((float)raw_bank);
+            w.Write((float)raw_tuck);
+            w.Write((float)raw_flare);
+            w.Write((float)raw_ground_move_x);
+            w.Write((float)raw_ground_move_y);
+            w.Write((float)raw_reset);
+            w.Write((float)raw_recalibrate);
+            w.Write((float)raw_characterselect);
+            w.Write((float)raw_pause);
+            w.Write((float)raw_viewtoggle);
+            w.Write((float)raw_windmode);
+            w.Write((float)raw_hudtoggle);
+            w.Write((float)raw_marker);
+            w.Write((float)raw_buttons);
+            w.Write((float)mapped_left_tracked);
+            w.Write((float)mapped_left_position_x);
+            w.Write((float)mapped_left_position_y);
+            w.Write((float)mapped_left_position_z);
+            w.Write((float)mapped_left_velocity_x);
+            w.Write((float)mapped_left_velocity_y);
+            w.Write((float)mapped_left_velocity_z);
+            w.Write((float)mapped_left_rotation_x);
+            w.Write((float)mapped_left_rotation_y);
+            w.Write((float)mapped_left_rotation_z);
+            w.Write((float)mapped_left_rotation_w);
+            w.Write((float)mapped_right_tracked);
+            w.Write((float)mapped_right_position_x);
+            w.Write((float)mapped_right_position_y);
+            w.Write((float)mapped_right_position_z);
+            w.Write((float)mapped_right_velocity_x);
+            w.Write((float)mapped_right_velocity_y);
+            w.Write((float)mapped_right_velocity_z);
+            w.Write((float)mapped_right_rotation_x);
+            w.Write((float)mapped_right_rotation_y);
+            w.Write((float)mapped_right_rotation_z);
+            w.Write((float)mapped_right_rotation_w);
+            w.Write((float)mapped_head_tracked);
+            w.Write((float)mapped_head_position_x);
+            w.Write((float)mapped_head_position_y);
+            w.Write((float)mapped_head_position_z);
+            w.Write((float)mapped_head_rotation_x);
+            w.Write((float)mapped_head_rotation_y);
+            w.Write((float)mapped_head_rotation_z);
+            w.Write((float)mapped_head_rotation_w);
+            w.Write((float)mapped_look_x);
+            w.Write((float)mapped_look_y);
+            w.Write((float)mapped_look_z);
+            w.Write((float)mapped_body_rotation_x);
+            w.Write((float)mapped_body_rotation_y);
+            w.Write((float)mapped_body_rotation_z);
+            w.Write((float)mapped_body_rotation_w);
+            w.Write((float)mapped_body_tracked);
+            w.Write((float)mapped_bank);
+            w.Write((float)mapped_tuck);
+            w.Write((float)mapped_flare);
+            w.Write((float)mapped_ground_move_x);
+            w.Write((float)mapped_ground_move_y);
+            w.Write((float)mapped_reset);
+            w.Write((float)mapped_recalibrate);
+            w.Write((float)mapped_characterselect);
+            w.Write((float)mapped_pause);
+            w.Write((float)mapped_viewtoggle);
+            w.Write((float)mapped_windmode);
+            w.Write((float)mapped_hudtoggle);
+            w.Write((float)mapped_marker);
+            w.Write((float)mapped_buttons);
+            w.Write((float)native_left_velocity_available);
+            w.Write((float)native_left_velocity_x);
+            w.Write((float)native_left_velocity_y);
+            w.Write((float)native_left_velocity_z);
+            w.Write((float)native_left_angular_available);
+            w.Write((float)native_left_angular_x);
+            w.Write((float)native_left_angular_y);
+            w.Write((float)native_left_angular_z);
+            w.Write((float)native_right_velocity_available);
+            w.Write((float)native_right_velocity_x);
+            w.Write((float)native_right_velocity_y);
+            w.Write((float)native_right_velocity_z);
+            w.Write((float)native_right_angular_available);
+            w.Write((float)native_right_angular_x);
+            w.Write((float)native_right_angular_y);
+            w.Write((float)native_right_angular_z);
+            w.Write((float)calibrated);
+            w.Write((float)calibration_sequence);
+            w.Write((float)input_wings_enabled);
+            w.Write((float)human_span);
+            w.Write((float)bird_half_span);
+            w.Write((float)motion_scale);
+            w.Write((float)calibration_head_origin_x);
+            w.Write((float)calibration_head_origin_y);
+            w.Write((float)calibration_head_origin_z);
+            w.Write((float)calibration_heading_x);
+            w.Write((float)calibration_heading_y);
+            w.Write((float)calibration_heading_z);
+            w.Write((float)calibration_heading_w);
+            w.Write((float)calibration_pitch_x);
+            w.Write((float)calibration_pitch_y);
+            w.Write((float)calibration_pitch_z);
+            w.Write((float)calibration_pitch_w);
+            w.Write((float)calibration_left_neutral_x);
+            w.Write((float)calibration_left_neutral_y);
+            w.Write((float)calibration_left_neutral_z);
+            w.Write((float)calibration_left_rotation_x);
+            w.Write((float)calibration_left_rotation_y);
+            w.Write((float)calibration_left_rotation_z);
+            w.Write((float)calibration_left_rotation_w);
+            w.Write((float)target_left_x);
+            w.Write((float)target_left_y);
+            w.Write((float)target_left_z);
+            w.Write((float)reach_left);
+            w.Write((float)joint_left_upper_x);
+            w.Write((float)joint_left_upper_y);
+            w.Write((float)joint_left_upper_z);
+            w.Write((float)joint_left_upper_w);
+            w.Write((float)joint_left_forearm_x);
+            w.Write((float)joint_left_forearm_y);
+            w.Write((float)joint_left_forearm_z);
+            w.Write((float)joint_left_forearm_w);
+            w.Write((float)joint_left_hand_x);
+            w.Write((float)joint_left_hand_y);
+            w.Write((float)joint_left_hand_z);
+            w.Write((float)joint_left_hand_w);
+            w.Write((float)calibration_right_neutral_x);
+            w.Write((float)calibration_right_neutral_y);
+            w.Write((float)calibration_right_neutral_z);
+            w.Write((float)calibration_right_rotation_x);
+            w.Write((float)calibration_right_rotation_y);
+            w.Write((float)calibration_right_rotation_z);
+            w.Write((float)calibration_right_rotation_w);
+            w.Write((float)target_right_x);
+            w.Write((float)target_right_y);
+            w.Write((float)target_right_z);
+            w.Write((float)reach_right);
+            w.Write((float)joint_right_upper_x);
+            w.Write((float)joint_right_upper_y);
+            w.Write((float)joint_right_upper_z);
+            w.Write((float)joint_right_upper_w);
+            w.Write((float)joint_right_forearm_x);
+            w.Write((float)joint_right_forearm_y);
+            w.Write((float)joint_right_forearm_z);
+            w.Write((float)joint_right_forearm_w);
+            w.Write((float)joint_right_hand_x);
+            w.Write((float)joint_right_hand_y);
+            w.Write((float)joint_right_hand_z);
+            w.Write((float)joint_right_hand_w);
+            w.Write((float)position_x);
+            w.Write((float)position_y);
+            w.Write((float)position_z);
+            w.Write((float)velocity_x);
+            w.Write((float)velocity_y);
+            w.Write((float)velocity_z);
+            w.Write((float)rotation_x);
+            w.Write((float)rotation_y);
+            w.Write((float)rotation_z);
+            w.Write((float)rotation_w);
+            w.Write(logical_x);
+            w.Write(logical_y);
+            w.Write(logical_z);
+            w.Write((float)wind_x);
+            w.Write((float)wind_y);
+            w.Write((float)wind_z);
+            w.Write((float)lift_x);
+            w.Write((float)lift_y);
+            w.Write((float)lift_z);
+            w.Write((float)drag_x);
+            w.Write((float)drag_y);
+            w.Write((float)drag_z);
+            w.Write((float)stroke_x);
+            w.Write((float)stroke_y);
+            w.Write((float)stroke_z);
+            w.Write((float)phase);
+            w.Write((float)airspeed);
+            w.Write((float)groundspeed);
+            w.Write((float)aoa);
+            w.Write((float)head_pitch);
+            w.Write((float)brake);
+            w.Write((float)energy);
+            w.Write((float)landing_approach);
+            w.Write((float)collision_count);
+            w.Write((float)landing_count);
+            w.Write((float)impact_speed);
+            w.Write((float)streaming_blocked);
+            w.Write((float)chunks);
+            w.Write((float)chunk_queue);
+            w.Write((float)chunk_x);
+            w.Write((float)chunk_z);
+            w.Write((float)generation_ms);
+            w.Write((float)view);
+            w.Write((float)weather);
+            w.Write((float)marker);
+            w.Write((float)dropped);
+            w.Write((float)capture_cpu_ms);
+            w.Write((float)stalled);
+            w.Write((float)takeoff_count);
+            w.Write((float)cpu_ms);
+            w.Write((float)gpu_ms);
+            w.Write((float)timing_available);
+            w.Write((float)refresh_hz);
+            w.Write((float)refresh_available);
+            w.Write((float)clearance);
+            w.Write((float)clearance_available);
+            w.Write((float)avian_leftfan);
+            w.Write((float)avian_rightfan);
+            w.Write((float)avian_leftfold);
+            w.Write((float)avian_rightfold);
+            w.Write((float)avian_alula);
+            w.Write((float)avian_tailspread);
+            w.Write((float)avian_tailpitch);
+            w.Write((float)avian_tailyaw);
+            w.Write((float)raw_control_mode_pressed);
+            w.Write((float)control_mode);
+            w.Write((float)angular_velocity_x);
+            w.Write((float)angular_velocity_y);
+            w.Write((float)angular_velocity_z);
+            w.Write((float)control_torque_x);
+            w.Write((float)control_torque_y);
+            w.Write((float)control_torque_z);
+            w.Write((float)trick_count);
+            w.Write((float)trick_score);
+            w.Write((float)last_trick);
+            w.Write((float)mission_id);
+            w.Write((float)objective_stage);
+            w.Write((float)objective_progress);
+            w.Write((float)objective_status);
+            w.Write((float)mission_score);
+            w.Write((float)thermal_gradient_x);
+            w.Write((float)thermal_gradient_z);
+            w.Write((float)thermal_assist_bank);
+            w.Write((float)altitude_biome);
+            w.Write((float)weather_region);
+            w.Write((float)island_distance);
+            w.Write((float)span_ratio);
+            w.Write((float)inferred_tuck);
+            w.Write((float)feather_support);
+            w.Write((float)feather_degrees);
+            w.Write((float)aero_torque_x);
+            w.Write((float)aero_torque_y);
+            w.Write((float)aero_torque_z);
+            w.Write((float)effort_active_seconds);
+            w.Write((float)effort_rest_seconds);
+            w.Write((float)effort_hand_travel_m);
+            w.Write((float)effort_speed_ema);
+            w.Write((float)effort_strokes);
+            w.Write((float)effort_continuous_seconds);
+            w.Write((float)effort_resting);
+            w.Write((float)food_caught);
+            w.Write((float)food_points);
+            w.Write((float)food_combo);
+            w.Write((float)objective_quiet_gain);
+            w.Write((float)objective_highest_altitude);
+            w.Write((float)clearance_age_seconds);
+        }
+        public static TelemetrySample Read(BinaryReader r)=>new TelemetrySample
         {
             timestamp = r.ReadDouble(),
             frame = r.ReadDouble(),
@@ -771,6 +1449,346 @@ namespace VoarVR.Telemetry
             avian_tailspread = r.ReadDouble(),
             avian_tailpitch = r.ReadDouble(),
             avian_tailyaw = r.ReadDouble(),
+            raw_control_mode_pressed = r.ReadDouble(),
+            control_mode = r.ReadDouble(),
+            angular_velocity_x = r.ReadDouble(),
+            angular_velocity_y = r.ReadDouble(),
+            angular_velocity_z = r.ReadDouble(),
+            control_torque_x = r.ReadDouble(),
+            control_torque_y = r.ReadDouble(),
+            control_torque_z = r.ReadDouble(),
+            trick_count = r.ReadDouble(),
+            trick_score = r.ReadDouble(),
+            last_trick = r.ReadDouble(),
+            mission_id = r.ReadDouble(),
+            objective_stage = r.ReadDouble(),
+            objective_progress = r.ReadDouble(),
+            objective_status = r.ReadDouble(),
+            mission_score = r.ReadDouble(),
+            thermal_gradient_x = r.ReadDouble(),
+            thermal_gradient_z = r.ReadDouble(),
+            thermal_assist_bank = r.ReadDouble(),
+            altitude_biome = r.ReadDouble(),
+            weather_region = r.ReadDouble(),
+            island_distance = r.ReadDouble(),
+            span_ratio = r.ReadDouble(),
+            inferred_tuck = r.ReadDouble(),
+            feather_support = r.ReadDouble(),
+            feather_degrees = r.ReadDouble(),
+            aero_torque_x = r.ReadDouble(),
+            aero_torque_y = r.ReadDouble(),
+            aero_torque_z = r.ReadDouble(),
+            effort_active_seconds = r.ReadDouble(),
+            effort_rest_seconds = r.ReadDouble(),
+            effort_hand_travel_m = r.ReadDouble(),
+            effort_speed_ema = r.ReadDouble(),
+            effort_strokes = r.ReadDouble(),
+            effort_continuous_seconds = r.ReadDouble(),
+            effort_resting = r.ReadDouble(),
+            food_caught = r.ReadDouble(),
+            food_points = r.ReadDouble(),
+            food_combo = r.ReadDouble(),
+            objective_quiet_gain = r.ReadDouble(),
+            objective_highest_altitude = r.ReadDouble(),
+            clearance_age_seconds = r.ReadDouble(),
+        };
+        public static TelemetrySample ReadCompact(BinaryReader r)=>new TelemetrySample
+        {
+            timestamp = r.ReadDouble(),
+            frame = r.ReadSingle(),
+            simulation_time = r.ReadDouble(),
+            dt = r.ReadSingle(),
+            render_dt = r.ReadSingle(),
+            unscaled_dt = r.ReadSingle(),
+            raw_left_tracked = r.ReadSingle(),
+            raw_left_position_x = r.ReadSingle(),
+            raw_left_position_y = r.ReadSingle(),
+            raw_left_position_z = r.ReadSingle(),
+            raw_left_velocity_x = r.ReadSingle(),
+            raw_left_velocity_y = r.ReadSingle(),
+            raw_left_velocity_z = r.ReadSingle(),
+            raw_left_rotation_x = r.ReadSingle(),
+            raw_left_rotation_y = r.ReadSingle(),
+            raw_left_rotation_z = r.ReadSingle(),
+            raw_left_rotation_w = r.ReadSingle(),
+            raw_right_tracked = r.ReadSingle(),
+            raw_right_position_x = r.ReadSingle(),
+            raw_right_position_y = r.ReadSingle(),
+            raw_right_position_z = r.ReadSingle(),
+            raw_right_velocity_x = r.ReadSingle(),
+            raw_right_velocity_y = r.ReadSingle(),
+            raw_right_velocity_z = r.ReadSingle(),
+            raw_right_rotation_x = r.ReadSingle(),
+            raw_right_rotation_y = r.ReadSingle(),
+            raw_right_rotation_z = r.ReadSingle(),
+            raw_right_rotation_w = r.ReadSingle(),
+            raw_head_tracked = r.ReadSingle(),
+            raw_head_position_x = r.ReadSingle(),
+            raw_head_position_y = r.ReadSingle(),
+            raw_head_position_z = r.ReadSingle(),
+            raw_head_rotation_x = r.ReadSingle(),
+            raw_head_rotation_y = r.ReadSingle(),
+            raw_head_rotation_z = r.ReadSingle(),
+            raw_head_rotation_w = r.ReadSingle(),
+            raw_look_x = r.ReadSingle(),
+            raw_look_y = r.ReadSingle(),
+            raw_look_z = r.ReadSingle(),
+            raw_body_rotation_x = r.ReadSingle(),
+            raw_body_rotation_y = r.ReadSingle(),
+            raw_body_rotation_z = r.ReadSingle(),
+            raw_body_rotation_w = r.ReadSingle(),
+            raw_body_tracked = r.ReadSingle(),
+            raw_bank = r.ReadSingle(),
+            raw_tuck = r.ReadSingle(),
+            raw_flare = r.ReadSingle(),
+            raw_ground_move_x = r.ReadSingle(),
+            raw_ground_move_y = r.ReadSingle(),
+            raw_reset = r.ReadSingle(),
+            raw_recalibrate = r.ReadSingle(),
+            raw_characterselect = r.ReadSingle(),
+            raw_pause = r.ReadSingle(),
+            raw_viewtoggle = r.ReadSingle(),
+            raw_windmode = r.ReadSingle(),
+            raw_hudtoggle = r.ReadSingle(),
+            raw_marker = r.ReadSingle(),
+            raw_buttons = r.ReadSingle(),
+            mapped_left_tracked = r.ReadSingle(),
+            mapped_left_position_x = r.ReadSingle(),
+            mapped_left_position_y = r.ReadSingle(),
+            mapped_left_position_z = r.ReadSingle(),
+            mapped_left_velocity_x = r.ReadSingle(),
+            mapped_left_velocity_y = r.ReadSingle(),
+            mapped_left_velocity_z = r.ReadSingle(),
+            mapped_left_rotation_x = r.ReadSingle(),
+            mapped_left_rotation_y = r.ReadSingle(),
+            mapped_left_rotation_z = r.ReadSingle(),
+            mapped_left_rotation_w = r.ReadSingle(),
+            mapped_right_tracked = r.ReadSingle(),
+            mapped_right_position_x = r.ReadSingle(),
+            mapped_right_position_y = r.ReadSingle(),
+            mapped_right_position_z = r.ReadSingle(),
+            mapped_right_velocity_x = r.ReadSingle(),
+            mapped_right_velocity_y = r.ReadSingle(),
+            mapped_right_velocity_z = r.ReadSingle(),
+            mapped_right_rotation_x = r.ReadSingle(),
+            mapped_right_rotation_y = r.ReadSingle(),
+            mapped_right_rotation_z = r.ReadSingle(),
+            mapped_right_rotation_w = r.ReadSingle(),
+            mapped_head_tracked = r.ReadSingle(),
+            mapped_head_position_x = r.ReadSingle(),
+            mapped_head_position_y = r.ReadSingle(),
+            mapped_head_position_z = r.ReadSingle(),
+            mapped_head_rotation_x = r.ReadSingle(),
+            mapped_head_rotation_y = r.ReadSingle(),
+            mapped_head_rotation_z = r.ReadSingle(),
+            mapped_head_rotation_w = r.ReadSingle(),
+            mapped_look_x = r.ReadSingle(),
+            mapped_look_y = r.ReadSingle(),
+            mapped_look_z = r.ReadSingle(),
+            mapped_body_rotation_x = r.ReadSingle(),
+            mapped_body_rotation_y = r.ReadSingle(),
+            mapped_body_rotation_z = r.ReadSingle(),
+            mapped_body_rotation_w = r.ReadSingle(),
+            mapped_body_tracked = r.ReadSingle(),
+            mapped_bank = r.ReadSingle(),
+            mapped_tuck = r.ReadSingle(),
+            mapped_flare = r.ReadSingle(),
+            mapped_ground_move_x = r.ReadSingle(),
+            mapped_ground_move_y = r.ReadSingle(),
+            mapped_reset = r.ReadSingle(),
+            mapped_recalibrate = r.ReadSingle(),
+            mapped_characterselect = r.ReadSingle(),
+            mapped_pause = r.ReadSingle(),
+            mapped_viewtoggle = r.ReadSingle(),
+            mapped_windmode = r.ReadSingle(),
+            mapped_hudtoggle = r.ReadSingle(),
+            mapped_marker = r.ReadSingle(),
+            mapped_buttons = r.ReadSingle(),
+            native_left_velocity_available = r.ReadSingle(),
+            native_left_velocity_x = r.ReadSingle(),
+            native_left_velocity_y = r.ReadSingle(),
+            native_left_velocity_z = r.ReadSingle(),
+            native_left_angular_available = r.ReadSingle(),
+            native_left_angular_x = r.ReadSingle(),
+            native_left_angular_y = r.ReadSingle(),
+            native_left_angular_z = r.ReadSingle(),
+            native_right_velocity_available = r.ReadSingle(),
+            native_right_velocity_x = r.ReadSingle(),
+            native_right_velocity_y = r.ReadSingle(),
+            native_right_velocity_z = r.ReadSingle(),
+            native_right_angular_available = r.ReadSingle(),
+            native_right_angular_x = r.ReadSingle(),
+            native_right_angular_y = r.ReadSingle(),
+            native_right_angular_z = r.ReadSingle(),
+            calibrated = r.ReadSingle(),
+            calibration_sequence = r.ReadSingle(),
+            input_wings_enabled = r.ReadSingle(),
+            human_span = r.ReadSingle(),
+            bird_half_span = r.ReadSingle(),
+            motion_scale = r.ReadSingle(),
+            calibration_head_origin_x = r.ReadSingle(),
+            calibration_head_origin_y = r.ReadSingle(),
+            calibration_head_origin_z = r.ReadSingle(),
+            calibration_heading_x = r.ReadSingle(),
+            calibration_heading_y = r.ReadSingle(),
+            calibration_heading_z = r.ReadSingle(),
+            calibration_heading_w = r.ReadSingle(),
+            calibration_pitch_x = r.ReadSingle(),
+            calibration_pitch_y = r.ReadSingle(),
+            calibration_pitch_z = r.ReadSingle(),
+            calibration_pitch_w = r.ReadSingle(),
+            calibration_left_neutral_x = r.ReadSingle(),
+            calibration_left_neutral_y = r.ReadSingle(),
+            calibration_left_neutral_z = r.ReadSingle(),
+            calibration_left_rotation_x = r.ReadSingle(),
+            calibration_left_rotation_y = r.ReadSingle(),
+            calibration_left_rotation_z = r.ReadSingle(),
+            calibration_left_rotation_w = r.ReadSingle(),
+            target_left_x = r.ReadSingle(),
+            target_left_y = r.ReadSingle(),
+            target_left_z = r.ReadSingle(),
+            reach_left = r.ReadSingle(),
+            joint_left_upper_x = r.ReadSingle(),
+            joint_left_upper_y = r.ReadSingle(),
+            joint_left_upper_z = r.ReadSingle(),
+            joint_left_upper_w = r.ReadSingle(),
+            joint_left_forearm_x = r.ReadSingle(),
+            joint_left_forearm_y = r.ReadSingle(),
+            joint_left_forearm_z = r.ReadSingle(),
+            joint_left_forearm_w = r.ReadSingle(),
+            joint_left_hand_x = r.ReadSingle(),
+            joint_left_hand_y = r.ReadSingle(),
+            joint_left_hand_z = r.ReadSingle(),
+            joint_left_hand_w = r.ReadSingle(),
+            calibration_right_neutral_x = r.ReadSingle(),
+            calibration_right_neutral_y = r.ReadSingle(),
+            calibration_right_neutral_z = r.ReadSingle(),
+            calibration_right_rotation_x = r.ReadSingle(),
+            calibration_right_rotation_y = r.ReadSingle(),
+            calibration_right_rotation_z = r.ReadSingle(),
+            calibration_right_rotation_w = r.ReadSingle(),
+            target_right_x = r.ReadSingle(),
+            target_right_y = r.ReadSingle(),
+            target_right_z = r.ReadSingle(),
+            reach_right = r.ReadSingle(),
+            joint_right_upper_x = r.ReadSingle(),
+            joint_right_upper_y = r.ReadSingle(),
+            joint_right_upper_z = r.ReadSingle(),
+            joint_right_upper_w = r.ReadSingle(),
+            joint_right_forearm_x = r.ReadSingle(),
+            joint_right_forearm_y = r.ReadSingle(),
+            joint_right_forearm_z = r.ReadSingle(),
+            joint_right_forearm_w = r.ReadSingle(),
+            joint_right_hand_x = r.ReadSingle(),
+            joint_right_hand_y = r.ReadSingle(),
+            joint_right_hand_z = r.ReadSingle(),
+            joint_right_hand_w = r.ReadSingle(),
+            position_x = r.ReadSingle(),
+            position_y = r.ReadSingle(),
+            position_z = r.ReadSingle(),
+            velocity_x = r.ReadSingle(),
+            velocity_y = r.ReadSingle(),
+            velocity_z = r.ReadSingle(),
+            rotation_x = r.ReadSingle(),
+            rotation_y = r.ReadSingle(),
+            rotation_z = r.ReadSingle(),
+            rotation_w = r.ReadSingle(),
+            logical_x = r.ReadDouble(),
+            logical_y = r.ReadDouble(),
+            logical_z = r.ReadDouble(),
+            wind_x = r.ReadSingle(),
+            wind_y = r.ReadSingle(),
+            wind_z = r.ReadSingle(),
+            lift_x = r.ReadSingle(),
+            lift_y = r.ReadSingle(),
+            lift_z = r.ReadSingle(),
+            drag_x = r.ReadSingle(),
+            drag_y = r.ReadSingle(),
+            drag_z = r.ReadSingle(),
+            stroke_x = r.ReadSingle(),
+            stroke_y = r.ReadSingle(),
+            stroke_z = r.ReadSingle(),
+            phase = r.ReadSingle(),
+            airspeed = r.ReadSingle(),
+            groundspeed = r.ReadSingle(),
+            aoa = r.ReadSingle(),
+            head_pitch = r.ReadSingle(),
+            brake = r.ReadSingle(),
+            energy = r.ReadSingle(),
+            landing_approach = r.ReadSingle(),
+            collision_count = r.ReadSingle(),
+            landing_count = r.ReadSingle(),
+            impact_speed = r.ReadSingle(),
+            streaming_blocked = r.ReadSingle(),
+            chunks = r.ReadSingle(),
+            chunk_queue = r.ReadSingle(),
+            chunk_x = r.ReadSingle(),
+            chunk_z = r.ReadSingle(),
+            generation_ms = r.ReadSingle(),
+            view = r.ReadSingle(),
+            weather = r.ReadSingle(),
+            marker = r.ReadSingle(),
+            dropped = r.ReadSingle(),
+            capture_cpu_ms = r.ReadSingle(),
+            stalled = r.ReadSingle(),
+            takeoff_count = r.ReadSingle(),
+            cpu_ms = r.ReadSingle(),
+            gpu_ms = r.ReadSingle(),
+            timing_available = r.ReadSingle(),
+            refresh_hz = r.ReadSingle(),
+            refresh_available = r.ReadSingle(),
+            clearance = r.ReadSingle(),
+            clearance_available = r.ReadSingle(),
+            avian_leftfan = r.ReadSingle(),
+            avian_rightfan = r.ReadSingle(),
+            avian_leftfold = r.ReadSingle(),
+            avian_rightfold = r.ReadSingle(),
+            avian_alula = r.ReadSingle(),
+            avian_tailspread = r.ReadSingle(),
+            avian_tailpitch = r.ReadSingle(),
+            avian_tailyaw = r.ReadSingle(),
+            raw_control_mode_pressed = r.ReadSingle(),
+            control_mode = r.ReadSingle(),
+            angular_velocity_x = r.ReadSingle(),
+            angular_velocity_y = r.ReadSingle(),
+            angular_velocity_z = r.ReadSingle(),
+            control_torque_x = r.ReadSingle(),
+            control_torque_y = r.ReadSingle(),
+            control_torque_z = r.ReadSingle(),
+            trick_count = r.ReadSingle(),
+            trick_score = r.ReadSingle(),
+            last_trick = r.ReadSingle(),
+            mission_id = r.ReadSingle(),
+            objective_stage = r.ReadSingle(),
+            objective_progress = r.ReadSingle(),
+            objective_status = r.ReadSingle(),
+            mission_score = r.ReadSingle(),
+            thermal_gradient_x = r.ReadSingle(),
+            thermal_gradient_z = r.ReadSingle(),
+            thermal_assist_bank = r.ReadSingle(),
+            altitude_biome = r.ReadSingle(),
+            weather_region = r.ReadSingle(),
+            island_distance = r.ReadSingle(),
+            span_ratio = r.ReadSingle(),
+            inferred_tuck = r.ReadSingle(),
+            feather_support = r.ReadSingle(),
+            feather_degrees = r.ReadSingle(),
+            aero_torque_x = r.ReadSingle(),
+            aero_torque_y = r.ReadSingle(),
+            aero_torque_z = r.ReadSingle(),
+            effort_active_seconds = r.ReadSingle(),
+            effort_rest_seconds = r.ReadSingle(),
+            effort_hand_travel_m = r.ReadSingle(),
+            effort_speed_ema = r.ReadSingle(),
+            effort_strokes = r.ReadSingle(),
+            effort_continuous_seconds = r.ReadSingle(),
+            effort_resting = r.ReadSingle(),
+            food_caught = r.ReadSingle(),
+            food_points = r.ReadSingle(),
+            food_combo = r.ReadSingle(),
+            objective_quiet_gain = r.ReadSingle(),
+            objective_highest_altitude = r.ReadSingle(),
+            clearance_age_seconds = r.ReadSingle(),
         };
     }
 }

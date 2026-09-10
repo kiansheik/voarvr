@@ -14,3 +14,8 @@ quest-install:
 
 quest-launch:
 	python3 tools/scripts/quest.py launch
+
+push:
+	git add .
+	git commit
+	git push origin HEAD

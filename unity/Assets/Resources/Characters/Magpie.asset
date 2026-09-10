@@ -39,6 +39,7 @@ MonoBehaviour:
     TailBrakePitchDeg: 25
     TailYawDeg: 16
   RigPresentationScale: 2.5
+  FirstPersonEyeAnchor: {x: 0, y: 0.058, z: 0.099}
   WingAreaMultiplier: 1
   StrokeForwardRatio: 0.28
   StrokeSpeedLimit: 2.6

@@ -30,3 +30,12 @@ Flight instruments: `UI/FlightHud.cs` and `World/BirdAirflowTrails.cs`, installe
 - `Telemetry/`: versioned scalar binary schema, bounded writer, runtime capture and simple calibrated replay. Offline `tools/scripts/telemetry.py`; operational contract `docs/development/telemetry.md`.
 - `blender/scripts/create_magpie.py`, `magpie_measurements.py`: original63-bone asset and overlap-aware rest-area validation. Research provenance in `docs/research/species/magpie.md`.
 - `Editor/MagpieSetup.cs`, `MagpieReview.cs`, `TelemetryBuildStamp.cs`: explicit catalog setup, actual-frame pose evidence, build identity capture. No scene rewrites or runtime MCP dependency.
+
+## Flight Game v1 additions
+
+- `Game/Gameplay/`: pure challenge observations/stages/progress and runtime director.
+- `Game/Flight/AcrobaticFlight.cs`, `Input/ControlModeGesture.cs`: optional dynamics, actual trajectory tricks, nonconflicting mode gesture.
+- `Game/World/{FlightRegions,SkyArchipelago,SkywardKit,ThermalSeeds,SkyWeatherPresentation}.cs`: shared lift and bounded authored vertical world.
+- `blender/scripts/create_skyward_kit.py` → `source/SkywardKitV1.blend` → curated FBX → explicit `Editor/SkywardSetup`.
+- `Editor/{FlightGameReview,FlightGameMeasurements,ExpeditionPlaythrough}`: desktop evidence helpers, never automatic import mutations.
+- [design](../../design/FLIGHT_GAME_V1.md), [validation](../development/flight-game-v1-validation.md), [handoff](session-handoffs/2026-09-10-flight-game-v1.md).

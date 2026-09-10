@@ -110,6 +110,21 @@ namespace VoarVR.Flight
         private Vector3 spawn;
         private readonly IFlightEnvironment environment;
         private int landedSurface, missedSurface;
+        public FlightControlMode ControlMode { get; private set; }
+        public AcrobaticDynamics Acrobatic { get; } = new AcrobaticDynamics();
+        public TrickDetector Tricks { get; } = new TrickDetector();
+        public Vector3 ThermalGradient { get; private set; }
+        public float ThermalAssist { get; private set; }
+        private float circlingSeconds;
+        public AcrobaticProfile AdvancedProfile => advancedProfile;
+        public void ConfigureAdvanced(AcrobaticProfile value){if(value!=null)advancedProfile=value;}
+        private AcrobaticProfile advancedProfile;
+        public void SetControlMode(FlightControlMode mode)
+        {
+            if(mode==ControlMode)return;
+            ControlMode=mode; Acrobatic.Reset();Tricks.Reset();
+            var e=State.Rotation.eulerAngles;pitchDeg=Mathf.DeltaAngle(0,e.x);rollDeg=Mathf.DeltaAngle(0,e.z);yawDeg=e.y;
+        }
         public bool MissedLanding { get; private set; }
         public int CollisionCount { get; private set; }
         public int LandingCount { get; private set; }
@@ -125,6 +140,9 @@ namespace VoarVR.Flight
         public Vector3 LiftForce { get; private set; }
         public Vector3 DragForce { get; private set; }
         public Vector3 StrokeForce { get; private set; }
+        public float SpanRatio {get;private set;}
+        public float InferredTuck {get;private set;}
+        public float FeatherSupport {get;private set;}
         public float AngleOfAttackDeg { get; private set; }
         public float MechanicalEnergy => .5f * profile.MassKg * State.Velocity.sqrMagnitude + profile.MassKg * profile.Gravity * State.Position.y;
         private FlightPhase phase;
@@ -228,6 +246,8 @@ namespace VoarVR.Flight
 
         public void Reset()
         {
+            ControlMode=FlightControlMode.Beginner;Acrobatic.Reset();Tricks.Reset(true);
+            advancedProfile??=AcrobaticProfile.ForMass(profile.MassKg);
             MissedLanding = false;
             LastImpactSpeed = 0f;
             paused = false;
@@ -239,7 +259,7 @@ namespace VoarVR.Flight
             hasTrackedBodyYaw = false;
             LastInput = FlightInputFrame.Neutral;
             landingPoseHold = LandingBrake = LandingApproach = WingFeatherDeg = 0f;
-            GroundVelocity = Vector3.zero;
+            GroundVelocity = Vector3.zero;ThermalGradient=Vector3.zero;ThermalAssist=circlingSeconds=0;
             State = new BirdState { Position = spawn, Velocity = Vector3.forward * profile.InitialSpeedMps, Rotation = Quaternion.identity, Phase = FlightPhase.Gliding };
         }
 
@@ -258,6 +278,7 @@ namespace VoarVR.Flight
                 LastInput = resetFrame;
                 return;
             }
+            if(LastInput.ControlModePressed) SetControlMode(ControlMode==FlightControlMode.Beginner?FlightControlMode.Acrobatic:FlightControlMode.Beginner);
             if (LastInput.PausePressed)
             {
                 paused = !paused;
@@ -290,6 +311,7 @@ namespace VoarVR.Flight
                 : 1f;
             float tuckSignal = Mathf.Clamp01(Mathf.Clamp01((1f - wingSpanRatio) / profile.MaxTuckSpanRatio)
                 + Mathf.Clamp01(LastInput.Tuck) * profile.TriggerTuckWeight);
+            SpanRatio=wingSpanRatio;InferredTuck=tuckSignal;
             float flareSignal = Mathf.Clamp01(Mathf.Clamp01((wingSpanRatio - 1f) / profile.MaxFlareSpanRatio)
                 + Mathf.Clamp01(LastInput.Flare) * profile.TriggerFlareWeight);
             float raised = wingsTracked ? Mathf.Min(LastInput.LeftWing.Position.y - calibration.LeftPos.y,
@@ -308,7 +330,14 @@ namespace VoarVR.Flight
 
             // Integrate forces in bounded substeps. Input is sampled once per external step.
             // Positive bank means right; Unity positive Z roll tilts lift left, hence minus.
-            float targetRollDeg = -rollSignal * profile.MaxRollDeg;
+            ThermalAssist=0;ThermalGradient=Vector3.zero;
+            circlingSeconds=Mathf.Abs(rollSignal)>.12f?circlingSeconds+deltaTime:0;
+            if(ControlMode==FlightControlMode.Beginner && wind is VoarVR.World.IThermalGuidance guidance && guidance.CenteringEnabled && circlingSeconds>.6f)
+            {
+                ThermalGradient=guidance.LiftGradient(State.Position,simulationTime);
+                ThermalAssist=VoarVR.World.ThermalCentering.Bias(ThermalGradient,State.Rotation,rollSignal,wind.Sample(State.Position,simulationTime).y,tuckSignal);
+            }
+            float targetRollDeg = -(rollSignal+ThermalAssist) * profile.MaxRollDeg;
             float wingPitch = wingsTracked ? .5f * (WingPitchDeg(LastInput.LeftWing.Orientation, calibration.LeftRot)
                 + WingPitchDeg(LastInput.RightWing.Orientation, calibration.RightRot)) * profile.WingPitchSensitivity : 0f;
             float headTarget = headPitchSignal >= 0f
@@ -331,7 +360,8 @@ namespace VoarVR.Flight
                         lastTrackedBodyYaw += physicalYawDelta;
                         PhysicalYawOffsetDeg += physicalYawDelta;
                         yawDeg += physicalYawDelta;
-                        velocity = Quaternion.Euler(0f, physicalYawDelta, 0f) * velocity;
+                        if(ControlMode==FlightControlMode.Beginner) velocity = Quaternion.Euler(0f, physicalYawDelta, 0f) * velocity;
+                        else rotation=Quaternion.Euler(0f,physicalYawDelta,0f)*rotation;
                     }
                 }
                 if (!hasTrackedBodyYaw) lastTrackedBodyYaw = currentBodyYaw;
@@ -378,9 +408,19 @@ namespace VoarVR.Flight
             for (int step = 0; step < steps; step++)
             {
                 float response = 1f - Mathf.Exp(-dt / profile.AttitudeResponseSeconds);
-                rollDeg = Mathf.LerpAngle(rollDeg, targetRollDeg, response);
-                pitchDeg = Mathf.LerpAngle(pitchDeg, targetPitchDeg, response);
-                rotation = Quaternion.Euler(pitchDeg, yawDeg, rollDeg);
+                if(ControlMode==FlightControlMode.Beginner)
+                {
+                    rollDeg = Mathf.LerpAngle(rollDeg, targetRollDeg, response);
+                    pitchDeg = Mathf.LerpAngle(pitchDeg, targetPitchDeg, response);
+                    rotation = Quaternion.Euler(pitchDeg, yawDeg, rollDeg);
+                }
+                else
+                {
+                    float wrist=wingsTracked?.5f*(AcrobaticDynamics.CalibratedPitch(LastInput.LeftWing.Orientation,calibration.LeftRot)+AcrobaticDynamics.CalibratedPitch(LastInput.RightWing.Orientation,calibration.RightRot)):0;
+                    float sweep=wingsTracked?((LastInput.LeftWing.Position.z-calibration.LeftPos.z)-(LastInput.RightWing.Position.z-calibration.RightPos.z))/.4f:0;
+                    var command=wingsTracked?new Vector3(AcrobaticDynamics.SoftInput(wrist,6,32),AcrobaticDynamics.SoftInput(sweep,.12f,1)*.4f,-AcrobaticDynamics.SoftInput(rollSignal,.08f,1)):Vector3.zero;
+                    rotation=Acrobatic.Step(rotation,command,(velocity-WindVelocity).magnitude,tuckSignal,dt,advancedProfile,Quaternion.Inverse(rotation)*(velocity-WindVelocity));
+                }
                 var forward = rotation * Vector3.forward;
                 var up = rotation * Vector3.up;
                 WindVelocity = wind?.Sample(position, simulationTime) ?? Vector3.zero;
@@ -396,9 +436,14 @@ namespace VoarVR.Flight
                 // In Assisted air, birds feather into changing airflow before a deep stall.
                 // This only adjusts aerodynamic incidence: no added force or pose rewriting.
                 // Explicit braking/tucking retain their original stall/dive behavior.
+                // Mild relaxed arm shortening must not disable soaring protection.
+                float featherSupport=ControlMode==FlightControlMode.Beginner
+                    ? (1-Mathf.InverseLerp(.30f,.65f,tuckSignal))*(1-Mathf.InverseLerp(.05f,.3f,LastInput.Tuck))
+                    : (tuckSignal<.1f?1:0);
+                FeatherSupport=featherSupport;
                 WingFeatherDeg = wind is IWindAssistance assistance && assistance.AutomaticFeathering
-                    && WindVelocity.sqrMagnitude > .01f && flareSignal < .1f && tuckSignal < .1f
-                    ? Mathf.Clamp(AngleOfAttackDeg - (profile.StallAngleDeg - 4f), 0f, 45f) : 0f;
+                    && WindVelocity.sqrMagnitude > .01f && flareSignal < .1f
+                    ? Mathf.Clamp(AngleOfAttackDeg - (profile.StallAngleDeg - 4f), 0f, 45f)*featherSupport : 0f;
                 AngleOfAttackDeg -= WingFeatherDeg;
                 float alpha = Mathf.Clamp(AngleOfAttackDeg, -85f, 85f);
                 float alula = AvianWingPresentation.AlulaDeployment(speed,alpha,Mathf.Max(flareSignal,LandingApproach),tuckSignal);
@@ -418,7 +463,7 @@ namespace VoarVR.Flight
                 DragForce = -airDirection * (q * dragArea);
                 // Tail authority changes heading response, not speed or free lift. The
                 // aggregate point-mass model does not resolve a separate tail pitching moment.
-                if(profile.TailTurnGain>0f)
+                if(ControlMode==FlightControlMode.Beginner && profile.TailTurnGain>0f)
                     yawDeg += -rollDeg*profile.TailTurnGain*tailSpread*Mathf.Clamp01(speed/5f)*dt;
                 // Each controller supplies a pressure direction as well as stroke speed.
                 // Sum the two wing reactions; edge-on strokes naturally do little work.
@@ -440,10 +485,12 @@ namespace VoarVR.Flight
                 }
                 else position += velocity * dt;
                 // Yaw follows the curved velocity produced by banked lift. No commanded yaw velocity.
-                if (velocity.x * velocity.x + velocity.z * velocity.z > .25f)
+                if (ControlMode==FlightControlMode.Beginner && velocity.x * velocity.x + velocity.z * velocity.z > .25f)
                     yawDeg = Mathf.LerpAngle(yawDeg, Mathf.Atan2(velocity.x, velocity.z) * Mathf.Rad2Deg, response);
             }
-            rotation = Quaternion.Euler(pitchDeg, yawDeg, rollDeg);
+            if(ControlMode==FlightControlMode.Beginner || contactedLanding) rotation = Quaternion.Euler(pitchDeg, yawDeg, rollDeg);
+            if(contactedLanding)Acrobatic.Reset();
+            Tricks.Step(rotation,velocity,deltaTime,ControlMode==FlightControlMode.Acrobatic && !contactedLanding && wingsTracked);
 
             phase = contactedLanding ? FlightPhase.Perched : tuckSignal > .15f ? FlightPhase.Diving
                 : flareSignal > .15f ? FlightPhase.Flaring : flapPower > .15f ? FlightPhase.Flapping : FlightPhase.Gliding;

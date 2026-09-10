@@ -14,6 +14,7 @@ namespace VoarVR.Input
         private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect, hudToggle, groundMove, leftGrip, rightGrip, markerClick;
         private WingInput previousLeft, previousRight;
         private readonly TrackedBodyFrame body = new TrackedBodyFrame();
+        private readonly ControlModeGesture modeGesture=new ControlModeGesture();
         private bool recalibrateHeld, pauseHeld, viewHeld, windHeld, menuHeld, hudHeld, markerHeld;
         public FlightInputFrame LastDeviceFrame { get; private set; }
         public FlightInputFrame LastRawFrame { get; private set; }
@@ -111,6 +112,7 @@ namespace VoarVR.Input
             bool rightGripNow = rightGrip.ReadValue<float>() > .75f;
             bool clickNow = markerClick.ReadValue<float>() > .5f;
             bool markNow = leftGripNow && rightGripNow && clickNow;
+            frame.ControlModePressed=modeGesture.Sample(clickNow,leftGripNow || rightGripNow,deltaTime) && WingsEnabled;
             frame.MarkerPressed = markNow && !markerHeld; markerHeld = markNow;
             frame.ButtonsHeld = (recalibrateNow?1u:0u) | (viewNow?2u:0u) | (pauseNow?4u:0u)
                 | (windNow?8u:0u) | (menuNow?16u:0u) | (hudNow?32u:0u)

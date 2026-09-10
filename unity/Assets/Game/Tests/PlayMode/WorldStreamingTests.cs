@@ -64,7 +64,7 @@ namespace VoarVR.Tests
                 for (int p = 0; p < 24; p++)
                     Assert.That(Vector3.Dot(points[box + p] - center, normals[box + p]), Is.GreaterThan(0), "Solid face must point outward");
             }
-            var firstBoxes = go.GetComponents<BoxCollider>();
+            var firstBoxes = go.GetComponentsInChildren<BoxCollider>();
             var centers = new Vector3[firstBoxes.Length];
             var sizes = new Vector3[firstBoxes.Length];
             for (int i = 0; i < firstBoxes.Length; i++) { centers[i] = firstBoxes[i].center; sizes[i] = firstBoxes[i].size; }
@@ -72,7 +72,7 @@ namespace VoarVR.Tests
             chunk.Begin(7319, -3, 4, Vector3.zero); while (!chunk.GenerateStep()) { }
             for (int i = 0; i < filters.Length; i++)
                 CollectionAssert.AreEqual(first[i], filters[i].sharedMesh.vertices, "Material mesh " + i);
-            var reloadedBoxes = go.GetComponents<BoxCollider>();
+            var reloadedBoxes = go.GetComponentsInChildren<BoxCollider>();
             for (int i = 0; i < centers.Length; i++)
             {
                 Assert.That(reloadedBoxes[i].center, Is.EqualTo(centers[i]));
@@ -80,7 +80,7 @@ namespace VoarVR.Tests
             }
             chunk.SetCollision(true);
             Assert.That(go.GetComponentInChildren<MeshCollider>().enabled, Is.True);
-            Assert.That(go.GetComponents<BoxCollider>().Length, Is.GreaterThan(0));
+            Assert.That(go.GetComponentsInChildren<BoxCollider>().Length, Is.GreaterThan(0));
             chunk.SetCollision(false);
             foreach (var collider in go.GetComponentsInChildren<Collider>()) Assert.That(collider.enabled, Is.False);
             Object.Destroy(go); Object.Destroy(material); yield return null;

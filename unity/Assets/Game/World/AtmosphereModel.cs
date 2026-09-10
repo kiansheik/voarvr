@@ -50,7 +50,7 @@ namespace VoarVR.World
             if(t>=1 || t<=-1) return 0;
             double a=1-t*t; return (float)(a*a);
         }
-        public static Vector3 SampleLogical(double x,double y,double z,double time,int seed,WindMode mode)
+        public static Vector3 SampleLogical(double x,double y,double z,double time,int seed,WindMode mode,float width=1)
         {
             if(mode==WindMode.StillAir) return Vector3.zero;
             float scale=mode==WindMode.Assisted ? .75f : mode==WindMode.Touring ? 1f : 1.7f;
@@ -64,7 +64,7 @@ namespace VoarVR.World
                 var plume=GetPlume(seed,ix,iz,e,mode);
                 var center=plume.Center(time,y);
                 double dx=x-center.X,dz=z-center.Z;
-                double radius=plume.Radius+Math.Max(-15,Math.Min(60,y-plume.Altitude))*.12;
+                double radius=plume.Radius*width+Math.Max(-15,Math.Min(60,y-plume.Altitude))*.12;
                 float radial=Bell(Math.Sqrt(dx*dx+dz*dz),radius);
                 if(radial==0) continue;
                 float envelope=plume.Envelope(time)*Bell(y-plume.Altitude,80);

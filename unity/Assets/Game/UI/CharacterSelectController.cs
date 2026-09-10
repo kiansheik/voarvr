@@ -103,6 +103,22 @@ namespace VoarVR.UI
             rowObject.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             foreach (var character in characters) BuildCard(rowObject.transform, character);
+            var activities=new[]{VoarVR.Gameplay.FlightActivity.FreeFlight,VoarVR.Gameplay.FlightActivity.Training,VoarVR.Gameplay.FlightActivity.SkywardExpedition,VoarVR.Gameplay.FlightActivity.RidgeJourney};
+            var labels=new[]{"FREE FLIGHT","TRAINING","SKYWARD EXPEDITION","RIDGE JOURNEY"};
+            var choices=new System.Collections.Generic.List<Button>();
+            for(int i=0;i<activities.Length;i++)
+            {
+                var activity=activities[i];var progress=VoarVR.Gameplay.ExpeditionDirector.LoadProgress();
+                int best=i==1?progress.TrainingBest:i==2?progress.SkywardBest:progress.RidgeBest;
+                string label=labels[i]+(i==3 && !progress.RidgeUnlocked?" · LOCKED":i>0?" · BEST "+best:"");
+                var button=CreateButton(canvasObject.transform,label);choices.Add(button);
+                button.GetComponentInChildren<Text>().color=Color.white;button.GetComponent<Image>().color=new Color(.16f,.25f,.32f);
+                var rect=button.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=new Vector2(.5f,0);rect.pivot=new Vector2(.5f,0);rect.sizeDelta=new Vector2(390,75);rect.anchoredPosition=new Vector2((i-1.5f)*420,18);
+                button.interactable=activity!=VoarVR.Gameplay.FlightActivity.RidgeJourney || VoarVR.Gameplay.ExpeditionDirector.LoadProgress().RidgeUnlocked;
+                button.onClick.AddListener(()=>{VoarVR.Gameplay.ActivitySelection.Chosen=activity;foreach(var b in choices)b.GetComponent<Image>().color=new Color(.16f,.25f,.32f);button.GetComponent<Image>().color=new Color(.16f,.48f,.42f);});
+                if(VoarVR.Gameplay.ActivitySelection.Chosen==activity)button.GetComponent<Image>().color=new Color(.16f,.48f,.42f);
+            }
+
         }
 
         // Vertical stacking here is done by hand with explicit anchored offsets rather than a

@@ -10,7 +10,7 @@ namespace VoarVR.Telemetry
         SessionStart=1, SessionEnd, CalibrationAccepted, CalibrationRejected, Recenter,
         TrackingLost, TrackingRecovered, ViewChanged, WeatherChanged, StallEntry, StallRecovery,
         ThermalEntry, ThermalExit, Collision, LandingAttempt, LandingSuccess, Takeoff,
-        StreamingStall, StreamingRecovered, CharacterReturn, Marker, Paused, Resumed, FlightReset, SupportLost
+        StreamingStall, StreamingRecovered, CharacterReturn, Marker, Paused, Resumed, FlightReset, SupportLost, ControlModeChanged, TrickCompleted, ObjectiveStarted, ObjectiveProgress, ObjectiveCompleted, ObjectiveFailed, RegionChanged, RestStarted, RestEnded, CollectibleCaught, EffortSummary, StallProtectionLost, StallProtectionRecovered
     }
 
     // Single producer/main thread, single consumer/writer. Publishing the write index
@@ -58,7 +58,7 @@ namespace VoarVR.Telemetry
                 using(var buffer=new BufferedStream(file,65536))
                 using(var w=new BinaryWriter(buffer,Encoding.UTF8))
                 {
-                    w.Write(Encoding.ASCII.GetBytes("VOARTLM1")); w.Write(1);
+                    w.Write(Encoding.ASCII.GetBytes("VOARTLM1")); w.Write(3);
                     var bytes=Encoding.UTF8.GetBytes(header); w.Write(bytes.Length); w.Write(bytes);
                     var clock=System.Diagnostics.Stopwatch.StartNew(); long flushed=0;
                     while(true)
@@ -67,7 +67,7 @@ namespace VoarVR.Telemetry
                         while(read!=end)
                         {
                             var item=ring[read];
-                            if(item.Event==0) { w.Write((byte)1); w.Write(TelemetrySample.Fields.Length*8); item.Sample.Write(w); }
+                            if(item.Event==0) { w.Write((byte)1); w.Write(TelemetrySample.CompactSize); item.Sample.WriteCompact(w); }
                             else { w.Write((byte)2); w.Write(20); w.Write((int)item.Event); w.Write(item.Time); w.Write(item.Value); }
                             Volatile.Write(ref read,(read+1)%ring.Length);
                         }

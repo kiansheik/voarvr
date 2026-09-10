@@ -11,7 +11,8 @@ namespace VoarVR.Flight
         private WindField wind;
         private Transform leftTip, rightTip;
         private AudioSource events, breeze;
-        private AudioClip impact, touchdown, air;
+        private AudioClip impact, touchdown, air, thermalTone, wingbeat;
+        private float previousLift, wingAfter, thermalAfter;
         private int landings;
         private float clock, contactAfter, leftAfter, rightAfter;
         private bool active, focused=true, applicationPaused;
@@ -28,6 +29,7 @@ namespace VoarVR.Flight
             breeze=gameObject.AddComponent<AudioSource>();breeze.playOnAwake=false;breeze.loop=true;breeze.spatialBlend=0;
             impact=MakeClip("Soft collision",.16f,85f,false);
             touchdown=MakeClip("Touchdown rustle",.22f,180f,false);
+            thermalTone=MakeClip("Lift chime",.55f,520,false);wingbeat=MakeClip("Feather sweep",.18f,45,false);
             air=MakeClip("Air over wings",2f,0f,true);breeze.clip=air;breeze.volume=0;
         }
 
@@ -56,11 +58,24 @@ namespace VoarVR.Flight
             WindPulse(XRNode.LeftHand,left,ref leftAfter);
             WindPulse(XRNode.RightHand,right,ref rightAfter);
             float airspeed=(c.State.Velocity-c.WindVelocity).magnitude;
+            float lift=c.WindVelocity.y;
+            if(airborne && lift>2 && (previousLift<=2 || clock>thermalAfter))
+            {events.pitch=Mathf.Lerp(.8f,1.35f,Mathf.Clamp01(lift/8));events.PlayOneShot(thermalTone,.09f);thermalAfter=clock+4;}
+            if(airborne && c.StrokeForce.magnitude>.5f && clock>wingAfter)
+            {events.pitch=.8f;events.PlayOneShot(wingbeat,.07f);wingAfter=clock+.5f;}
+            previousLift=lift;
+            breeze.pitch=Mathf.Lerp(.7f,1.2f,Mathf.Clamp01(airspeed/18));
             float volume=airborne?Mathf.Clamp((airspeed-3f)*.003f+(left.magnitude+right.magnitude)*.001f,0,.065f):0;
             breeze.volume=Mathf.Lerp(breeze.volume,volume,1-Mathf.Exp(-dt*4));
             breeze.panStereo=Mathf.Clamp((right.magnitude-left.magnitude)*.08f,-.6f,.6f);
             if(volume>0 && !breeze.isPlaying)breeze.Play();
             if(volume==0 && breeze.volume<.001f)breeze.Stop();
+        }
+
+        public void SnackCue(int combo)
+        {
+            if(!active)return;events.pitch=1f+Mathf.Min(combo,5)*.1f;events.PlayOneShot(thermalTone,.17f);
+            Pulse(XRNode.LeftHand,.12f,.045f);Pulse(XRNode.RightHand,.12f,.045f);
         }
 
         private void WindPulse(XRNode hand,Vector3 flow,ref float next)
@@ -94,7 +109,7 @@ namespace VoarVR.Flight
         {
             if(impact!=null)Destroy(impact);
             if(touchdown!=null)Destroy(touchdown);
-            if(air!=null)Destroy(air);
+            if(air!=null)Destroy(air);if(thermalTone!=null)Destroy(thermalTone);if(wingbeat!=null)Destroy(wingbeat);
         }
         private static AudioClip MakeClip(string name,float seconds,float tone,bool loop)
         {

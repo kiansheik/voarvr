@@ -8,7 +8,7 @@ namespace VoarVR.World
     // Fixed pool of actual advected particle histories. No per-frame path rebuilding.
     public sealed class WindVisualizer : MonoBehaviour
     {
-        public const int RibbonCapacity=24, PointsPerRibbon=12;
+        public const int RibbonCapacity=24, PointsPerRibbon=24;
         private sealed class Ribbon
         {
             public LineRenderer Line;
@@ -93,9 +93,19 @@ namespace VoarVR.World
                 z=player.Z+forward.z*distance+right.z*lateral;
                 y=Math.Max(8,player.Y+((index/3)%3-1)*Mathf.Min(20,distance*.35f));
             }
+            if(wind.VerticalWorldEnabled && index%3!=0)
+            {
+                var source=FlightRegions.DepartureThermal(time);
+                var island=FlightRegions.Island(space.Seed,(long)Math.Floor(player.X/768),(long)Math.Floor(player.Z/768));
+                if(Math.Abs(player.X-(island.X-90))+Math.Abs(player.Z-(island.Z-90)) < Math.Abs(player.X-source.X)+Math.Abs(player.Z-source.Z))
+                    source=new LogicalPosition(island.X-90+Math.Sin(time*.004)*20,island.Y-40,island.Z-90);
+                y=Math.Max(12,player.Y+(index%5-2)*14);
+                float a=index*2.399f;float radius=(15+index%7*8)*wind.UsabilityScale;
+                x=source.X+Math.Cos(a)*radius+(y-source.Y)*.09;z=source.Z+Math.Sin(a)*radius+(y-source.Y)*.04;
+            }
             y=Math.Max(y,WorldTerrain.Elevation(space.Seed,x,z)+5);
             ribbon.Head=space.ToLocal(x,y,z);
-            ribbon.Born=time; ribbon.Duration=10+index%5; ribbon.NextPoint=time+.35f;
+            ribbon.Born=time; ribbon.Duration=24+index%7; ribbon.NextPoint=time+.35f;
             var point=ribbon.Head;
             for(int p=0;p<PointsPerRibbon;p++)
             {

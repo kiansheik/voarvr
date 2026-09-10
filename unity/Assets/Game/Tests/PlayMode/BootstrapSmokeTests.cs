@@ -21,7 +21,7 @@ namespace VoarVR.Tests
             yield return null;
             var cards = Object.FindObjectsByType<Button>(FindObjectsSortMode.None);
             Assert.That(cards, Is.Not.Empty, "Character select screen built no selectable cards");
-            cards.First().onClick.Invoke();
+            cards.First(b => b.GetComponentInChildren<Text>().text.StartsWith("SELECT ")).onClick.Invoke();
             for (int i = 0; i < 120 && SceneManager.GetActiveScene().name != "BirdFlight"; i++)
                 yield return null;
             Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("BirdFlight"));

@@ -27,6 +27,7 @@ namespace VoarVR.Telemetry
         {
             recording=new TelemetryReplayInput(path);gate=new Gate();
             Controller=new BirdFlightController(gate,recording.Header.spawn,profile:profile??recording.Header.flight,wind:wind,environment:environment);
+            Controller.ConfigureAdvanced(recording.Header.acrobatic);
         }
         public bool Step()
         {
@@ -37,6 +38,7 @@ namespace VoarVR.Telemetry
                 gate.Frame.LeftWing=FlightInputFrame.Neutral.LeftWing;gate.Frame.RightWing=FlightInputFrame.Neutral.RightWing;
                 gate.Frame.Bank=gate.Frame.Tuck=gate.Frame.Flare=0;gate.Frame.BodyTracked=false;
             }
+            if(!gate.Frame.ControlModePressed)Controller.SetControlMode((FlightControlMode)s.control_mode);
             Controller.StreamingBlocked=s.streaming_blocked>0;
             Controller.Step(dt);
             if(s.calibrated>0 && s.calibration_sequence!=calibrationSequence)

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,7 +30,7 @@ namespace VoarVR.Tests
             }
             yield return null; // Let the actual chase camera follow the final flight state.
             int visibleAhead=0;
-            var lines=visual.GetComponentsInChildren<LineRenderer>();
+            var lines=visual.GetComponentsInChildren<LineRenderer>().Where(line=>line.name.StartsWith("Air ribbon ")).ToArray();
             Assert.That(lines.Length,Is.EqualTo(WindVisualizer.RibbonCapacity));
             foreach(var line in lines)
             {

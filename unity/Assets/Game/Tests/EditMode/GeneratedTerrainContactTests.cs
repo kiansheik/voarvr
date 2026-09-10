@@ -28,6 +28,8 @@ namespace VoarVR.Tests
             chunk.Begin(42, coordinate, coordinate, new Vector3(coordinate * 128f, 0, coordinate * 128f));
             while (!chunk.Ready) chunk.GenerateStep();
             chunk.SetCollision(true);
+            // This fixture isolates generated terrain; authored scenery contact has separate coverage.
+            foreach(var box in chunk.GetComponentsInChildren<BoxCollider>())box.enabled=false;
             environment.ConfigureTerrain(_ => chunk);
             Assert.That(chunk.GetComponentInChildren<MeshCollider>().sharedMesh, Is.Not.Null, "Ready terrain must bind its completed collision mesh");
             Physics.SyncTransforms();

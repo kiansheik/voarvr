@@ -36,6 +36,7 @@ namespace VoarVR.Input
         public bool WindModePressed;
         public bool HudTogglePressed;
         public bool MarkerPressed;
+        public bool ControlModePressed;
         public uint ButtonsHeld; // A,B,X,Y,Menu,HUD,left stick,left grip,right grip; telemetry raw state.
         public Vector2 GroundMove;
 
