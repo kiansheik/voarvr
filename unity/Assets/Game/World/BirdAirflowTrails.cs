@@ -39,6 +39,11 @@ namespace VoarVR.World
             previousPosition-=delta;
             for(int i=0;i<2;i++)for(int p=0;p<Points;p++)positions[i][p]-=delta;
         }
+        public void ClearHistory()
+        {
+            lastTime = -1;
+            for (int i = 0; i < lines.Length; i++) if (lines[i] != null) lines[i].enabled = false;
+        }
         public void TickTrails()
         {
             if(bird==null||bird.Controller==null||rig==null||material==null)return;
@@ -60,7 +65,7 @@ namespace VoarVR.World
                 lines[i].endColor=new Color(color.r,color.g,color.b,0);
                 lines[i].widthMultiplier=Mathf.Lerp(.04f,.09f,Mathf.InverseLerp(3,22,speed));
                 DrawShortWake(i,Mathf.Clamp(bird.CharacterRestHalfSpan*2.5f,1.6f,4f));
-                lines[i].SetPositions(drawn[i]);lines[i].enabled=alpha>.01f&&c.State.Phase!=FlightPhase.Perched;
+                lines[i].SetPositions(drawn[i]);lines[i].enabled=alpha>.01f&&c.State.Phase!=FlightPhase.Perched&&c.State.Phase!=FlightPhase.Paused;
             }
             if(reset||time>=nextPoint)nextPoint=time+.035f;
             lastTime=time;previousPosition=bird.transform.position;

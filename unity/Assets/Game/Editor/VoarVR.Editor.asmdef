@@ -6,6 +6,7 @@
   ],
   "references": [
     "VoarVR.Runtime",
+    "Unity.InputSystem",
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
     "Unity.XR.Management",

@@ -171,6 +171,59 @@ namespace VoarVR.Flight
         public BirdState State { get; private set; }
         public FlightInputFrame LastInput { get; private set; }
         public string InputMode => input.Mode;
+        public bool IsPaused => paused;
+        public bool HasSupportedPerch => (paused ? phaseBeforePause : phase) == FlightPhase.Perched
+            && environment != null && environment.IsSupported(landedPos, profile.CollisionRadius, landedSurface);
+
+        // UI pause uses the same state transition as the physical X button.
+        public void SetPaused(bool value)
+        {
+            if (paused == value) return;
+            paused = value;
+            var state = State;
+            if (paused)
+            {
+                pausedVelocity = state.Velocity;
+                phaseBeforePause = phase;
+                state.Velocity = Vector3.zero;
+                state.Phase = phase = FlightPhase.Paused;
+            }
+            else
+            {
+                state.Velocity = pausedVelocity;
+                state.Phase = phase = phaseBeforePause;
+            }
+            State = state;
+            Tricks.Reset();
+        }
+
+        // Explicit recovery is a supported relocation, never a fabricated landing event.
+        // Callers must load destination collision and invalidate objective/catch sweeps.
+        public bool TryRecoverToPerch(Vector3 expectedCenter, float heading)
+        {
+            if (environment == null || !Finite(expectedCenter) || !float.IsFinite(heading)) return false;
+            if (!environment.Sweep(expectedCenter + Vector3.up * .75f,
+                    expectedCenter - Vector3.up * 1.25f, profile.CollisionRadius, out var contact)
+                || !contact.Landable || contact.Normal.y < Mathf.Cos(FlightContactSolver.MaximumSlopeDegrees * Mathf.Deg2Rad)
+                || !Finite(contact.Position) || Vector3.Distance(contact.Position, expectedCenter) > 1.5f
+                || !environment.IsSupported(contact.Position, profile.CollisionRadius, contact.SurfaceId)) return false;
+            landedPos = contact.Position;
+            landedSurface = contact.SurfaceId;
+            landedYaw = yawDeg = heading;
+            pitchDeg = rollDeg = 0f;
+            phaseBeforePause = FlightPhase.Perched;
+            phase = paused ? FlightPhase.Paused : FlightPhase.Perched;
+            pausedVelocity = GroundVelocity = Vector3.zero;
+            Acrobatic.Reset(); Tricks.Reset();
+            LiftForce = DragForce = StrokeForce = Vector3.zero;
+            LastImpactSpeed = LandingApproach = LandingBrake = landingPoseHold = 0f;
+            perchCooldown = 0f;
+            State = new BirdState { Position = landedPos, Velocity = Vector3.zero,
+                Rotation = Quaternion.Euler(0, heading, 0), Phase = phase };
+            return true;
+        }
+
+        private static bool Finite(Vector3 value) => float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
 
         private struct WingCalibration
         {
@@ -281,9 +334,7 @@ namespace VoarVR.Flight
             if(LastInput.ControlModePressed) SetControlMode(ControlMode==FlightControlMode.Beginner?FlightControlMode.Acrobatic:FlightControlMode.Beginner);
             if (LastInput.PausePressed)
             {
-                paused = !paused;
-                if (paused) { pausedVelocity = State.Velocity; phaseBeforePause = phase; }
-                else { phase=phaseBeforePause; var resumed = State; resumed.Velocity = pausedVelocity; resumed.Phase=phase; State = resumed; }
+                SetPaused(!paused);
             }
             if (paused)
             {

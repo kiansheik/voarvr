@@ -36,12 +36,15 @@ namespace VoarVR.World
         private BirdFlightDriver driver;
         private ChunkKey center;
         private bool hasCenter;
+        private Vector3? recoveryFocus;
+        // A paused journey recovery loads its destination before moving the bird.
+        public void SetRecoveryFocus(Vector3? localPosition) => recoveryFocus = localPosition;
         public void Configure(WorldSpace space, Material ground, Material city, Material forest, Material canopy)
         {
             Space = space; materials = new[] { ground, city, forest, canopy };
             Space.Rebased += Rebase;
             driver = FindAnyObjectByType<BirdFlightDriver>();
-            TickStreaming(driver != null ? driver.transform.position : Vector3.zero);
+            TickStreaming(recoveryFocus ?? (driver != null ? driver.transform.position : Vector3.zero));
             // Only central chunk is built synchronously for safe initial contact.
             var first = active[center]; while (!first.Ready) first.GenerateStep(); first.SetCollision(true);
         }
@@ -49,7 +52,7 @@ namespace VoarVR.World
         {
             if (Space == null) return;
             if (driver == null) driver = FindAnyObjectByType<BirdFlightDriver>();
-            TickStreaming(driver != null ? driver.transform.position : Vector3.zero);
+            TickStreaming(recoveryFocus ?? (driver != null ? driver.transform.position : Vector3.zero));
         }
         public ChunkKey KeyAt(Vector3 local)
         {
@@ -102,6 +105,7 @@ namespace VoarVR.World
         }
         public void ResetOrigin()
         {
+            recoveryFocus = null;
             queue.Clear();
             foreach (var chunk in active.Values) { chunk.gameObject.SetActive(false); pool.Push(chunk); }
             active.Clear(); hasCenter = false; Space.ResetOrigin();
@@ -111,6 +115,7 @@ namespace VoarVR.World
         }
         public void Rebase(Vector3 delta)
         {
+            if (recoveryFocus.HasValue) recoveryFocus -= delta;
             foreach (var chunk in active.Values) chunk.transform.position -= delta;
             foreach (var chunk in pool) chunk.transform.position -= delta;
             Physics.SyncTransforms();

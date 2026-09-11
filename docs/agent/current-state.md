@@ -1,5 +1,30 @@
 # Current state
 
+## Route Home guidance and seed possession — built; wearer test deferred
+
+Actual first-adventure Quest capture confirms the seed was never collected: its objective activated126–148° behind motion, once beyond1.1km. User chose to keep text hidden. Added open gold route chevrons, distinct real-target markers, an offscreen turn cue, genuinely sampled lift, early-shrinking pickup transfer and visible species/view-aware carried seed. Existing physics and HUD preference are preserved. [Implementation and evidence](../reviews/2026-09-10-route-guidance-implementation.md), [handoff](session-handoffs/2026-09-10-route-guidance.md).
+
+240 EditMode/37 PlayMode/21 Python tests pass; final carry adjustment reran8 affected PlayMode tests. Three independent review rounds removed destination obstruction, pickup occlusion and Dragon carry readability issues; scoped static navigation/possession8/10, general material finish6/10, wearer comprehension/comfort/performance unverified. Final46 runtime-camera fixtures retain hidden text and unchanged saves. APK3797aa32… built successfully; installation failed when Quest went offline, and user chose to test later. No successful install/startup of this revision yet. Known24 TMP GUID findings remain.
+
+## A Route Home — first adventure implemented
+
+The user selected a complete first adventure with core fixes, story payoff and focused visual polish. Default RouteHome follows lift/ascent → seed → arch → real garden landing; restoration persists. Adventure rewards no longer penalize flapping/rest, Training has a separate efficiency record. Explicit preflight/help, versioned save/recovery, supported-perch resume, in-place calibration, independent view comfort, chase collision checks and distinct/spatial story feedback are implemented. Quiet HUD behavior and advanced neutral flight are retained. [Implementation/status](../reviews/2026-09-10-route-home-implementation.md), [handoff](session-handoffs/2026-09-10-route-home-implementation.md).
+
+233 EditMode/32 PlayMode/21 Python tests pass. Three independent review rounds fixed crown attachment, cloud closure and species-aware carried-seed visibility; assessed static readability is8, rest/agency9. Lighting/material goals remain6–7 and wearer comfort/fun/exercise/pacing are unverified. All three input-only routes completed with saved restoration; revised Magpie202.07s and Dragon500.58s have one contact each at landing. Original rough pilot evidence remains. Existing24 TMP GUID findings persist. Build/install and exact final evidence are recorded in the handoff; do not treat this as completion of all24 roadmap work orders.
+
+## Professional game critique and future roadmap — documentation complete
+
+Saved [game critique and roadmap](../reviews/2026-09-10-game-critique-and-roadmap.md), with independent [visual](../reviews/2026-09-10-visual-critique.md), [player](../reviews/2026-09-10-player-critique.md) and [technical](../reviews/2026-09-10-technical-critique.md) reports. Provisional present content/design assessment is 4–5/10; actual fun, comfort, exercise effectiveness and sustained Quest delivery remain unverified. Proposed direction: a living sky sanctuary, authored flight journeys, separate efficiency/movement rewards, meaningful rest and saved consequences. 24 bounded W work orders include owners, dependencies and acceptance; no new gameplay implementation is implied.
+
+Fresh decoding of latest pre-neutral source b8bb65ee captures confirms Duck and Magpie both complete Training (session 119.78s/score554 and21.52s/score988); Magpie records a BackLoop at161.99s. These are positive actual detector/progression outcomes, not full-expedition or comfort validation. Read-only MCP confirmed the correct Unity6000.6.0f1 Android project and idle BirdFlight scene. No fresh playthrough/build/install in this review. Existing advanced-neutral source/tests and documentation work preserved. [Review handoff](session-handoffs/2026-09-10-game-critique-roadmap.md).
+
+## Advanced neutral equilibrium — installed; ready for wearer test
+
+User confirms the latest experience is much better; remaining request is to stop needing sustained forward wrist twist for neutral advanced flight. New Duck518.72s/Magpie352.12s Quest captures are clean/zero drops and match installedb8bb65ee source. In a6.19s quiet Magpie window, +30.23° wrist input produced+.1651Nm pitch torque against-.1646Nm passive airflow torque. Earlier compensation reverses direction: a fixed wrist offset would mask a speed/air-dependent problem.
+
+Narrow fix in AcrobaticFlight scales passive pitch with deliberate input, making calibrated zero produce zero passive pitch moment, and limits opposing passive pitch to half actual control torque. Existing damping settles residual motion; yaw, roll, camera, Beginner and captured grip are unchanged.190EditMode tests pass, including neutral inclined-air, release damping, both-sign monotonic authority and actual full trajectory loops/energy for all species. [Handoff](session-handoffs/2026-09-10-advanced-neutral.md). APK e30314ba… installed and launched PID15102 without matched startup errors.
+
+
 ## Quiet cockpit and embodied advanced view — installed; wearer validation pending
 
 Latest Quest feedback confirms advanced handling improved. Downloaded Magpiev3 sessions15930/433frames,221.24/5.98seconds, both clean/zero drops, matching preceding APK source stampb5cf462d. User reports static accumulating magenta bars. No direct headset reproduction yet (screenshot was passthrough); new runtime Shader.Find backplates are the leading suspect. They now use the existing UI Image/Canvas rendering path with explicit cleanup. Repeat menu/session and component-removal tests pass.
@@ -54,7 +79,7 @@ Both curated FBXs now retain nine wing/root bones plus four leg/foot joints, wei
 
 ## World and flight retained
 
-25 pooled128m chunks, continuous seeded city/forest fields, double horizontal logical coordinates and128m origin shifts beyond768m; nearby3×3 native collision ring and cooperative generation. Finite drifting/tilted air fields and24 pooled visual traces sample shared physics. Gold rising air, cyan ambient, rose sinking. Assisted plumes strength9.4/radius48/altitude30–95m and streets5.2; bounded Assisted-only aerodynamic feathering prevents deep incidence stall, no extra force. Touring/Wild/StillAir remain available. Neutral still-air glide is Duck43.12m versus Dragon81.80m per10m drop; still-air energy does not increase. Camera wall avoidance and cosmetic wing clipping remain limitations.
+25 pooled128m chunks, continuous seeded city/forest fields, double horizontal logical coordinates and128m origin shifts beyond768m; nearby3×3 native collision ring and cooperative generation. Finite drifting/tilted air fields and24 pooled visual traces sample shared physics. Gold rising air, cyan ambient, rose sinking. Assisted plumes strength9.4/radius48/altitude30–95m and streets5.2; bounded Assisted-only aerodynamic feathering prevents deep incidence stall, no extra force. Touring/Wild/StillAir remain available. Neutral still-air glide is Duck43.12m versus Dragon81.80m per10m drop; still-air energy does not increase. Chase wall avoidance is now implemented; cosmetic wing clipping remains a limitation of the body-sphere proxy.
 
 ## Validation and next gate
 

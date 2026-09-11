@@ -29,9 +29,10 @@ namespace VoarVR.UI
         private RectTransform attitude;
         private Image pitchDot;
         private float nextText, lastTime=-1, smoothSpeed, smoothClimb, smoothAir;
+        private bool requestedVisible;
         public Canvas Instruments => canvas;
-        public bool Visible => canvas != null && canvas.enabled;
-        public void SetVisible(bool visible) { if(canvas == null)return; canvas.enabled=visible;lastTime=-1; }
+        public bool Visible => canvas != null && requestedVisible;
+        public void SetVisible(bool visible) { if(canvas == null)return; requestedVisible=visible; canvas.enabled=visible && (bird==null || !bird.FlightMenuVisible);lastTime=-1; }
         public void Toggle() => SetVisible(!Visible);
         public string LiftReadout => air != null ? air.text : "";
         public void Configure(BirdFlightDriver driver, Camera camera, WorldStreamer streamer)
@@ -83,7 +84,9 @@ namespace VoarVR.UI
         private void LateUpdate() => TickInstruments();
         public void TickInstruments()
         {
-            if(bird==null||bird.Controller==null||canvas==null||!canvas.enabled)return;
+            if(bird==null||bird.Controller==null||canvas==null)return;
+            canvas.enabled=requestedVisible && !bird.FlightMenuVisible;
+            if(!canvas.enabled)return;
             var c=bird.Controller;float time=c.SimulationTime;
             bool reset=lastTime<0||time<lastTime;
             float blend=reset?1:1-Mathf.Exp(-Mathf.Max(0,time-lastTime)/.4f);

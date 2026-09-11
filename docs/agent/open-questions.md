@@ -5,8 +5,8 @@
 - Latest wearer requests HUD and more useful thermals. Flight instruments/Assisted feathering now implemented; worn-test readability/distraction, wing wakes and lift entries for both birds. Also retest: calibrated modest downward look, third-person default, Dragon glide, physical braking/ground+elevated contact, moving lift navigation and sustained chunk-streaming performance. Worn comfort is not established by editor or adb checks. Earlier unattended CharacterSelect auto-advance remains a separate unresolved observation.
 - `Assets/TextMesh Pro/` is an incomplete, unused import (pulled in as a side effect of an earlier XRI sample import) causing 24 `check_repo.py` unresolved-GUID findings; recommend deleting it as its own change, not blocking anything today.
 - ~~Blender FBX scale/orientation and skin roundtrip~~ Resolved with Blender 5.2.1 LTS static and nine-bone rig smoke tests plus Unity import/deformation checks.
-- Design: calibration/neutral arm pose, physical flap interpretation, target effort and accessibility/comfort options are undecided.
-- Content: deterministic endless horizontal chunks, finite 3D air and contact landings are implemented/tested. Repeated cuboid art, short cyan trail interpretation and a gliding pose while perched remain prototype limitations. A body sphere can allow cosmetic wing/neck overlap.
+- Design: deliberate neutral calibration, physical flaps, Assisted flight and separate advanced controls are implemented. Latest passive-pitch neutral fix is installed; relaxed-grip wearer acceptance, target effort and accessible reach/seated options remain open.
+- Content: A Route Home now adds a persistent restored garden, seed carry and optional quiet-view guidance. Broader landmark variety, close material/animation finish, companion/mastery content and human navigation acceptance remain open. A body sphere can allow cosmetic wing/neck overlap.
 - Performance: cooperative1.5 ms generation meets measured warm desktop boundaries, but atomic mesh cooking and cold/restart generation can overshoot. Sustained Quest streaming, GPU/batch cost and wearer-perceived hitches remain gates. No production LOD or full simulation-clock/vertical double precision yet.
 - Editor rig/catalog verification is complete; no Configure Characters step is pending.
 - Tools: Unity MCP is useful for the live editor but remains optional; no credentials/server configuration are part of the repo.
@@ -16,8 +16,13 @@ None of the design questions block the initial toolchain validation. Do not crea
 
 ## Flight Game v1 acceptance questions
 
-- Quest is offline: wearer comfort,72Hz/thermal overhead, APK launch and new telemetry pull remain unverified.
+- Fresh Magpie/Dragon recordings match the installed neutral-correction source d2bd0906…; Magpie supplies22.58s zero-control/zero-aerodynamic-pitch evidence. Controlled wearer comfort and sustained representative delivery remain unverified. The new RouteHome package/install status is in its latest handoff. Do not describe current device connectivity without a fresh check.
 - Input-only Skyward pilot completes in180.4s; target10–20minute human journey pacing is unverified.
 - Strict art/thermal-readability gates are not yet met; bounded prototype geometry needs composition/lighting/landmark polish.
 - Natural-start acrobatic loop technique needs coaching and wearable tests; energetic-entry fixtures are insufficient user-usability proof.
 - Ridge Journey and local bests provide initial progression, not a full campaign, cosmetic unlock system or journal.
+
+## Future game production decisions
+
+- [Professional critique and W backlog](../reviews/2026-09-10-game-critique-and-roadmap.md) remains the broader production proposal. [A Route Home implementation](../reviews/2026-09-10-route-home-implementation.md) now covers the first story consequence, durable/rest-friendly progress, quiet help and focused presentation. Broader campaign/mastery/asset direction remains future work.
+- Highest-value validation: latest neutral/HUD acceptance; HUD-off goal comprehension; voluntary repeat play; fair reward/rest accounting; interrupted-session saves; one polished route's measured Quest cost.

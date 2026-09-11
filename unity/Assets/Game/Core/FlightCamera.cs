@@ -43,10 +43,10 @@ namespace VoarVR.Core
                 var headRotation = bird.UsesXR ? lastValidRotation : Quaternion.identity;
                 var offset = bird.UsesXR && bird.Calibration.HeadCaptured
                     ? Quaternion.Inverse(cameraTrackingHeading) * (lastValidPosition - bird.Calibration.HeadOrigin) : Vector3.zero;
-                bool embodied=bird.Controller.ControlMode==FlightControlMode.Acrobatic;
-                var basis=FirstPersonBasis(bird.Controller.ControlMode,bird.transform.rotation,bird.Heading);
-                transform.SetPositionAndRotation(bird.transform.position + basis * ((embodied?bird.ImmersiveEyeAnchor:bird.CameraEyeAnchor) + offset),
-                    basis * (embodied?Quaternion.identity:Quaternion.Euler(6f,0f,0f))
+                bool advanced=bird.Controller.ControlMode==FlightControlMode.Acrobatic;
+                var basis=FirstPersonBasis(bird.Controller.ControlMode,bird.transform.rotation,bird.Heading,VoarVR.UI.FlightPreferences.FirstPersonStabilized);
+                transform.SetPositionAndRotation(bird.transform.position + basis * ((advanced?bird.ImmersiveEyeAnchor:bird.CameraEyeAnchor) + offset),
+                    basis * (advanced?Quaternion.identity:Quaternion.Euler(6f,0f,0f))
                     * (bird.UsesXR
                         ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading)
                         : Quaternion.identity) * headRotation);
@@ -59,8 +59,10 @@ namespace VoarVR.Core
                 float chaseHeight = .95f + extraWingReach * .6f;
                 var physicalOffset = bird.UsesXR && bird.Calibration.HeadCaptured
                     ? Quaternion.Inverse(cameraTrackingHeading) * (lastValidPosition - bird.Calibration.HeadOrigin) : Vector3.zero;
-                transform.position = bird.transform.position + bird.Heading
+                var desired = bird.transform.position + bird.Heading
                     * (new Vector3(0f, chaseHeight, -chaseDistance) + physicalOffset);
+                var origin = bird.transform.position + bird.Heading * (Vector3.up * .3f + physicalOffset);
+                transform.position = ConstrainChasePosition(origin, desired, bird.GetComponent<VoarVR.World.UnityFlightEnvironment>());
                 var baseRotation = ChaseBaseRotation(bird.Heading, chaseHeight, chaseDistance, extraWingReach);
                 var headDelta = bird.UsesXR
                     ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading) * lastValidRotation
@@ -86,7 +88,7 @@ namespace VoarVR.Core
                 calibrationPrompt.characterSize = .008f;
                 calibrationPrompt.color = new Color(1f, .82f, .25f);
             }
-            calibrationPrompt.gameObject.SetActive(!bird.Calibration.Captured || (bird.ShowFlightText && !string.IsNullOrEmpty(bird.CoachStatus)));
+            calibrationPrompt.gameObject.SetActive(!bird.FlightMenuVisible && (!bird.Calibration.Captured || (bird.ShowFlightText && !string.IsNullOrEmpty(bird.CoachStatus))));
             if (!calibrationPrompt.gameObject.activeSelf) return;
             string text = ResolvePrompt(bird.Calibration.Captured, bird.CalibrationStatus, bird.CoachStatus);
             if (displayedPrompt == text) return;
@@ -97,14 +99,22 @@ namespace VoarVR.Core
         public static Quaternion ChaseBaseRotation(Quaternion heading, float height, float distance, float extraReach) =>
             heading * Quaternion.LookRotation(new Vector3(0f, .12f + extraReach * .15f - height, .25f + distance), Vector3.up);
 
-        public static Quaternion FirstPersonBasis(FlightControlMode mode,Quaternion body,Quaternion heading) =>
-            mode==FlightControlMode.Acrobatic?body:heading;
+        public static Quaternion FirstPersonBasis(FlightControlMode mode,Quaternion body,Quaternion heading, bool stabilized=false) =>
+            mode==FlightControlMode.Acrobatic && !stabilized?body:heading;
+
+        public static Vector3 ConstrainChasePosition(Vector3 origin, Vector3 desired, IFlightEnvironment environment)
+        {
+            if (environment == null || !environment.Sweep(origin, desired, .14f, out var hit)) return desired;
+            return hit.Position;
+        }
 
         public static string ResolvePrompt(bool calibrated, string calibrationStatus, string coachStatus) =>
             calibrated ? coachStatus ?? ""
                 : (calibrationStatus != null && calibrationStatus.StartsWith("Calibration rejected")
                     ? "POSE NOT ACCEPTED: LEVEL YOUR WINGS\nPRESS A: START + CALIBRATE\nLEFT MENU: CHANGE CHARACTER"
-                    : (calibrationStatus != null && calibrationStatus.StartsWith("Platform recentered")
+                    : (calibrationStatus != null && calibrationStatus.StartsWith("Journey resumed")
+                        ? "JOURNEY PAUSED · PROGRESS KEPT\nRIGHT TRIGGER: FLIGHT MENU\nCHOOSE RECALIBRATE HERE"
+                        : calibrationStatus != null && calibrationStatus.StartsWith("Platform recentered")
                         ? "HOLD COMFORTABLE SPREAD STILL\nRECENTER CALIBRATES HERE"
                         : "HOLD A LEVEL COMFORTABLE T POSE\nPRESS A: START + CALIBRATE\nLEFT MENU: CHANGE CHARACTER"));
 

@@ -37,6 +37,14 @@ namespace VoarVR.Flight
             if(delta.x*delta.x+delta.w*delta.w<1e-8f)return 0;
             return Mathf.DeltaAngle(0,2*Mathf.Atan2(delta.x,delta.w)*Mathf.Rad2Deg);
         }
+        // At a calibrated relaxed grip, wind must not demand a sustained wrist
+        // correction just to stop pitching. Scale passive pitch with deliberate input;
+        // opposing airflow may soften that command but must never reverse it.
+        public static float PitchFlowTorque(float flow,float command,float control)
+        {
+            flow*=Mathf.Clamp01(Mathf.Abs(command));
+            return flow*control<0 ? Mathf.Sign(flow)*Mathf.Min(Mathf.Abs(flow),Mathf.Abs(control)*.5f) : flow;
+        }
         public void Reset() { AngularVelocity=ControlTorque=AerodynamicTorque=Vector3.zero; }
         public Quaternion Step(Quaternion orientation,Vector3 command,float speed,float tuck,float dt,AcrobaticProfile p,Vector3 localAir=default)
         {
@@ -48,6 +56,7 @@ namespace VoarVR.Flight
             // Aerodynamic weathercock stability follows relative flow in body axes,
             // never world up. It permits inversion and does not level a rolling animal.
             var flowTorque=localAir.sqrMagnitude>.01f?Vector3.Cross(Vector3.forward,localAir.normalized)*p.Torque.x*Mathf.Clamp(speed*speed/64,0,9)*2.5f:Vector3.zero;
+            flowTorque.x=PitchFlowTorque(flowTorque.x,command.x,ControlTorque.x);
             AerodynamicTorque=flowTorque;
             var torque=ControlTorque+flowTorque-Vector3.Cross(omega,momentum);
             omega+=new Vector3(torque.x/p.Inertia.x,torque.y/p.Inertia.y,torque.z/p.Inertia.z)*dt;

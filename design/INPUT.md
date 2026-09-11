@@ -35,3 +35,15 @@ Hold left-stick click0.7s without either grip to toggle Beginner/Acrobatic; rele
 ## Quiet cockpit refinement (2026-09-10)
 
 Right-stick click/H toggles instruments **and all ongoing textual coaching, objective captions/beacons and food score**. Required calibration prompts remain available with HUD off; moths, wind visuals, sound and haptics remain. Advanced pitch measures relative controller rotation in body coordinates against each captured comfortable grip, with6° deadzone and32° full command. No absolute level-controller or90° grip requirement. Roll and yaw mapping unchanged. B selects full-rotation authored-eye first-person while Acrobatic is active; chase view remains stabilized. Beginner retains its comfortable first-person basis. A still recovers/resets/calibrates into third-person; Meta origin recenter calibrates in place.
+
+Advanced neutral refinement: the captured comfortable grip is still zero. Passive aerodynamic pitch scales with deliberate pitch input and opposing airflow torque is bounded to half the actual pitch-control torque. Returning to neutral lets existing angular damping settle rotation; this is not altitude hold. Yaw weathercock, roll authority and calibrated wrist sensitivity retain their previous settings.
+
+## Journey controls (2026-09-10)
+
+Select a flyer and read the activity preview before choosing Begin, Resume or Restart. A Route Home is the default untimed adventure. Resume restores the saved objective and prepares a physically supported perch; Quest resumes paused and asks for a fresh comfortable calibration.
+
+While paused with X, release and squeeze the right trigger to open the flight menu. Left stick selects a row; a separate right-trigger squeeze confirms. Desktop equivalents are X, F1, arrows and Enter. Opening or navigating cannot carry a held tuck/walking command into resumed flight. Lost tracking or focus closes help and requires a fresh release. Pausing alone leaves the cockpit quiet; explicitly opened help temporarily hides instruments and calibration text without changing instrument preference.
+
+The menu offers recalibration **here** (position and journey preserved), return to a verified safe perch (journey preserved), explicit route restart, and save/leave. A keeps its existing restart-and-calibrate meaning. Recovery waits for loaded collision and validates support; it does not award a landing, seed, arch crossing or technique. App interruption pauses and saves; returning does not automatically resume flight.
+
+First-person view comfort is stored separately from Beginner/Acrobatic flight authority: embodied preserves advanced body rotation, steady horizon uses the heading basis. World guidance, audio and haptics are independently stored options. B still switches first/third person. The chase camera checks the body collision environment for obstructions; cosmetic wings remain outside that collision proxy.

@@ -63,3 +63,23 @@ Fixed relaxed-span Assisted protection, softened Acrobatic control with loops re
 Downloaded two clean latest Questv3 sessions. Replaced suspected magenta backplate path/teardown, gated ongoing text by HUD, added authored-eye full-rotation Acrobatic first-person and body-relative calibrated pitch.179Edit/22Play/21Python pass; actual device reproduction/acceptance pending. [Handoff](session-handoffs/2026-09-10-quiet-cockpit.md).
 
 Quiet-cockpit APK2cab1e99… installed successfully; PID10335 started without reported exception, then paused on headset focus loss. New rendered gameplay and magenta-bar acceptance remain unverified.
+
+## 2026-09-10 — advanced neutral equilibrium
+
+Latest recordings expose sustained wrist torque cancelling passive aerodynamic pitch. New narrow equilibrium correction preserves calibrated grip and removes passive pitch at zero; opposing flow cannot reverse deliberate pitch.190EditMode tests pass, including actual loops. [Handoff](session-handoffs/2026-09-10-advanced-neutral.md).
+
+Neutral APK e30314ba… built25.925s, installed after transient offline recovery and launched PID15102; no matched startup errors. Wearer test pending.
+
+## 2026-09-10 — professional game critique and production roadmap
+
+Reviewed first-party gameplay/input/flight/world/UI/art/tooling/settings and saved playtest evidence with independent visual, player and Quest technical critics. New raw-event analysis confirms latest pre-neutral Duck/Magpie Training completion and a Magpie BackLoop award; no post-neutral wearer capture. Saved [main critique](../reviews/2026-09-10-game-critique-and-roadmap.md) plus three specialist reports: scoped grades, proposed sanctuary story, session/asset/trick/progression direction and 24 W work orders with dependencies and acceptance. Independent synthesis audit corrected recovery, accessibility, task dependencies and baseline-versus-acceptance distinctions. Updated navigation/repo map and stale open questions. Documentation only; existing source/tests preserved, no new build/install or commit/push. [Handoff](session-handoffs/2026-09-10-game-critique-roadmap.md).
+
+
+## 2026-09-10 — A Route Home implementation
+
+Implemented the selected first-adventure milestone: untimed seed/arch/garden chapter, persistent bloom, validated saves/supported recovery, explicit preflight and quiet help, independent view comfort, chase obstruction checks and bounded world/audio polish. Final233 EditMode/32 PlayMode/21 Python pass. Three independent visual/player/technical rounds fixed concrete issues; final carry visible in all9species/view fixtures. Scripted routes complete with saved restoration; improved Magpie202.07s/Dragon500.58s have only final landing contact. Preserve earlier pilot failures; wearer fun/exertion/comfort and sustained Quest cost remain unverified. Known24TMP GUID findings remain. [Implementation](../reviews/2026-09-10-route-home-implementation.md), [handoff/build status](session-handoffs/2026-09-10-route-home-implementation.md). No commit/push.
+
+
+## 2026-09-10 — Route Home guidance and seed possession
+
+Latest Quest capture proves seed objective started126–148° behind the player and was never collected. Kept text hidden as requested; added real lift/destination markers, open gold chevrons, non-text offscreen bearing, early-shrinking pickup and species/view-aware carried seed. Three independent review rounds fixed concrete visibility/lifecycle issues; scoped navigation/possession8/10, wearer acceptance unverified.240 EditMode/37 PlayMode/21 Python pass; final carry adjustment reran8 affected PlayMode tests. APK3797aa32… built40.761s,0errors/6warnings. Installation failed when Quest went offline; user chose to test later. Existing24 TMP findings persist, no commit/push. [Implementation](../reviews/2026-09-10-route-guidance-implementation.md), [handoff](session-handoffs/2026-09-10-route-guidance.md).

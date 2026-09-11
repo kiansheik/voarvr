@@ -14,7 +14,7 @@ namespace VoarVR.Tests
             for(int y=51;y<240;y++)c.Step(O(100,y,140,4,2));Assert.That(c.Stage,Is.EqualTo(1),"Flapping alone cannot satisfy soaring");
             c.Step(O(100,80,140));for(int y=81;y<=240;y++)c.Step(O(100,y,140));Assert.That(c.Stage,Is.EqualTo(2));
             c.Step(O(420,287,540));c.Step(O(420,287,570));Assert.That(c.Stage,Is.EqualTo(3));
-            c.Step(O(420,270,620,0));Assert.That(c.Status,Is.EqualTo(ChallengeStatus.Active));c.Step(O(420,270.3,620,0,0,true));Assert.That(c.Status,Is.EqualTo(ChallengeStatus.Completed));Assert.That(c.Medal,Is.GreaterThan(0));
+            c.Step(O(420,270,620,0));Assert.That(c.Status,Is.EqualTo(ChallengeStatus.Active));c.Step(O(420,270.3,620,0,0,true));Assert.That(c.Status,Is.EqualTo(ChallengeStatus.Completed));Assert.That(c.Score,Is.EqualTo(1000));Assert.That(c.Medal,Is.Zero,"Adventure completion is separate from Training efficiency medals");
             int score=c.Score;c.Step(O(0,0,0));Assert.That(c.Score,Is.EqualTo(score));
         }
         [Test] public void ProgressRoundtripRetainsBestWithoutChangingSpecies()

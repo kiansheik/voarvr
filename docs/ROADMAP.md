@@ -1,5 +1,9 @@
 # Roadmap
 
+First implementation milestone: [A Route Home and remaining acceptance gates](reviews/2026-09-10-route-home-implementation.md). The untimed chapter, durable recovery and focused presentation changes are implemented; broader content/art and wearer acceptance remain open.
+
+For the current proposed production sequence, read the [2026-09-10 game critique and 24 work orders](reviews/2026-09-10-game-critique-and-roadmap.md). It prioritizes current-build acceptance, reward/rest alignment, durable progress and one polished story route. These are recommendations; implementation status belongs in [current state](agent/current-state.md). The original foundation milestones below are historical planning context, not a current completion checklist.
+
 | Milestone | Outcome / acceptance direction |
 | --- | --- |
 | M0 - repository/tooling foundation | Current scaffold; complete first Unity import, tests, Blender roundtrip and Quest smoke run before marking verified. |
