@@ -26,7 +26,7 @@ namespace VoarVR.Tests
             ground.transform.SetParent(root.transform);
             ground.transform.position = new Vector3(20000, -1, 20000);
             ground.AddComponent<BoxCollider>().size = new Vector3(20, 2, 20);
-            ground.AddComponent<LandingSurface>().SurfaceId = 123;
+            var surface=ground.AddComponent<LandingSurface>();surface.SurfaceId = 123;surface.SurfaceKind=FlightSurfaceKind.Terrain;
             Physics.SyncTransforms();
         }
 
@@ -38,10 +38,13 @@ namespace VoarVR.Tests
         {
             var wall=new GameObject("Walking wall") {layer=UnityFlightEnvironment.CollisionLayer};
             wall.transform.SetParent(root.transform);wall.transform.position=new Vector3(20001,1,20000);
-            wall.AddComponent<BoxCollider>().size=new Vector3(.2f,3,10);
+            var wallCollider=wall.AddComponent<BoxCollider>();wallCollider.size=new Vector3(.2f,3,10);
+            wall.AddComponent<LandingSurface>().SurfaceKind=FlightSurfaceKind.Structure;
             var input=new TestInput();var profile=BirdFlightProfile.Duck();profile.InitialSpeedMps=0;
             var c=new BirdFlightController(input,new Vector3(20000,.23f,20000),profile:profile,environment:environment);
             Physics.SyncTransforms();
+            Assert.That(environment.Sweep(new Vector3(20000,1,20000),new Vector3(20002,1,20000),.22f,out var wallHit),Is.True);
+            Assert.That(wallHit.Collider,Is.SameAs(wallCollider));Assert.That(wallHit.SurfaceKind,Is.EqualTo(FlightSurfaceKind.Structure));
             for(int i=0;i<120;i++)c.Step(1f/120);
             Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
             input.Frame.GroundMove=Vector2.right;
@@ -80,6 +83,19 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void NonLandableSurfaceStillCollidesButCannotSupportOrOfferLanding()
+        {
+            ground.GetComponent<LandingSurface>().CanLand=false;
+            Assert.That(environment.Sweep(new Vector3(20000,3,20000),
+                new Vector3(20000,-2,20000),.3f,out var hit),Is.True);
+            Assert.That(hit.SurfaceId,Is.EqualTo(123));
+            Assert.That(hit.Normal.y,Is.GreaterThan(.99f));
+            Assert.That(hit.Landable,Is.False,"A vertical top contact must remain a bump.");
+            Assert.That(environment.IsSupported(hit.Position,.3f,123),Is.False);
+            Assert.That(environment.TryFindLanding(new Vector3(20000,2,20000),10,out _),Is.False);
+        }
+
+        [Test]
         public void RealSphereSweepAndInsideRecoveryKeepBodyAbovePlatform()
         {
             Assert.That(environment.Sweep(new Vector3(20000, 10, 20000), new Vector3(20000, -10, 20000), .55f, out var hit), Is.True);
@@ -96,6 +112,8 @@ namespace VoarVR.Tests
             Assert.That(environment.Sweep(new Vector3(19980, -1, 20000), new Vector3(20020, -1, 20000), .22f, out var hit), Is.True);
             Assert.That(hit.Position.x, Is.LessThan(19990));
             Assert.That(hit.Landable, Is.False);
+            Assert.That(hit.Collider,Is.SameAs(ground.GetComponent<BoxCollider>()));
+            Assert.That(hit.SurfaceKind,Is.EqualTo(FlightSurfaceKind.Terrain));
             Assert.That(FlightContactSolver.CanLand(hit, Vector3.right * 2, true), Is.False);
         }
 

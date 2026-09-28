@@ -26,9 +26,11 @@ namespace VoarVR.UI
         private static readonly FlightActivity[] Activities =
         {
             FlightActivity.RouteHome, FlightActivity.Training, FlightActivity.FreeFlight,
-            FlightActivity.SkywardExpedition, FlightActivity.RidgeJourney
+            FlightActivity.SkywardExpedition, FlightActivity.RidgeJourney, FlightActivity.ObstacleCourse
         };
-        private static readonly string[] ActivityLabels = { "A ROUTE HOME", "LEARN THE AIR", "FREE FLIGHT", "SKYWARD", "RIDGE JOURNEY" };
+        private static readonly string[] ActivityLabels = { "A ROUTE HOME", "LEARN THE AIR", "FREE FLIGHT", "SKYWARD", "RIDGE JOURNEY", "COURSES" };
+        private static readonly string[] CourseIds = { "moth-line", "canopy-weave", "ruin-windows", "thermal-ladder", "trick-and-perch" };
+        private static readonly string[] CourseLabels = { "1  MOTH LINE", "2  CANOPY WEAVE", "3  RUIN WINDOWS", "4  THERMAL LADDER", "5  TRICK + PERCH" };
         private static readonly (string Label, Func<BirdCharacterDefinition, float> Read)[] Stats =
         {
             ("SIZE", d => Mathf.InverseLerp(.3f, 3f, d.Size)), ("SPEED", d => d.Speed),
@@ -36,17 +38,25 @@ namespace VoarVR.UI
         };
         private readonly List<GameObject> ownedObjects = new List<GameObject>();
         private readonly List<Button> activityButtons = new List<Button>();
+        private readonly List<Button> courseButtons = new List<Button>();
         private readonly List<Button> speciesButtons = new List<Button>();
         private readonly List<Image> statFills = new List<Image>();
         private BirdCharacterDefinition[] characters;
         private BirdCharacterDefinition selectedCharacter;
-        private Text routeTitle, routeDescription, routeSteps, saveStatus, speciesDescription;
+        private Text routeTitle, routeDescription, routeSteps, saveStatus, speciesDescription, courseRecords;
         private Text beginLabel, newLabel, comfortLabel, calibrationBriefing;
+        private Text profileLabel,profileHistory;
         private Button beginButton, newButton;
+        private PlayerProfileCatalog profileCatalog;
+        private FlightSessionHistoryStore sessionHistory;
+        private CourseLeaderboardStore courseLeaderboard;
+        private string historyNotice;
         private Canvas canvas;
         public Canvas PreflightPanel => canvas;
         public BirdCharacterDefinition SelectedCharacter => selectedCharacter;
         public string PreviewText => routeDescription != null ? routeDescription.text : string.Empty;
+        public string ActiveProfileName=>profileCatalog?.ActiveProfile?.DisplayName??PlayerProfileCatalog.BuiltInProfileName;
+        public string ProfileSummaryText=>profileHistory!=null?profileHistory.text:string.Empty;
 
         private void Start()
         {
@@ -60,6 +70,10 @@ namespace VoarVR.UI
                 Own(new GameObject("XR Interaction Manager", typeof(XRInteractionManager)));
             if (FindAnyObjectByType<EventSystem>() == null)
                 Own(new GameObject("EventSystem", typeof(EventSystem), typeof(XRUIInputModule)));
+            profileCatalog = new PlayerProfileCatalog();
+            sessionHistory = new FlightSessionHistoryStore();
+            courseLeaderboard = new CourseLeaderboardStore();
+            RecoverInterruptedSessions();
             characters = Resources.LoadAll<BirdCharacterDefinition>(CharacterSelection.ResourcesFolder)
                 .OrderBy(c => c.SortOrder).ThenBy(c => c.DisplayName).ToArray();
             if (characters.Length == 0)
@@ -76,32 +90,44 @@ namespace VoarVR.UI
         {
             var root = Own(new GameObject("Journey preflight", typeof(RectTransform), typeof(Canvas), typeof(TrackedDeviceGraphicRaycaster)));
             canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
-            var rect = root.GetComponent<RectTransform>(); rect.sizeDelta = new Vector2(1920, 1320); rect.localScale = Vector3.one * .00115f;
+            var rect = root.GetComponent<RectTransform>(); rect.sizeDelta = new Vector2(1920, 1440); rect.localScale = Vector3.one * .00142f;
             var eye = Camera.main; canvas.worldCamera = eye;
             if (eye != null)
             {
                 eye.clearFlags = CameraClearFlags.SolidColor; eye.backgroundColor = Background;
                 var forward = Vector3.ProjectOnPlane(eye.transform.forward, Vector3.up);
                 if (forward.sqrMagnitude < .001f) forward = Vector3.forward; else forward.Normalize();
-                rect.position = eye.transform.position + forward * 2.5f;
+                rect.position = eye.transform.position + forward * 2.35f;
                 rect.rotation = Quaternion.LookRotation(forward, Vector3.up);
             }
             Box(root.transform, "Backdrop", Vector2.zero, rect.sizeDelta, Background);
-            Box(root.transform, "Accent", new Vector2(0, 651), new Vector2(1920, 5), Gold);
+            Box(root.transform, "Accent", new Vector2(0, 711), new Vector2(1920, 5), Gold);
             Label(root.transform, "Eyebrow", "V O A R   /   SKY SANCTUARY", new Vector2(0, 577), new Vector2(1740, 55), 30, Gold);
             Label(root.transform, "Title", "Every flight can bring something home.", new Vector2(0, 501), new Vector2(1740, 82), 48, Ink);
             for (int i = 0; i < Activities.Length; i++)
             {
                 var activity = Activities[i];
-                var button = Button(root.transform, ActivityLabels[i], new Vector2((i - 2) * 356, 397), new Vector2(340, 72), 27);
+                var button = Button(root.transform, ActivityLabels[i], new Vector2((i - 2.5f) * 294, 397), new Vector2(280, 72), 24);
                 button.onClick.AddListener(() => ChooseActivity(activity)); activityButtons.Add(button);
             }
             var route = Box(root.transform, "Journey preview", new Vector2(-350, 28), new Vector2(1090, 620), Panel);
             routeTitle = Label(route.transform, "Route title", "", new Vector2(0, 241), new Vector2(982, 70), 43, Ink);
             routeDescription = Label(route.transform, "Route description", "", new Vector2(0, 134), new Vector2(982, 128), 30, Muted);
+            courseRecords = Label(route.transform, "Course records", "", new Vector2(0, 77), new Vector2(982, 43), 27, Muted);
+            courseRecords.gameObject.SetActive(false);
             Label(route.transform, "Route heading", "THE FLIGHT AHEAD", new Vector2(0, 20), new Vector2(982, 45), 26, Gold);
             routeSteps = Label(route.transform, "Route steps", "", new Vector2(0, -78), new Vector2(982, 150), 31, Ink);
             saveStatus = Label(route.transform, "Save status", "", new Vector2(0, -233), new Vector2(982, 113), 25, Muted);
+            for (int i = 0; i < CourseIds.Length; i++)
+            {
+                string courseId = CourseIds[i];
+                var coursePosition=i<3?new Vector2(-300+i*300,-195):new Vector2(-150+(i-3)*300,-253);
+                var course = Button(route.transform, CourseLabels[i], coursePosition, new Vector2(280, 50), 20);
+                course.GetComponentInChildren<Text>().rectTransform.sizeDelta = new Vector2(256, 48);
+                course.onClick.AddListener(() => ChooseCourse(courseId));
+                courseButtons.Add(course);
+                course.gameObject.SetActive(false);
+            }
 
             var species = Box(root.transform, "Flyer preview", new Vector2(566, 28), new Vector2(668, 620), Panel);
             Label(species.transform, "Flyer heading", "CHOOSE YOUR FLYER", new Vector2(0, 266), new Vector2(576, 53), 28, Gold);
@@ -133,8 +159,15 @@ namespace VoarVR.UI
             RefreshComfort();
             calibrationBriefing = Label(root.transform, "Calibration briefing", "Begin in third-person. Spread your arms comfortably, then press A to calibrate.",
                 new Vector2(0, -468), new Vector2(1770, 62), 29, Ink);
-            Label(root.transform, "Control briefing", "X  Pause  >  RIGHT TRIGGER  Help + recovery     B  View     RIGHT STICK CLICK  Instruments\nHOLD LEFT STICK CLICK  Flight mode     LEFT MENU  Save + leave\nInstruments start hidden. Pause and open help whenever you need your objective or a rest.",
-                new Vector2(0, -564), new Vector2(1770, 120), 26, Muted);
+            Label(root.transform, "Control briefing", "RIGHT TRIGGER  Select / tuck     X  Pause     A  Calibration coach     B  View\nON GROUND  Left stick walk · right stick turn     LEFT MENU  Session + results\nInstruments start hidden. World markers and the goal ribbon remain when gauges are hidden.",
+                new Vector2(0, -548), new Vector2(1770, 94), 24, Muted);
+            var playerBar=Box(root.transform,"Player history card",new Vector2(0,-645),new Vector2(1770,70),Panel);
+            var profileButton=Button(playerBar.transform,"PLAYER",new Vector2(-650,0),new Vector2(430,52),23);
+            profileLabel=profileButton.GetComponentInChildren<Text>();profileButton.onClick.AddListener(CyclePlayer);
+            var addPlayer=Button(playerBar.transform,"ADD PLAYER",new Vector2(-306,0),new Vector2(220,52),22);
+            addPlayer.onClick.AddListener(CreatePlayer);
+            profileHistory=Label(playerBar.transform,"Player history","",new Vector2(350,0),new Vector2(1040,54),23,Muted);
+            RefreshProfile();
         }
 
         public void ChooseCharacter(BirdCharacterDefinition character)
@@ -144,6 +177,7 @@ namespace VoarVR.UI
             for (int i = 0; i < speciesButtons.Count; i++) SetSelected(speciesButtons[i], i == index);
             speciesDescription.text = character.FlavorText;
             for (int i = 0; i < Stats.Length; i++) statFills[i].rectTransform.anchorMax = new Vector2(Mathf.Clamp01(Stats[i].Read(character)), 1);
+            if(ActivitySelection.Chosen==FlightActivity.ObstacleCourse)ShowSelectedCourse();
         }
 
         public void ChooseActivity(FlightActivity activity)
@@ -175,6 +209,9 @@ namespace VoarVR.UI
                     routeDescription.text = "Choose a horizon and see where the air takes you.\nNo required tasks / no timer / no completion target.";
                     routeSteps.text = "Follow rising gold streams, or explore the lowlands.\nCatch moths, find a perch, or practise a gentle turn.\nOptional rolls and loops await in advanced flight.";
                     break;
+                case FlightActivity.ObstacleCourse:
+                    ShowSelectedCourse();
+                    break;
                 default:
                     routeTitle.text = activity == FlightActivity.RidgeJourney ? "RIDGE JOURNEY" : "SKYWARD EXPEDITION";
                     routeDescription.text = "A longer route through lift, open sky and stone arches.\nUntimed adventure / quiet soaring is part of the route.";
@@ -183,9 +220,15 @@ namespace VoarVR.UI
                         : "01   Find lift and gain 100 m with quiet wings\n02   Reach 230 m and fly through the stone arch\n03   Land on the garden terrace to finish";
                     break;
             }
-            bool resume = journey.HasResume(activity);
+            bool courses = activity == FlightActivity.ObstacleCourse;
+            courseRecords.gameObject.SetActive(courses);
+            routeDescription.rectTransform.anchoredPosition = new Vector2(0, courses ? 151 : 134);
+            routeDescription.rectTransform.sizeDelta = new Vector2(982, courses ? 88 : 128);
+            for (int i = 0; i < courseButtons.Count; i++) courseButtons[i].gameObject.SetActive(courses);
+            saveStatus.gameObject.SetActive(!courses);
+            bool resume = !courses && journey.HasResume(activity);
             if (calibrationBriefing != null) calibrationBriefing.text = resume
-                ? "Resume stays paused. Right trigger: flight menu → Recalibrate here. A restarts the route."
+                ? "Resume opens paused at your saved perch. Choose Recalibrate Here, match the relaxed pose, then press A only when the coach says ready."
                 : "Begin in third-person. Spread your arms comfortably, then press A to calibrate.";
             var checkpoint = journey.GetCheckpoint(activity);
             string progress = resume && checkpoint != null ? "Checkpoint saved / step " + (checkpoint.Stage + 1) + ". Resume from a safe perch."
@@ -196,18 +239,121 @@ namespace VoarVR.UI
             if (!string.IsNullOrEmpty(journey.SaveNotice)) progress = journey.SaveNotice;
             else if (resume) progress += " Restart begins this route again; banked restoration stays.";
             saveStatus.text = progress;
-            beginLabel.text = resume ? "RESUME FLIGHT" : activity == FlightActivity.FreeFlight ? "GO EXPLORING" : "BEGIN FLIGHT";
+            beginLabel.text = courses ? "START COURSE " + (Array.IndexOf(CourseIds, ActivitySelection.ChosenCourseId) + 1)
+                : resume ? "RESUME AT SAVED PERCH" : activity == FlightActivity.FreeFlight ? "GO EXPLORING" : "BEGIN FLIGHT";
             newButton.gameObject.SetActive(resume);
-            newLabel.text = "RESTART ROUTE";
+            newLabel.text = "RESTART FROM BEGINNING";
             SetSelected(beginButton, true);
         }
 
+        private void ChooseCourse(string courseId)
+        {
+            if (!CourseIds.Contains(courseId)) courseId = CourseIds[0];
+            ActivitySelection.ChosenCourseId = courseId;
+            if (ActivitySelection.Chosen != FlightActivity.ObstacleCourse) ChooseActivity(FlightActivity.ObstacleCourse);
+            else ShowSelectedCourse();
+        }
+
+        private void ShowSelectedCourse()
+        {
+            int index = Array.IndexOf(CourseIds, ActivitySelection.ChosenCourseId);
+            if (index < 0) { index = 0; ActivitySelection.ChosenCourseId = CourseIds[0]; }
+            for (int i = 0; i < courseButtons.Count; i++) SetSelected(courseButtons[i], i == index);
+            var definition = CourseCatalog.Find(CourseIds[index]);
+            routeTitle.text = CourseLabels[index].Substring(3);
+            routeDescription.text = index == 0 ? "Chase through broad gates and a line of Sun Moths.\nShort skill course / personal records / rest before retry."
+                : index == 1 ? "Weave through four canopy gaps without touching trunks.\nGate precision / clean contact matters."
+                : index == 2 ? "Cross ruin windows, follow the gallery, then land.\nCollision-accurate route trial."
+                : index == 3 ? "Climb through three lift bands, then dive through the exit.\nLift-reading and altitude-control trial."
+                : "Hold inverted, catch the Crown Moth, then land.\nStarts in acrobatic mode / control and landing trial.";
+            routeSteps.text = "3, 2, 1… START  •  "
+                + string.Join("  →  ", definition.Tasks.Select(task => task.Label.ToUpperInvariant()))
+                + "\nFinish before " + definition.TimeLimitSeconds.ToString("F0") + " s, then take the required rest.";
+            beginLabel.text = "START COURSE " + (index + 1);
+            RefreshCourseRecords(index);
+        }
+
+        private void RefreshCourseRecords(int selected)
+        {
+            if(courseLeaderboard==null||selectedCharacter==null||profileCatalog==null)return;
+            string characterId=StableId(selectedCharacter.name);
+            for(int i=0;i<CourseIds.Length;i++)
+            {
+                var course=CourseCatalog.Find(CourseIds[i]);
+                double best=FastestPersonalBest(course,characterId,profileCatalog.ActiveProfileId);
+                courseButtons[i].GetComponentInChildren<Text>().text=CourseLabels[i]+"\n"+(double.IsInfinity(best)?"—":best.ToString("F2")+" s");
+                if(i==selected)courseRecords.text="TARGET "+course.ExpectedSeconds.ToString("F0")+" s  ·  PERSONAL BEST "+(double.IsInfinity(best)?"—":best.ToString("F2")+" s");
+            }
+        }
+
+        private double FastestPersonalBest(CourseDefinition course,string characterId,string profileId)
+        {
+            double best=double.PositiveInfinity;
+            foreach(string control in new[]{"beginner","acrobatic"})
+                foreach(string wind in new[]{"assisted","touring","wild","stillair"})
+                {
+                    string assistance=wind=="assisted"?"assisted":"manual";
+                    best=Math.Min(best,courseLeaderboard.PersonalBest(new CourseResultKey(course,
+                        characterId,control,wind,assistance),profileId));
+                }
+            return best;
+        }
+
         private void RefreshComfort() => comfortLabel.text = "FIRST-PERSON VIEW\n" + (FlightPreferences.FirstPersonStabilized ? "Steady horizon" : "Embodied horizon");
+        public void CyclePlayer()
+        {
+            if(profileCatalog==null)return;var profiles=profileCatalog.Profiles;
+            int current=Array.FindIndex(profiles,p=>p.Id==profileCatalog.ActiveProfileId);
+            if(profiles.Length>0)profileCatalog.SetActiveProfile(profiles[(current+1+profiles.Length)%profiles.Length].Id);
+            RefreshProfile();
+        }
+        public void CreatePlayer()
+        {
+            if(profileCatalog==null)return;profileCatalog.CreateProfile("Player "+(profileCatalog.Profiles.Length+1),out _);RefreshProfile();
+        }
+        private void RefreshProfile()
+        {
+            if(profileCatalog==null||profileLabel==null||profileHistory==null)return;
+            var profile=profileCatalog.ActiveProfile;profileLabel.text="PLAYER  ·  "+(profile?.DisplayName??"PLAYER 1").ToUpperInvariant()+"  ›";
+            var flights=profile==null?Array.Empty<FlightSessionSummary>():sessionHistory.LoadFinals(profile.Id);
+            string loadWarning = sessionHistory.LastError;
+            double distance=flights.Sum(f=>f.Metrics.FlightDistanceMeters);double speed=flights.Length==0?0:flights.Max(f=>f.Metrics.MaxGroundSpeedMps);
+            int moths=flights.Sum(f=>f.Metrics.CatchCount);
+            profileHistory.text=flights.Length+" FLIGHTS  ·  "+(distance>=1000?(distance/1000).ToString("F1")+" km":Math.Round(distance)+" m")
+                +" FLOWN  ·  "+moths+" MOTHS  ·  TOP "+speed.ToString("F1")+" m/s";
+            if (!string.IsNullOrEmpty(historyNotice)) profileHistory.text += "  ·  " + historyNotice;
+            if (!string.IsNullOrEmpty(loadWarning)) profileHistory.text += "  ·  HISTORY PARTIAL";
+            if (!string.IsNullOrEmpty(profileCatalog.Notice)) profileHistory.text += "  ·  " + profileCatalog.Notice;
+            if(ActivitySelection.Chosen==FlightActivity.ObstacleCourse)ShowSelectedCourse();
+        }
+
+        private void RecoverInterruptedSessions()
+        {
+            int recovered = 0;
+            bool incomplete = false;
+            DateTime endedAt = DateTime.UtcNow;
+            foreach (var profile in profileCatalog.Profiles)
+            {
+                recovered += sessionHistory.RecoverInterruptedDrafts(profile.Id, endedAt);
+                incomplete |= !string.IsNullOrEmpty(sessionHistory.LastError);
+            }
+            historyNotice = recovered > 0 ? "RECOVERED " + recovered + " INTERRUPTED FLIGHT" + (recovered == 1 ? "" : "S") : "";
+            if (incomplete) historyNotice += (string.IsNullOrEmpty(historyNotice) ? "" : "  ·  ") + "RECOVERY PARTIAL";
+        }
+        private static string StableId(string value)
+        {
+            if(string.IsNullOrWhiteSpace(value))return "unknown";var chars=value.ToLowerInvariant().Select(c=>c>='a'&&c<='z'||c>='0'&&c<='9'?c:'-').ToArray();
+            string id=new string(chars).Trim('-');while(id.Contains("--"))id=id.Replace("--","-");return string.IsNullOrEmpty(id)?"unknown":id;
+        }
         private void Launch(bool resume)
         {
             if (selectedCharacter == null) return;
+            // Selecting a profile updates this already; launching the currently active
+            // profile should also make its recency truthful.
+            profileCatalog?.SetActiveProfile(profileCatalog.ActiveProfileId);
             CharacterSelection.Chosen = selectedCharacter;
-            ActivitySelection.ResumeRequested = resume && ExpeditionDirector.LoadJourney().HasResume(ActivitySelection.Chosen);
+            ActivitySelection.ResumeRequested = ActivitySelection.Chosen != FlightActivity.ObstacleCourse
+                && resume && ExpeditionDirector.LoadJourney().HasResume(ActivitySelection.Chosen);
             SceneManager.LoadScene(flightSceneName);
         }
         private static void SetSelected(Button button, bool selected)

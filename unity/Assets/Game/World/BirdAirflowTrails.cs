@@ -47,6 +47,11 @@ namespace VoarVR.World
         public void TickTrails()
         {
             if(bird==null||bird.Controller==null||rig==null||material==null)return;
+            if(bird.FlightOverlayBlocked)
+            {
+                ClearHistory();
+                return;
+            }
             var c=bird.Controller;float time=c.SimulationTime;
             bool reset=lastTime<0||time<lastTime||Vector3.Distance(previousPosition,bird.transform.position)>20;
             float dt=reset?0:Mathf.Clamp(time-lastTime,0,.05f);

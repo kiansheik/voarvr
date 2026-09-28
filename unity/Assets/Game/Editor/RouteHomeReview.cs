@@ -223,6 +223,8 @@ namespace VoarVR.Editor
             using(var fixture=new PilotFixture(scope,species))
             {
                 var controller=fixture.Driver.Controller;var input=fixture.Input;
+                var ribbon=fixture.Driver.gameObject.AddComponent<GameplayRibbon>();
+                ribbon.Configure(fixture.Driver,scope.Camera);
                 var report=new Report {Species=species,EditorVersion=Application.unityVersion,Scene=scope.Original.gameObject.scene.path};
                 var log=new StringBuilder();int lastStage=-1;bool departureClimbed=false,arrivalClimbed=false,contactStopped=false;float continuousLowSpeedContact=0;
                 var seedPilot=new PortalPilot(false);var archPilot=new PortalPilot(true);
@@ -307,7 +309,10 @@ namespace VoarVR.Editor
                 log.AppendLine("RESULT "+report.Status+" stage="+result.Stage+" phase="+report.FinalPhase+" restoredAfterReload="+report.GardenRestoredAfterReload);
                 WriteReport(species,report,log);
                 fixture.Presentation.Present(controller.State.Position,result,report.GardenRestoredAfterReload,true,controller.SimulationTime+4);
-                FollowCamera(fixture.Driver,scope.Camera);yield return null;
+                FollowCamera(fixture.Driver,scope.Camera);
+                // The pilot advances simulation faster than wall time. Let the .15s
+                // ribbon and .2s card refresh before photographing the final state.
+                yield return new WaitForSecondsRealtime(.4f);yield return null;
                 DuckReview.CaptureCurrent(Folder,species.ToLowerInvariant()+"-actual-controller-result-v2");
             }
             yield return null;
@@ -515,6 +520,9 @@ namespace VoarVR.Editor
                 // These independent callbacks would otherwise re-show old mission
                 // text/bearings after the original driver's Update has been suspended.
                 if(original.Expedition.enabled){suspended.Add(original.Expedition);original.Expedition.enabled=false;}
+                var originalRibbon=original.GetComponent<GameplayRibbon>();
+                if(originalRibbon!=null && originalRibbon.enabled)
+                {suspended.Add(originalRibbon);originalRibbon.enabled=false;}
                 foreach(var bearing in Object.FindObjectsByType<RouteBearing>(FindObjectsSortMode.None))
                     if(bearing.enabled){suspended.Add(bearing);bearing.enabled=false;}
                 foreach(Transform child in original.transform)if(child.gameObject.activeSelf){hidden.Add(child.gameObject);child.gameObject.SetActive(false);}

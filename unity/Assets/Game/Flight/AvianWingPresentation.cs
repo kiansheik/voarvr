@@ -22,6 +22,7 @@ namespace VoarVR.Flight
         public void Configure(BirdRigDriver driver,AvianArticulationSettings tuning,BirdMorphology morphology=null)
         {
             rig=driver;settings=tuning;
+            rig.TriggerGrossPose=false;
             rig.ShoulderSweepLimitDeg=settings.ShoulderSweepDeg;
             rig.ShoulderPronationGain=settings.ShoulderPronationGain;rig.MaxShoulderPronationDeg=settings.PronationDeg;
             Quaternion Frame(Transform a,Transform b)=>Quaternion.LookRotation(a.InverseTransformDirection(b.position-a.position),a.InverseTransformDirection(transform.up));

@@ -1,8 +1,17 @@
 # Open questions
 
+## Hands-first competition gates
+
+- Entrant/Start membership: user confirmed US membership on September 28; the earlier eligibility question is closed. See the [competition brief](../competition/meta-vr-start-2026.md#entrant-eligibility--user-confirmed).
+- Merged hand-safety/flight/ground/replay tests now pass locally; see the [current pre-Quest review](../reviews/2026-09-28-competition-preflight.md). Physical input-only completion of all five obstacle courses and the authored cold-start opening remain unverified.
+- Pin compatible SDK/OVRPlugin versions, implement hand adapter/continuity, preserve estimated-motion provenance in session metrics and extend implemented v4 replay with versioned hand-source signals, then complete every required UI action and compact calibration without controllers.
+- Record actual Quest hand tracking, uncoached Route Home completion, comfort and sustained frame pacing. Prior controller recordings and screenshot scores do not close these gates. See [readiness table](../competition/meta-vr-start-2026.md#readiness-at-september-28).
+
+## Existing controller game
+
 - ~~First real Unity compilation, URP import and package resolution~~ Resolved 2026-09-08 with Unity 6000.6.0f1.
 - ~~Android Build Support / Quest install-launch~~ Resolved 2026-09-09: a Quest 3 was connected and the current build installs, launches, stays alive and reaches BirdFlight over adb (see [quest-recovery handoff](session-handoffs/2026-09-09-quest-recovery.md)).
-- Latest wearer requests HUD and more useful thermals. Flight instruments/Assisted feathering now implemented; worn-test readability/distraction, wing wakes and lift entries for both birds. Also retest: calibrated modest downward look, third-person default, Dragon glide, physical braking/ground+elevated contact, moving lift navigation and sustained chunk-streaming performance. Worn comfort is not established by editor or adb checks. Earlier unattended CharacterSelect auto-advance remains a separate unresolved observation.
+- ~~September 12 gameplay follow-through~~ Implemented locally: typed moth/value ribbon, mission counts, explicit session results and per-player records, supported right-stick yaw, richer contact/foliage response, branch/compound landmark collision, non-overlapping/HUD-independent guidance, Duck/Dragon trigger poses, diagram-led safe calibration and five short data-driven courses. [Original evidence](../reviews/2026-09-12-quest-playtest-next-round.md), [implementation handoff](session-handoffs/2026-09-12-playtest-features-implementation.md). The Quest wearer acceptance items below remain open; earlier unattended CharacterSelect auto-advance is separate.
 - `Assets/TextMesh Pro/` is an incomplete, unused import (pulled in as a side effect of an earlier XRI sample import) causing 24 `check_repo.py` unresolved-GUID findings; recommend deleting it as its own change, not blocking anything today.
 - ~~Blender FBX scale/orientation and skin roundtrip~~ Resolved with Blender 5.2.1 LTS static and nine-bone rig smoke tests plus Unity import/deformation checks.
 - Design: deliberate neutral calibration, physical flaps, Assisted flight and separate advanced controls are implemented. Latest passive-pitch neutral fix is installed; relaxed-grip wearer acceptance, target effort and accessible reach/seated options remain open.
@@ -16,8 +25,8 @@ None of the design questions block the initial toolchain validation. Do not crea
 
 ## Flight Game v1 acceptance questions
 
-- Fresh Magpie/Dragon recordings match the installed neutral-correction source d2bd0906…; Magpie supplies22.58s zero-control/zero-aerodynamic-pitch evidence. Controlled wearer comfort and sustained representative delivery remain unverified. The new RouteHome package/install status is in its latest handoff. Do not describe current device connectivity without a fresh check.
-- Input-only Skyward pilot completes in180.4s; target10–20minute human journey pacing is unverified.
+- The 2026-09-12 Magpie/Skyward capture predates the new feature pass. Its remote/local hashes now match, but it does not validate the new ribbon, session flow, collision/animation work or courses. The Quest was offline at the end of the latest check; do not describe current connectivity without a fresh check.
+- Input-only Skyward completes in 180.4s, but the actual wearer spent 19m 24s on the arch stage without approaching within 617 m. HUD-independent direction/distance and world guidance are now implemented; a first-time wearer must still prove that they identify and approach the target without coaching.
 - Strict art/thermal-readability gates are not yet met; bounded prototype geometry needs composition/lighting/landmark polish.
 - Natural-start acrobatic loop technique needs coaching and wearable tests; energetic-entry fixtures are insufficient user-usability proof.
 - Ridge Journey and local bests provide initial progression, not a full campaign, cosmetic unlock system or journal.
@@ -25,4 +34,4 @@ None of the design questions block the initial toolchain validation. Do not crea
 ## Future game production decisions
 
 - [Professional critique and W backlog](../reviews/2026-09-10-game-critique-and-roadmap.md) remains the broader production proposal. [A Route Home implementation](../reviews/2026-09-10-route-home-implementation.md) now covers the first story consequence, durable/rest-friendly progress, quiet help and focused presentation. Broader campaign/mastery/asset direction remains future work.
-- Highest-value validation: latest neutral/HUD acceptance; HUD-off goal comprehension; voluntary repeat play; fair reward/rest accounting; interrupted-session saves; one polished route's measured Quest cost.
+- Highest-value validation: build/install the current tree, then test HUD-off Skyward comprehension; ribbon/stereo text size; Left Menu session finalization and profile history; ground-turn and calibration comfort; collider openings/contact feel; Duck/Dragon trigger poses; and real-controller completion, ranking and rest/retry for all five 15–30s courses. Record sustained Quest frame pacing separately from screenshot quality.

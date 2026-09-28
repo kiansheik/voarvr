@@ -2,12 +2,16 @@ using UnityEngine;
 
 namespace VoarVR.Flight
 {
+    public enum FlightSurfaceKind { Unknown, Terrain, Wood, Foliage, Stone, Structure }
+
     public struct FlightContact
     {
         public Vector3 Position, Point, Normal;
         public float Distance;
         public bool Landable;
         public int SurfaceId;
+        public FlightSurfaceKind SurfaceKind;
+        public Collider Collider;
     }
 
     public struct LandingCandidate

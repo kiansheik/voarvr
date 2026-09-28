@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR;
+using VoarVR.Core;
 using VoarVR.UI;
 using VoarVR.World;
 
@@ -43,11 +44,13 @@ namespace VoarVR.Flight
         private BirdFlightDriver bird;
         private WindField wind;
         private Transform leftTip, rightTip;
-        private AudioSource events, breeze, guidance, restoration;
-        private AudioClip impact, touchdown, air, thermalTone, climbTone, catchTone, trickTone, modeTone, viewTone, resumeTone, wingbeat, seedTone, homeTone;
+        private BirdRigDriver rig;
+        private FlightCamera flightCamera;
+        private AudioSource events, breeze, guidance, restoration, contactAudio;
+        private AudioClip impact, woodImpact, stoneImpact, foliageImpact, touchdown, air, thermalTone, climbTone, catchTone, trickTone, modeTone, viewTone, resumeTone, wingbeat, seedTone, homeTone;
         private readonly AirFeedbackState airState = new AirFeedbackState();
         private float wingAfter, snackAfter, trickAfter;
-        private int landings;
+        private int landings,contactSequence;
         private float clock, contactAfter, leftAfter, rightAfter;
         private bool active, focused = true, applicationPaused;
         private bool audioEnabled = true, hapticsEnabled = true, guidanceEnabled = true;
@@ -55,20 +58,35 @@ namespace VoarVR.Flight
         private FlightViewMode lastView;
         private bool wasPaused;
         public int ContactCueCount { get; private set; }
+        public AudioSource SpatialContactSource=>contactAudio;
 
         public static float ImpactAmplitude(float speed) => speed < .8f ? 0f : Mathf.Lerp(.15f, .65f, Mathf.InverseLerp(.8f, 14f, speed));
         public static float WindAmplitude(Vector3 flow) => Mathf.Clamp((flow.magnitude - 3f) * .022f, 0f, .16f);
+        public static Vector2 ContactHapticWeights(float side)
+        {
+            float right=Mathf.InverseLerp(-1f,1f,Mathf.Clamp(side,-1f,1f));
+            return new Vector2(Mathf.Lerp(1f,.25f,right),Mathf.Lerp(.25f,1f,right));
+        }
+        public static float ImpactTone(FlightSurfaceKind kind)
+            => kind==FlightSurfaceKind.Wood?150f:kind==FlightSurfaceKind.Foliage?225f:
+                kind==FlightSurfaceKind.Stone||kind==FlightSurfaceKind.Structure?95f:70f;
 
         public void Configure(BirdFlightDriver driver, WindField field, BirdRigDriver rig)
         {
-            bird = driver; wind = field;
+            bird = driver; wind = field;this.rig=rig;
+            flightCamera=FindAnyObjectByType<FlightCamera>();
             leftTip = rig != null ? rig.leftTip : null; rightTip = rig != null ? rig.rightTip : null;
             if (driver == null || driver.Controller == null) return;
-            landings = driver.Controller.LandingCount; lastMode = driver.Controller.ControlMode; lastView = driver.ViewMode;
+            landings = driver.Controller.LandingCount; contactSequence=driver.Controller.ContactSequence;
+            lastMode = driver.Controller.ControlMode; lastView = driver.ViewMode;
             wasPaused = driver.Controller.State.Phase == FlightPhase.Paused;
             if (events != null) return;
             events = Source(false); breeze = Source(true); guidance = Source(false);
-            impact = MakeClip("Soft collision", .16f, 85f, false);
+            contactAudio=SpatialContactSourceObject();
+            impact = MakeClip("Earth collision", .16f, ImpactTone(FlightSurfaceKind.Terrain), false);
+            woodImpact = MakeClip("Wood collision", .18f, ImpactTone(FlightSurfaceKind.Wood), false);
+            stoneImpact = MakeClip("Stone collision", .14f, ImpactTone(FlightSurfaceKind.Stone), false);
+            foliageImpact = MakeClip("Foliage collision", .22f, ImpactTone(FlightSurfaceKind.Foliage), false);
             touchdown = MakeClip("Touchdown rustle", .22f, 180f, false);
             wingbeat = MakeClip("Feather sweep", .18f, 45f, false);
             thermalTone = MakeMotif("Rising air available", .36f, 440f, 0, 0);
@@ -88,6 +106,13 @@ namespace VoarVR.Flight
         {
             var source = gameObject.AddComponent<AudioSource>(); source.playOnAwake = false;
             source.spatialBlend = 0; source.loop = loop; return source;
+        }
+        private AudioSource SpatialContactSourceObject()
+        {
+            var go=new GameObject("Spatial contact audio");go.transform.SetParent(transform,false);
+            var source=go.AddComponent<AudioSource>();source.playOnAwake=false;source.spatialBlend=1;source.dopplerLevel=0;
+            source.rolloffMode=AudioRolloffMode.Linear;source.minDistance=.5f;source.maxDistance=35f;
+            return source;
         }
 
         private bool CanEmitNow()
@@ -109,18 +134,32 @@ namespace VoarVR.Flight
             bool modeChanged = lastMode != c.ControlMode;
             bool viewChanged = lastView != bird.ViewMode;
             wasPaused = paused; lastMode = c.ControlMode; lastView = bird.ViewMode;
-            if (!CanEmitNow()) { Silence(); landings = c.LandingCount; return; }
+            if (!CanEmitNow())
+            {
+                Silence();landings=c.LandingCount;contactSequence=c.ContactSequence;
+                return;
+            }
             active = true;
             if (guidanceEnabled && (resumed || modeChanged || viewChanged))
                 PlayGuidance(resumed ? resumeTone : modeChanged ? modeTone : viewTone, .1f);
             bool landed = c.LandingCount != landings; landings = c.LandingCount;
+            bool contacted=c.ContactSequence!=contactSequence;contactSequence=c.ContactSequence;
             float hit = ImpactAmplitude(c.LastImpactSpeed);
-            if (clock >= contactAfter && (landed || hit > 0f))
+            if (clock >= contactAfter && (landed || contacted && hit > 0f))
             {
                 ContactCueCount++;
                 float strength = landed ? Mathf.Clamp(hit, .14f, .35f) : hit;
-                Pulse(XRNode.LeftHand, strength, .1f); Pulse(XRNode.RightHand, strength, .1f);
-                PlayEvent(landed ? touchdown : impact, landed ? .18f : Mathf.Lerp(.12f, .4f, hit / .65f));
+                var weights=ContactHapticWeights(c.LastContactSide);
+                Pulse(XRNode.LeftHand, strength*weights.x, .1f); Pulse(XRNode.RightHand, strength*weights.y, .1f);
+                PlayContact(landed?touchdown:ImpactClip(c.LastContactSurfaceKind),c.LastContactPoint,
+                    landed?.18f:Mathf.Lerp(.12f,.4f,hit/.65f));
+                if(!landed&&contacted&&hit>0f)
+                {
+                    rig?.AddCollisionImpulse(c.LastContactNormal,c.LastImpactSpeed,c.LastContactSide);
+                    flightCamera?.AddCollisionImpulse(c.LastContactNormal,c.LastImpactSpeed,c.LastContactSide);
+                }
+                if(c.LastContactSurfaceKind==FlightSurfaceKind.Wood||c.LastContactSurfaceKind==FlightSurfaceKind.Foliage)
+                    c.LastContactCollider?.GetComponentInParent<WorldChunk>()?.DisturbFoliage(c.LastContactPoint,-c.LastContactNormal,hit/.65f);
                 contactAfter = clock + .3f; leftAfter = rightAfter = contactAfter;
             }
             bool airborne = c.State.Phase != FlightPhase.Perched;
@@ -183,6 +222,7 @@ namespace VoarVR.Flight
             if (!audioEnabled)
             {
                 if (events != null) events.Stop();
+                if (contactAudio != null) contactAudio.Stop();
                 if (restoration != null) restoration.Stop();
                 if (breeze != null) { breeze.Stop(); breeze.volume = 0; }
             }
@@ -190,6 +230,14 @@ namespace VoarVR.Flight
             if (!hapticsEnabled) StopHaptics();
         }
         private void PlayEvent(AudioClip clip, float volume) { if (audioEnabled && events != null) events.PlayOneShot(clip, volume); }
+        private AudioClip ImpactClip(FlightSurfaceKind kind)
+            => kind==FlightSurfaceKind.Wood?woodImpact:kind==FlightSurfaceKind.Foliage?foliageImpact:
+                kind==FlightSurfaceKind.Stone||kind==FlightSurfaceKind.Structure?stoneImpact:impact;
+        private void PlayContact(AudioClip clip,Vector3 point,float volume)
+        {
+            if(!audioEnabled||contactAudio==null)return;
+            contactAudio.transform.position=point;contactAudio.PlayOneShot(clip,volume);
+        }
         private void PlayGuidance(AudioClip clip, float volume)
         { if (audioEnabled && guidanceEnabled && guidance != null) guidance.PlayOneShot(clip, volume); }
         private void WindPulse(XRNode hand, Vector3 flow, ref float next)
@@ -217,6 +265,7 @@ namespace VoarVR.Flight
             if (!active) return;
             active = false;
             if (events != null) events.Stop();
+            if (contactAudio != null) contactAudio.Stop();
             if (guidance != null) guidance.Stop();
             if (restoration != null) restoration.Stop();
             if (breeze != null) { breeze.Stop(); breeze.volume = 0; }
@@ -228,8 +277,10 @@ namespace VoarVR.Flight
         private void OnDestroy()
         {
             if (events != null) Destroy(events); if (breeze != null) Destroy(breeze); if (guidance != null) Destroy(guidance);
+            if (contactAudio != null) Destroy(contactAudio.gameObject);
             if (restoration != null) Destroy(restoration);
-            if (impact != null) Destroy(impact); if (touchdown != null) Destroy(touchdown); if (air != null) Destroy(air);
+            if (impact != null) Destroy(impact);if(woodImpact!=null)Destroy(woodImpact);if(stoneImpact!=null)Destroy(stoneImpact);
+            if(foliageImpact!=null)Destroy(foliageImpact);if (touchdown != null) Destroy(touchdown); if (air != null) Destroy(air);
             if (thermalTone != null) Destroy(thermalTone); if (climbTone != null) Destroy(climbTone); if (catchTone != null) Destroy(catchTone);
             if (trickTone != null) Destroy(trickTone); if (modeTone != null) Destroy(modeTone); if (viewTone != null) Destroy(viewTone);
             if (resumeTone != null) Destroy(resumeTone);

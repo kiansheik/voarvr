@@ -15,6 +15,26 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void EstimatedDownstrokeCannotLaunchFromSupportedRest()
+        {
+            var input=new Input();
+            var profile=BirdFlightProfile.Duck();
+            var controller=new BirdFlightController(input,Vector3.up*(profile.CollisionRadius+.01f),
+                profile:profile,environment:new PlaneFlightEnvironment(0));
+            for(int i=0;i<300&&controller.State.Phase!=FlightPhase.Perched;i++)controller.Step(1f/120f);
+            Assert.That(controller.State.Phase,Is.EqualTo(FlightPhase.Perched));
+            input.Frame.LeftWing.Velocity=input.Frame.RightWing.Velocity=Vector3.down*2.5f;
+            input.Frame.LeftWing.MotionEstimated=input.Frame.RightWing.MotionEstimated=true;
+            for(int i=0;i<30;i++)controller.Step(1f/120f);
+            Assert.That(controller.State.Phase,Is.EqualTo(FlightPhase.Perched));
+            Assert.That(controller.TakeoffCount,Is.Zero);
+            input.Frame.LeftWing.MotionEstimated=input.Frame.RightWing.MotionEstimated=false;
+            controller.Step(1f/120f);
+            Assert.That(controller.State.Phase,Is.Not.EqualTo(FlightPhase.Perched));
+            Assert.That(controller.TakeoffCount,Is.EqualTo(1));
+        }
+
+        [Test]
         public void EstimatedWingMotionCannotInjectActiveStrokeEnergyButPoseRemainsTracked()
         {
             var estimatedInput = new Input();

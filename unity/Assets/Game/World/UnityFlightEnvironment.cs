@@ -47,7 +47,10 @@ namespace VoarVR.World
             var surface = Surface(collider);
             return new FlightContact { Position = center, Point = point, Normal = normal,
                 Distance = distance, SurfaceId = surface != null ? surface.SurfaceId : 0,
-                Landable = surface != null && normal.y >= Mathf.Cos(surface.MaxSlopeDegrees * Mathf.Deg2Rad) };
+                SurfaceKind = surface != null ? surface.SurfaceKind : FlightSurfaceKind.Unknown,
+                Collider = collider,
+                Landable = surface != null && surface.CanLand
+                    && normal.y >= Mathf.Cos(surface.MaxSlopeDegrees * Mathf.Deg2Rad) };
         }
 
         public bool Sweep(Vector3 from, Vector3 to, float radius, out FlightContact hit)
@@ -64,7 +67,8 @@ namespace VoarVR.World
                 {
                     var safe=from+Vector3.up*((radius-separation+FlightContactSolver.Skin)/normal.y);
                     hit=new FlightContact {Position=safe,Point=point,Normal=normal,Distance=0,
-                        Landable=normal.y>=Mathf.Cos(FlightContactSolver.MaximumSlopeDegrees*Mathf.Deg2Rad),SurfaceId=surfaceId};
+                        Landable=normal.y>=Mathf.Cos(FlightContactSolver.MaximumSlopeDegrees*Mathf.Deg2Rad),
+                        SurfaceId=surfaceId,SurfaceKind=FlightSurfaceKind.Terrain};
                     return true;
                 }
             }
@@ -155,7 +159,7 @@ namespace VoarVR.World
             {
                 var collider = overlaps[i];
                 var surface = Surface(collider);
-                if (surface == null) continue;
+                if (surface == null || !surface.CanLand) continue;
                 // Probe the actual collider top rather than its centre/capture bubble.
                 var bounds = collider.bounds;
                 Vector3 above = new Vector3(Mathf.Clamp(position.x, bounds.min.x, bounds.max.x), bounds.max.y + .1f,

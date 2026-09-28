@@ -16,6 +16,9 @@ namespace VoarVR.World
         public WorldStreamer Streamer { get; private set; }
         public Material LandingMaterial => spiritMaterial;
         public Material AirflowMaterial => windMaterial;
+        public Material CityMaterial => cityMaterial;
+        public Material ForestMaterial => forestMaterial;
+        public Material CanopyMaterial => canopyMaterial;
         public void Configure(WindField field, Material city, Material forest, Material canopy, Material spirit, Material visibleWind, Material hazardWind)
         {
             wind = field; cityMaterial = city; forestMaterial = forest; canopyMaterial = canopy; spiritMaterial = spirit;

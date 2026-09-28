@@ -2,6 +2,29 @@
 
 This document is the competition-facing product brief for VoarVR. It is intentionally narrower than the long-term game roadmap.
 
+## Readiness at September 28
+
+Reviewed feature head `7798d3a` with incoming main `183557f`; both match origin. The conflict is resolved and the merge remains uncommitted. The combined controller baseline has now compiled and run in Unity 6000.6.0f1: 297/297 EditMode, 58/58 full PlayMode, then 12/12 affected player-facing tests after the final UI revisions; 23/23 host tests pass. [Current pre-Quest review](../reviews/2026-09-28-competition-preflight.md) records fixes, fresh evidence and remaining gates.
+
+The critical path is a complete compact, hands-first Magpie Route Home. Existing extra modes can support replay later; they should not expand the opening judge route. Every menu and mode exposed in the competition build must work with hands; hide or defer controller-dependent extras until their full hand path is validated. Track readiness through evidence rather than a promised score or award:
+
+| Order | Deliverable | Exit evidence | Current status |
+| --- | --- | --- | --- |
+| 0 | Merge baseline | Current Unity compile and executed hand-safety/flight/ground/replay regressions | Passed locally; controller baseline only |
+| 1 | Compatible hand stack | Exact SDK/OVRPlugin versions pinned; existing OpenXR path compiles | Not installed |
+| 2 | Safe hand adapter and recording | Direct/inferred/lost transitions, supported takeoff and dropout tests; versioned provenance-preserving replay | Estimated-force/takeoff guards and v4 replay pass; adapter/source continuity and activity accounting remain |
+| 3 | Complete hands-first flow | Cold start, selection, compact calibration, flight, pause/help/recalibration, landing and results with no controller | Not implemented; current flow requires controllers and launches already gliding |
+| 4 | Measured tracking | Quest WMM comparisons, FMM decision and recorded recovery without false propulsion or activity credit | No hand recordings |
+| 5 | Opening payoff | Fresh wearer understands launch, thermal, seed ownership, arch and garden without coaching, around five minutes | Scripted controller Magpie route completes in 202.073 simulated seconds from a fixture spawn; cold-start/hand pacing unverified |
+| 6 | Candidate quality | Independent visual/player/technical review plus sustained Quest performance, comfort and restart/resume evidence | Current local UI/guidance/safety dimensions 8/10; world art 6–7/10; physical completion of all five courses and Quest gates remain |
+| 7 | Submission | Verified channel access, frozen APK identity and honest gameplay video/text | Not prepared |
+
+Telemetry v4 now records raw/mapped ground turn and estimated-motion flags with v1–v3 compatibility. It does not contain hand source/confidence/WMM/FMM data; those need a later schema version. Session activity/wingbeat accounting must still exclude estimated/recovery motion before the hand adapter is enabled. The current five obstacle courses have executed staged lifecycle/presentation checks, not input-only physical completion. Neither these fixtures nor the controller regression APK are submission footage. See [hand-flight contract](../../design/HAND_FLIGHT.md).
+
+## Entrant eligibility — user confirmed
+
+On September 28 the user confirmed they are a US member in response to the entrant/Start-membership question. Treat this as user-confirmed eligibility for the project plan; the earlier residency question is closed. Official entry requirements remain the submission reference. [Official rules](https://start-developer-competition-26.devpost.com/rules).
+
 ## Submission path
 
 **Track:** Gaming  
@@ -11,7 +34,7 @@ This document is the competition-facing product brief for VoarVR. It is intentio
 
 Do **not** enter this repository as a New Experience. VoarVR had a working prototype and commits before the competition window opened on September 24, 2026. The competition explicitly lists implementing hand interactions as an example of a significant update, which makes the controller-to-hands conversion both required for the 2026 rules and an unusually clean adapted-experience story.
 
-The entry deadline is November 18, 2026 at 12:00 PM PT. The project must remain available through judging. The current implementation uses Unity and therefore the competition build should be uploaded to a Meta VR Developer Dashboard release channel named `Competition`, with an invite URL supplied to judges. The demo video must be public on YouTube or Vimeo and under three minutes.
+The entry deadline is November 18, 2026 at 12:00 PM PT. Keep judge access free and available until the winner announcement, currently around December 11; freeze the submitted version after the deadline. The current implementation uses Unity and therefore the competition build should be uploaded to a Meta VR Developer Dashboard release channel named `Competition`, with an invite URL supplied to judges. The demo video must be public on YouTube or Vimeo and under three minutes. [Official rules](https://start-developer-competition-26.devpost.com/rules).
 
 Official sources:
 
@@ -111,7 +134,7 @@ The judge should not be asked to imagine the finished experience. Before content
 - stable pause/resume;
 - zero obvious tracking pops;
 - no unexplained HUD clutter;
-- a three-minute trailer made from actual Quest gameplay.
+- an under-three-minute trailer made from actual Quest gameplay.
 
 ## Hero species
 
@@ -163,7 +186,7 @@ Exit: release candidate survives repeated cold-start-to-completion runs.
 
 - Build to the `Competition` release channel and verify invite from a separate account/device path if possible.
 - Produce final screenshots and under-three-minute video from real gameplay.
-- Write <=500-word submission description and adapted-experience changelog.
+- Write a concise submission description (internal target: <=500 words) and adapted-experience changelog, including future plans and target launch date.
 - Verify English text/subtitles, policies, third-party licenses and credits.
 - Run a judge-path checklist from a clean install.
 
@@ -189,6 +212,8 @@ A release candidate is not ready until all of the following are true:
 - the final video leads with actual hand flight, not menus or architecture slides.
 
 ## Submission narrative skeleton
+
+Draft intended positioning only. The hand conversion and broader return hooks below are not delivered claims. Rewrite against the final recorded build before submission; currently the persistent Route Home restoration, existing species and local course/session records are the concrete return hooks.
 
 **Inspiration:** people know what spreading their arms like wings means before a tutorial explains it.
 

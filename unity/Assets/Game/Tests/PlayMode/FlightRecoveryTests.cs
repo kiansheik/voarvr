@@ -45,7 +45,8 @@ namespace VoarVR.Tests
                 .GetSetMethod(true).Invoke(driver, new object[] { true });
             driver.NotifyTrackingOriginUpdated();
             Assert.That(driver.Controller.State.Position, Is.EqualTo(state.Position));
-            Assert.That(driver.Controller.State.Velocity, Is.EqualTo(state.Velocity));
+            Assert.That(driver.Controller.IsPaused,Is.True,"Recenter calibration must pause physical flight.");
+            Assert.That(driver.Controller.State.Velocity,Is.EqualTo(Vector3.zero));
             Assert.That(driver.ViewMode, Is.EqualTo(FlightViewMode.ThirdPerson));
             var missingTracking = ComfortableFrame();
             missingTracking.HeadTracked = false;
@@ -68,6 +69,8 @@ namespace VoarVR.Tests
             Assert.That(accepted, Is.True);
             Assert.That(driver.Calibration.Captured, Is.True);
             Assert.That(driver.Controller.State.Position, Is.EqualTo(state.Position));
+            Assert.That(driver.Controller.IsPaused,Is.True);
+            driver.Controller.SetPaused(false);
             Assert.That(driver.Controller.State.Velocity, Is.EqualTo(state.Velocity));
         }
 

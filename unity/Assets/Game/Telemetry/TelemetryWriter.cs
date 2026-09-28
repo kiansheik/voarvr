@@ -58,7 +58,7 @@ namespace VoarVR.Telemetry
                 using(var buffer=new BufferedStream(file,65536))
                 using(var w=new BinaryWriter(buffer,Encoding.UTF8))
                 {
-                    w.Write(Encoding.ASCII.GetBytes("VOARTLM1")); w.Write(3);
+                    w.Write(Encoding.ASCII.GetBytes("VOARTLM1")); w.Write(TelemetrySample.CurrentSchemaVersion);
                     var bytes=Encoding.UTF8.GetBytes(header); w.Write(bytes.Length); w.Write(bytes);
                     var clock=System.Diagnostics.Stopwatch.StartNew(); long flushed=0;
                     while(true)

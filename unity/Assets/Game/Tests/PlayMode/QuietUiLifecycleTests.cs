@@ -17,13 +17,18 @@ namespace VoarVR.Tests
                 var bird=Object.FindAnyObjectByType<BirdFlightDriver>();var hud=bird.GetComponent<FlightHud>();
                 Assert.That(bird.ShowFlightText,Is.False);
                 for(int i=0;i<25;i++)yield return null;
-                Assert.That(Object.FindObjectsByType<FlightCard>(FindObjectsSortMode.None),Is.Empty);
+                var quietCards=Object.FindObjectsByType<FlightCard>(FindObjectsSortMode.None);
+                Assert.That(quietCards.Length,Is.EqualTo(1));
+                Assert.That(quietCards[0].gameObject.name,Is.EqualTo("Gameplay ribbon"),
+                    "The goal/collection ribbon stays visible while optional instruments are hidden.");
                 hud.SetVisible(true);
                 yield return new WaitForSecondsRealtime(.3f);
                 var cards=Object.FindObjectsByType<FlightCard>(FindObjectsSortMode.None);Assert.That(cards,Is.Not.Empty);
                 foreach(var card in cards){var plate=card.transform.Find("Ink backing");Assert.That(plate,Is.Not.Null);Assert.That(plate.GetComponent<MeshRenderer>(),Is.Null);Assert.That(plate.GetComponent<UnityEngine.UI.Image>().material.shader.isSupported,Is.True);}
                 hud.SetVisible(false);yield return new WaitForSecondsRealtime(.3f);
-                Assert.That(Object.FindObjectsByType<FlightCard>(FindObjectsSortMode.None),Is.Empty);
+                quietCards=Object.FindObjectsByType<FlightCard>(FindObjectsSortMode.None);
+                Assert.That(quietCards.Length,Is.EqualTo(1));
+                Assert.That(quietCards[0].gameObject.name,Is.EqualTo("Gameplay ribbon"));
                 yield return SceneManager.LoadSceneAsync("CharacterSelect");yield return null;
                 Assert.That(Object.FindObjectsByType<FlightCard>(FindObjectsInactive.Include,FindObjectsSortMode.None),Is.Empty);
             }

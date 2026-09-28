@@ -38,6 +38,13 @@ namespace VoarVR.Tests
                 for(int i=0;i<180;i++)d.Tick(1f/120);
                 Assert.That(c.State.Phase,Is.EqualTo(FlightPhase.Perched));
                 Assert.That(presentation.GroundBlend,Is.EqualTo(1));
+                var wingRig=d.GetComponent<BirdRigDriver>();
+                float groundedSpan=Vector3.Distance(wingRig.leftTip.position,wingRig.rightTip.position);
+                input.Frame.Flare=1;
+                for(int i=0;i<45;i++)d.Tick(1f/120);
+                Assert.That(Vector3.Distance(wingRig.leftTip.position,wingRig.rightTip.position),
+                    Is.LessThanOrEqualTo(groundedSpan*1.15f+.05f),species+" trigger pose must not reopen fully grounded wings");
+                input.Frame.Flare=0;
                 int landings=c.LandingCount;
                 input.Frame.PausePressed=true;d.Tick(1f/120);input.Frame.PausePressed=false;
                 for(int i=0;i<60;i++)d.Tick(1f/120);

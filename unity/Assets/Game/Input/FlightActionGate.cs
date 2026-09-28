@@ -7,10 +7,10 @@ namespace VoarVR.Input
     public sealed class FlightActionGate : IFlightInput
     {
         private readonly IFlightInput source;
-        private bool releaseTrigger, releaseStick;
+        private bool releaseTrigger, releaseStick, releaseTurn;
         public FlightActionGate(IFlightInput source) { this.source = source; }
         public string Mode => source.Mode;
-        public void RequireRelease() { releaseTrigger = releaseStick = true; }
+        public void RequireRelease() { releaseTrigger = releaseStick = releaseTurn = true; }
         public FlightInputFrame Sample(float dt)
         {
             var frame = source.Sample(dt);
@@ -23,6 +23,11 @@ namespace VoarVR.Input
             {
                 releaseStick = frame.GroundMove.magnitude > .25f;
                 frame.GroundMove = Vector2.zero;
+            }
+            if (releaseTurn)
+            {
+                releaseTurn = Mathf.Abs(frame.GroundTurn) > .25f;
+                frame.GroundTurn = 0f;
             }
             return frame;
         }

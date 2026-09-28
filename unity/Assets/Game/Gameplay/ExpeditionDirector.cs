@@ -81,7 +81,7 @@ namespace VoarVR.Gameplay
         public bool SaveCheckpoint()
         {
             if (store == null || Challenge == null || Journey == null || !Journey.CanWrite) return false;
-            if (Challenge.Activity != FlightActivity.FreeFlight)
+            if (Challenge.Activity != FlightActivity.FreeFlight && Challenge.Activity != FlightActivity.ObstacleCourse)
             {
                 var checkpoint = Challenge.Capture();
                 if (HasSafePerch) checkpoint.SetSafePerch(LastSupportedPerch);
@@ -99,7 +99,8 @@ namespace VoarVR.Gameplay
         }
         public void Tick(float dt)
         {
-            if (driver == null || Challenge == null || Challenge.Status != ChallengeStatus.Active) return;
+            if (driver == null || Challenge == null || Challenge.Activity == FlightActivity.ObstacleCourse
+                || Challenge.Status != ChallengeStatus.Active) return;
             var controller = driver.Controller;
             if (controller.State.Phase == FlightPhase.Paused || controller.StreamingBlocked) return;
             if (controller.LastInput.ResetPressed) { Restart(); return; }
@@ -117,6 +118,12 @@ namespace VoarVR.Gameplay
         }
         private void LateUpdate()
         {
+            // Persistent objective text is owned by GameplayRibbon. World-space route
+            // geometry remains owned by JourneyPresentation and is independent of HUD.
+            if (caption != null) caption.gameObject.SetActive(false);
+            if (beacon != null) beacon.gameObject.SetActive(false);
+            return;
+#pragma warning disable CS0162
             bool visible = driver != null && driver.ShowFlightText;
             if (caption != null) caption.gameObject.SetActive(visible);
             if (beacon != null) beacon.gameObject.SetActive(visible);
@@ -168,6 +175,7 @@ namespace VoarVR.Gameplay
                         + " · High " + Mathf.RoundToInt((float)Challenge.HighestAltitude) + " / " + Challenge.RequiredAltitude + " m" : "")
                     + (driver.Controller.State.Phase == FlightPhase.Perched ? "\nResting · your progress is kept" : "");
             }
+#pragma warning restore CS0162
         }
         private void OnApplicationPause(bool paused) { if (paused) SaveCheckpoint(); }
         private void OnApplicationFocus(bool focused) { if (!focused) SaveCheckpoint(); }

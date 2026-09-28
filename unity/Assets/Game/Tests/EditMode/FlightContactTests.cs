@@ -18,7 +18,7 @@ namespace VoarVR.Tests
                     fraction = (from.y - radius) / (from.y - to.y);
                     hit = new FlightContact { Position = Vector3.Lerp(from, to, fraction) + Vector3.up * FlightContactSolver.Skin,
                         Point = Vector3.Lerp(from, to, fraction) - Vector3.up * radius,
-                        Normal = Vector3.up, Landable = true, SurfaceId = 4 };
+                        Normal = Vector3.up, Landable = true, SurfaceId = 4,SurfaceKind=FlightSurfaceKind.Terrain };
                 }
                 if (to.x > 5f - radius && from.x <= 5f - radius)
                 {
@@ -26,8 +26,10 @@ namespace VoarVR.Tests
                     if (t < fraction)
                     {
                         fraction = t;
-                        hit = new FlightContact { Position = Vector3.Lerp(from, to, t) + Vector3.left * FlightContactSolver.Skin,
-                            Normal = Vector3.left, Landable = false, SurfaceId = 8 };
+                        var center=Vector3.Lerp(from,to,t);
+                        hit = new FlightContact { Position = center + Vector3.left * FlightContactSolver.Skin,
+                            Point=center+Vector3.right*radius,Normal = Vector3.left, Landable = false, SurfaceId = 8,
+                            SurfaceKind=FlightSurfaceKind.Structure };
                     }
                 }
                 hit.Distance = Vector3.Distance(from, to) * fraction;
@@ -40,10 +42,15 @@ namespace VoarVR.Tests
         [Test]
         public void FastStepCannotTunnelThroughThinWall()
         {
-            var r = FlightContactSolver.Resolve(new Room(), new Vector3(0, 10, 0), Vector3.right * 100, 1, .22f, false);
+            var r = FlightContactSolver.Resolve(new Room(), new Vector3(0, 10, 0), Vector3.right * 100, 1, .22f, false,
+                bodyRight:Vector3.right);
             Assert.That(r.Position.x, Is.LessThan(5f - .22f));
             Assert.That(r.Velocity.x, Is.EqualTo(0f).Within(.001f));
             Assert.That(r.Landed, Is.False);
+            Assert.That(r.Point.x,Is.EqualTo(5).Within(.001f));
+            Assert.That(r.Normal,Is.EqualTo(Vector3.left));
+            Assert.That(r.Side,Is.EqualTo(1).Within(.001f),"A surface struck on the bird's right drives the right-hand cue");
+            Assert.That(r.SurfaceKind,Is.EqualTo(FlightSurfaceKind.Structure));
         }
 
         [Test]
@@ -53,6 +60,7 @@ namespace VoarVR.Tests
             Assert.That(r.Landed, Is.True);
             Assert.That(r.Position.y, Is.EqualTo(.235f).Within(.001f));
             Assert.That(r.SurfaceId, Is.EqualTo(4));
+            Assert.That(r.SurfaceKind,Is.EqualTo(FlightSurfaceKind.Terrain));
             Assert.That(r.Velocity, Is.EqualTo(Vector3.zero));
         }
 

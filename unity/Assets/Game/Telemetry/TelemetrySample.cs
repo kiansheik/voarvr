@@ -1,7 +1,8 @@
 using System.IO;
 namespace VoarVR.Telemetry
 {
-    // v3 uses float32 for native float/int signals; time and logical coordinates retain float64.
+    // v4 appends ground turn and estimated-motion provenance to the frozen v3 prefix.
+    // Native float/int signals use float32; time and logical coordinates retain float64.
     public struct TelemetrySample
     {
         public double timestamp;
@@ -299,6 +300,12 @@ namespace VoarVR.Telemetry
         public double objective_quiet_gain;
         public double objective_highest_altitude;
         public double clearance_age_seconds;
+        public double raw_ground_turn;
+        public double mapped_ground_turn;
+        public double raw_left_motion_estimated;
+        public double raw_right_motion_estimated;
+        public double mapped_left_motion_estimated;
+        public double mapped_right_motion_estimated;
         public static readonly string[] Fields = {
             "timestamp",
             "frame",
@@ -595,9 +602,18 @@ namespace VoarVR.Telemetry
             "objective_quiet_gain",
             "objective_highest_altitude",
             "clearance_age_seconds",
+            "raw_ground_turn",
+            "mapped_ground_turn",
+            "raw_left_motion_estimated",
+            "raw_right_motion_estimated",
+            "mapped_left_motion_estimated",
+            "mapped_right_motion_estimated",
         };
         public static readonly string[] WideFields = { "timestamp","simulation_time","logical_x","logical_y","logical_z" };
-        public const int CompactSize = 1200;
+        public const int CurrentSchemaVersion = 4;
+        public const int LegacyV3FieldCount = 295;
+        public const int LegacyV3CompactSize = 1200;
+        public const int CompactSize = 1224;
         public void Write(BinaryWriter w)
         {
             w.Write(timestamp);
@@ -895,6 +911,12 @@ namespace VoarVR.Telemetry
             w.Write(objective_quiet_gain);
             w.Write(objective_highest_altitude);
             w.Write(clearance_age_seconds);
+            w.Write(raw_ground_turn);
+            w.Write(mapped_ground_turn);
+            w.Write(raw_left_motion_estimated);
+            w.Write(raw_right_motion_estimated);
+            w.Write(mapped_left_motion_estimated);
+            w.Write(mapped_right_motion_estimated);
         }
         public void WriteCompact(BinaryWriter w)
         {
@@ -1193,6 +1215,12 @@ namespace VoarVR.Telemetry
             w.Write((float)objective_quiet_gain);
             w.Write((float)objective_highest_altitude);
             w.Write((float)clearance_age_seconds);
+            w.Write((float)raw_ground_turn);
+            w.Write((float)mapped_ground_turn);
+            w.Write((float)raw_left_motion_estimated);
+            w.Write((float)raw_right_motion_estimated);
+            w.Write((float)mapped_left_motion_estimated);
+            w.Write((float)mapped_right_motion_estimated);
         }
         public static TelemetrySample Read(BinaryReader r)=>new TelemetrySample
         {
@@ -1491,8 +1519,14 @@ namespace VoarVR.Telemetry
             objective_quiet_gain = r.ReadDouble(),
             objective_highest_altitude = r.ReadDouble(),
             clearance_age_seconds = r.ReadDouble(),
+            raw_ground_turn = r.ReadDouble(),
+            mapped_ground_turn = r.ReadDouble(),
+            raw_left_motion_estimated = r.ReadDouble(),
+            raw_right_motion_estimated = r.ReadDouble(),
+            mapped_left_motion_estimated = r.ReadDouble(),
+            mapped_right_motion_estimated = r.ReadDouble(),
         };
-        public static TelemetrySample ReadCompact(BinaryReader r)=>new TelemetrySample
+        public static TelemetrySample ReadCompact(BinaryReader r, bool includeV4 = true)=>new TelemetrySample
         {
             timestamp = r.ReadDouble(),
             frame = r.ReadSingle(),
@@ -1789,6 +1823,12 @@ namespace VoarVR.Telemetry
             objective_quiet_gain = r.ReadSingle(),
             objective_highest_altitude = r.ReadSingle(),
             clearance_age_seconds = r.ReadSingle(),
+            raw_ground_turn = includeV4 ? r.ReadSingle() : 0,
+            mapped_ground_turn = includeV4 ? r.ReadSingle() : 0,
+            raw_left_motion_estimated = includeV4 ? r.ReadSingle() : 0,
+            raw_right_motion_estimated = includeV4 ? r.ReadSingle() : 0,
+            mapped_left_motion_estimated = includeV4 ? r.ReadSingle() : 0,
+            mapped_right_motion_estimated = includeV4 ? r.ReadSingle() : 0,
         };
     }
 }

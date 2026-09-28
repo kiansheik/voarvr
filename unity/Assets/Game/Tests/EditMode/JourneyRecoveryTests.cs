@@ -16,6 +16,22 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void CameraCollisionImpulseRejectsSoftTouchesAndBoundsItsLifetime()
+        {
+            var root=new GameObject("Impact camera fixture");
+            try
+            {
+                var camera=root.AddComponent<FlightCamera>();
+                camera.AddCollisionImpulse(Vector3.right,.7f,1f);
+                Assert.That(camera.CollisionImpulseSequence,Is.Zero);
+                camera.AddCollisionImpulse(Vector3.right,14f,1f);
+                Assert.That(camera.CollisionImpulseSequence,Is.EqualTo(1));
+                Assert.That(camera.CollisionImpulseActive,Is.True);
+            }
+            finally{Object.DestroyImmediate(root);}
+        }
+
+        [Test]
         public void RecoveryRequiresRealSupportAndPreservesPausedProgress()
         {
             var input = new Controls();
@@ -68,13 +84,14 @@ namespace VoarVR.Tests
         {
             var input = new Controls();
             var gate = new FlightActionGate(input);
-            input.Frame.Tuck = 1; input.Frame.GroundMove = Vector2.up;
+            input.Frame.Tuck = 1; input.Frame.GroundMove = Vector2.up;input.Frame.GroundTurn=1;
             gate.RequireRelease();
             for (int i = 0; i < 10; i++)
             {
                 var blocked = gate.Sample(.02f);
                 Assert.That(blocked.Tuck, Is.Zero);
                 Assert.That(blocked.GroundMove, Is.EqualTo(Vector2.zero));
+                Assert.That(blocked.GroundTurn,Is.Zero);
             }
             input.Frame.Tuck = 0;
             Assert.That(gate.Sample(.02f).GroundMove, Is.EqualTo(Vector2.zero));
@@ -84,6 +101,9 @@ namespace VoarVR.Tests
             gate.Sample(.02f);
             input.Frame.GroundMove = Vector2.up;
             Assert.That(gate.Sample(.02f).GroundMove, Is.EqualTo(Vector2.up));
+            Assert.That(gate.Sample(.02f).GroundTurn,Is.Zero);
+            input.Frame.GroundTurn=0;gate.Sample(.02f);input.Frame.GroundTurn=-1;
+            Assert.That(gate.Sample(.02f).GroundTurn,Is.EqualTo(-1));
         }
 
         [Test]

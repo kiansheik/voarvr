@@ -51,6 +51,22 @@ namespace VoarVR.Tests
             Assert.That(driver.GetComponent<BirdRigDriver>().face.enabled,Is.False);
         }
 
+        [UnityTest] public IEnumerator CollisionRecoilBumpsTheBirdThenReturnsToAuthoredPose()
+        {
+            yield return SceneManager.LoadSceneAsync("BirdFlight");yield return null;
+            var driver=Object.FindAnyObjectByType<BirdFlightDriver>();driver.enabled=false;
+            var rig=driver.GetComponent<BirdRigDriver>();
+            Assert.That(rig.presentationRoot,Is.Not.Null);
+            rig.AddCollisionImpulse(Vector3.left,10f,-1f);
+            rig.Present(FlightInputFrame.Neutral,new BirdTrackingCalibration(),driver.Heading,.02f);
+            Assert.That(rig.ImpactRecoilSequence,Is.EqualTo(1));
+            Assert.That(rig.presentationRoot.localPosition.magnitude,Is.GreaterThan(.001f));
+            Assert.That(Quaternion.Angle(rig.presentationRoot.localRotation,Quaternion.identity),Is.GreaterThan(.1f));
+            for(int i=0;i<20;i++)rig.Present(FlightInputFrame.Neutral,new BirdTrackingCalibration(),driver.Heading,.02f);
+            Assert.That(rig.presentationRoot.localPosition,Is.EqualTo(Vector3.zero));
+            Assert.That(rig.presentationRoot.localRotation,Is.EqualTo(Quaternion.identity));
+        }
+
         [UnityTest] public IEnumerator NeutralWingTargetsTravelWithRootWithoutLag()
         {
             yield return SceneManager.LoadSceneAsync("BirdFlight"); yield return null;
@@ -89,12 +105,16 @@ namespace VoarVR.Tests
             yield return null;
             var flap = Bake();
             frame = FlightInputFrame.Neutral;
-            frame.LeftWing.Position = new Vector3(-.2f, -.05f, -.15f);
-            frame.RightWing.Position = new Vector3(.2f, -.05f, -.15f);
+            frame.Flare=1;
+            for (int i = 0; i < 60; i++) rig.Present(frame, calibration, driver.Heading, 1f / 120f);
+            yield return null;
+            var flare=Bake();
+            frame = FlightInputFrame.Neutral;frame.Tuck=1;
             for (int i = 0; i < 60; i++) rig.Present(frame, calibration, driver.Heading, 1f / 120f);
             yield return null;
             var dive = Bake();
             Assert.That(Mathf.Abs(flap.center.z - glide.center.z), Is.GreaterThan(.05f));
+            Assert.That(Vector3.Distance(flare.center,glide.center),Is.GreaterThan(.035f),"Flare trigger needs a visible gross wing pose");
             Assert.That(dive.size.x, Is.LessThan(glide.size.x * .6f));
         }
 

@@ -14,7 +14,7 @@ namespace VoarVR.Telemetry
     {
         [Serializable] public sealed class Header
         {
-            public int schemaVersion=3;
+            public int schemaVersion=TelemetrySample.CurrentSchemaVersion;
             public string[] wideFields=TelemetrySample.WideFields;
             public string effortDefinition="valid airborne simulation-time movement proxies only; capped dt excludes pause/perch/tracking gaps; hand speed threshold0.35m/s, quiet3s, EMA2s; not calories or medical fatigue";
             public string encoding="float32 except wideFields float64; clearance sampled10Hz";
@@ -54,7 +54,13 @@ namespace VoarVR.Telemetry
         private readonly List<XRDisplaySubsystem> displays=new List<XRDisplaySubsystem>();
         public string SessionPath { get; private set; }
         public int Dropped => writer?.Dropped??0;
-        public static bool DefaultEnabled => Debug.isDebugBuild || Application.isEditor;
+#if UNITY_EDITOR
+        // Explicit review/test opt-out. Normal editor captures retain their existing default.
+        public static bool? EditorEnabledOverride { get; set; }
+        public static bool DefaultEnabled => EditorEnabledOverride ?? (Debug.isDebugBuild || Application.isEditor);
+#else
+        public static bool DefaultEnabled => Debug.isDebugBuild;
+#endif
         public void Configure(BirdFlightDriver owner,BirdRigDriver bird,WorldStreamer streamed,
             BirdCharacterDefinition character,BirdFlightProfile profile)
         {
@@ -210,6 +216,9 @@ namespace VoarVR.Telemetry
                 raw_flare = raw.Flare,
                 raw_ground_move_x = raw.GroundMove.x,
                 raw_ground_move_y = raw.GroundMove.y,
+                raw_ground_turn = raw.GroundTurn,
+                raw_left_motion_estimated = raw.LeftWing.MotionEstimated ? 1 : 0,
+                raw_right_motion_estimated = raw.RightWing.MotionEstimated ? 1 : 0,
                 raw_reset = raw.ResetPressed ? 1 : 0,
                 raw_recalibrate = raw.RecalibratePressed ? 1 : 0,
                 raw_characterselect = raw.CharacterSelectPressed ? 1 : 0,
@@ -262,6 +271,9 @@ namespace VoarVR.Telemetry
                 mapped_flare = mapped.Flare,
                 mapped_ground_move_x = mapped.GroundMove.x,
                 mapped_ground_move_y = mapped.GroundMove.y,
+                mapped_ground_turn = mapped.GroundTurn,
+                mapped_left_motion_estimated = mapped.LeftWing.MotionEstimated ? 1 : 0,
+                mapped_right_motion_estimated = mapped.RightWing.MotionEstimated ? 1 : 0,
                 mapped_reset = mapped.ResetPressed ? 1 : 0,
                 mapped_recalibrate = mapped.RecalibratePressed ? 1 : 0,
                 mapped_characterselect = mapped.CharacterSelectPressed ? 1 : 0,

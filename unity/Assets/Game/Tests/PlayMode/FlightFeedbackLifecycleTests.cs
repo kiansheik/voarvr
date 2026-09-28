@@ -21,6 +21,8 @@ namespace VoarVR.Tests
                 var feedback = driver.GetComponent<FlightFeedback>();
                 var sources = driver.GetComponents<AudioSource>();
                 Assert.That(sources.Length, Is.EqualTo(3));
+                var contactSource=feedback.SpatialContactSource;
+                Assert.That(contactSource,Is.Not.Null);Assert.That(contactSource.spatialBlend,Is.EqualTo(1));
                 feedback.Configure(driver, Object.FindAnyObjectByType<VoarVR.World.WindField>(), driver.GetComponent<BirdRigDriver>());
                 Assert.That(driver.GetComponents<AudioSource>().Length, Is.EqualTo(3), "Configuration must not allocate another set of voices");
                 FlightPreferences.AudioEnabled = true; feedback.PreferencesChanged();
@@ -41,6 +43,7 @@ namespace VoarVR.Tests
                 foreach (var source in sources) Assert.That(source.isPlaying, Is.False, "Audio mute applies to cues and breeze");
                 Object.Destroy(feedback); yield return null; yield return null;
                 foreach (var source in sources) Assert.That(source == null, Is.True, "Component removal must release its owned voices");
+                Assert.That(contactSource==null,Is.True,"Component removal must release its child spatial contact voice");
                 Assert.That(restoration == null, Is.True, "Component removal must release its world-space voice");
             }
             finally { FlightPreferences.AudioEnabled = oldAudio; }

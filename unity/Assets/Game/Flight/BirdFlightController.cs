@@ -54,6 +54,8 @@ namespace VoarVR.Flight
         public float NeutralClimbPitchDeg = 0f;
         public float ComfortableClimbPitchDeg = 12f;
         public float WalkSpeedMps = 1.25f;
+        public float GroundTurnRateDeg = 75f;
+        [Range(0f, .9f)] public float GroundTurnDeadzone = .2f;
         public float FullUpPitchDeg = 12f;
         public float MaxPitchDeg = 35f;
 
@@ -157,6 +159,12 @@ namespace VoarVR.Flight
         public float PhysicalYawOffsetDeg { get; private set; }
         public float SimulationTime => simulationTime;
         public float LastImpactSpeed { get; private set; }
+        public Vector3 LastContactPoint { get; private set; }
+        public Vector3 LastContactNormal { get; private set; }
+        public float LastContactSide { get; private set; }
+        public FlightSurfaceKind LastContactSurfaceKind { get; private set; }
+        public Collider LastContactCollider { get; private set; }
+        public int ContactSequence { get; private set; }
         public float NearestPerchDistance { get; private set; } = float.PositiveInfinity;
         public Vector3 NearestPerchPosition { get; private set; }
         public Vector3 WindVelocity { get; private set; }
@@ -172,8 +180,13 @@ namespace VoarVR.Flight
         public FlightInputFrame LastInput { get; private set; }
         public string InputMode => input.Mode;
         public bool IsPaused => paused;
+        // Course rest and calibration can suppress a reset edge before it mutates
+        // position. The input edge remains available to presentation and telemetry.
+        public bool ResetEnabled { get; set; } = true;
+        public bool PauseEnabled { get; set; } = true;
         public bool HasSupportedPerch => (paused ? phaseBeforePause : phase) == FlightPhase.Perched
             && environment != null && environment.IsSupported(landedPos, profile.CollisionRadius, landedSurface);
+        public int SupportedSurfaceId => HasSupportedPerch ? landedSurface : 0;
 
         // UI pause uses the same state transition as the physical X button.
         public void SetPaused(bool value)
@@ -303,6 +316,10 @@ namespace VoarVR.Flight
             advancedProfile??=AcrobaticProfile.ForMass(profile.MassKg);
             MissedLanding = false;
             LastImpactSpeed = 0f;
+            LastContactPoint = LastContactNormal = Vector3.zero;
+            LastContactSide = 0f;
+            LastContactSurfaceKind = FlightSurfaceKind.Unknown;
+            LastContactCollider = null;
             paused = false;
             phase = FlightPhase.Gliding;
             pitchDeg = rollDeg = yawDeg = 0f;
@@ -324,7 +341,7 @@ namespace VoarVR.Flight
             GroundVelocity = Vector3.zero;
             LastInput = NormalizeBodyFrame(input.Sample(deltaTime));
 
-            if (LastInput.ResetPressed)
+            if (LastInput.ResetPressed && ResetEnabled)
             {
                 var resetFrame = LastInput;
                 Reset();
@@ -332,7 +349,7 @@ namespace VoarVR.Flight
                 return;
             }
             if(LastInput.ControlModePressed) SetControlMode(ControlMode==FlightControlMode.Beginner?FlightControlMode.Acrobatic:FlightControlMode.Beginner);
-            if (LastInput.PausePressed)
+            if (LastInput.PausePressed && PauseEnabled)
             {
                 SetPaused(!paused);
             }
@@ -524,9 +541,18 @@ namespace VoarVR.Flight
                 if (environment != null)
                 {
                     var contact = FlightContactSolver.Resolve(environment,position,velocity,dt,profile.CollisionRadius,
-                        flareSignal > .5f, perchCooldown <= 0f);
+                        flareSignal > .5f, perchCooldown <= 0f, rotation * Vector3.right);
                     position=contact.Position; velocity=contact.Velocity; CollisionCount+=contact.ContactCount;
-                    LastImpactSpeed = Mathf.Max(LastImpactSpeed, contact.ImpactSpeed);
+                    if(contact.ContactCount>0)
+                    {
+                        ContactSequence+=contact.ContactCount;
+                        if(contact.ImpactSpeed>=LastImpactSpeed)
+                        {
+                            LastImpactSpeed=contact.ImpactSpeed;LastContactPoint=contact.Point;
+                            LastContactNormal=contact.Normal;LastContactSide=contact.Side;
+                            LastContactSurfaceKind=contact.SurfaceKind;LastContactCollider=contact.Collider;
+                        }
+                    }
 
                     if (contact.Landed)
                     {
@@ -554,6 +580,8 @@ namespace VoarVR.Flight
         private void WalkOnSurface(float dt)
         {
             GroundVelocity=Vector3.zero;
+            float turn=GroundTurnCommand(LastInput.GroundTurn,profile.GroundTurnDeadzone);
+            if(Mathf.Abs(turn)>.0001f)yawDeg=Mathf.Repeat(yawDeg+turn*profile.GroundTurnRateDeg*dt,360f);
             landedYaw=yawDeg;
             var move=Vector2.ClampMagnitude(LastInput.GroundMove,1f);
             if(move.magnitude > .15f && environment != null)
@@ -580,10 +608,18 @@ namespace VoarVR.Flight
             State=new BirdState {Position=landedPos,Velocity=GroundVelocity,Rotation=Quaternion.Euler(0,landedYaw,0),Phase=FlightPhase.Perched};
         }
 
+        public static float GroundTurnCommand(float value,float deadzone)
+        {
+            float magnitude=Mathf.Abs(Mathf.Clamp(value,-1f,1f));
+            deadzone=Mathf.Clamp(deadzone,0f,.9f);
+            return magnitude<=deadzone?0f:Mathf.Sign(value)*Mathf.InverseLerp(deadzone,1f,magnitude);
+        }
+
         public void RebaseOrigin(Vector3 delta)
         {
             var state=State; state.Position-=delta; State=state;
             spawn-=delta; landedPos-=delta; NearestPerchPosition-=delta;
+            if(ContactSequence>0)LastContactPoint-=delta;
         }
         public void SetSpawn(Vector3 position) => spawn=position;
 

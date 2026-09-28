@@ -31,19 +31,35 @@ namespace VoarVR.Tests
             var mesh = new Mesh();
             skin.BakeMesh(mesh, true);
             var restVertices = mesh.vertices;
+            var restBounds=mesh.bounds;
             Assert.That(mesh.bounds.size.x, Is.GreaterThan(6f), "Calibrated dragon must not collapse to duck span.");
+            frame.Flare=1;
+            for (int i = 0; i < 60; i++) rig.Present(frame, driver.Calibration, driver.Heading, 1f / 120f);
+            skin.BakeMesh(mesh,true);float flareTravel=MaximumTravel(restVertices,mesh.vertices);
+            Assert.That(flareTravel,Is.GreaterThan(.2f),"Flare trigger should visibly open the membrane rig");
+            frame.Flare=0;frame.Tuck=1;
+            for (int i = 0; i < 90; i++) rig.Present(frame, driver.Calibration, driver.Heading, 1f / 120f);
+            skin.BakeMesh(mesh,true);
+            Assert.That(mesh.bounds.size.x,Is.LessThan(restBounds.size.x*.7f),"Tuck trigger should visibly fold the membrane rig");
+            Assert.That(MaximumTravel(restVertices,mesh.vertices),Is.GreaterThan(.5f));
+            frame.Tuck=0;
+            for (int i = 0; i < 90; i++) rig.Present(frame, driver.Calibration, driver.Heading, 1f / 120f);
             frame.LeftWing.Position += Vector3.down * .3f;
             for (int i = 0; i < 60; i++) rig.Present(frame, driver.Calibration, driver.Heading, 1f / 120f);
             skin.BakeMesh(mesh, true);
-            float maxTravel = 0f;
-            var movedVertices = mesh.vertices;
-            for (int i = 0; i < movedVertices.Length; i++)
-                maxTravel = Mathf.Max(maxTravel, Vector3.Distance(restVertices[i], movedVertices[i]));
+            float maxTravel = MaximumTravel(restVertices,mesh.vertices);
             Assert.That(maxTravel, Is.GreaterThan(.5f), "Human downstroke should visibly articulate the giant membrane.");
             Object.DestroyImmediate(mesh);
             driver.SetViewMode(FlightViewMode.ThirdPerson);
             yield return null;
             Assert.That(Vector3.Distance(Camera.main.transform.position, driver.transform.position), Is.GreaterThan(5f));
+        }
+
+        private static float MaximumTravel(Vector3[] before,Vector3[] after)
+        {
+            float result=0;
+            for(int i=0;i<after.Length;i++)result=Mathf.Max(result,Vector3.Distance(before[i],after[i]));
+            return result;
         }
     }
 }

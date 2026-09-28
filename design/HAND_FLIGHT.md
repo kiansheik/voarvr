@@ -175,9 +175,13 @@ Do not require pinch recognition during a flap. Pinch is for deliberate menus wh
 8. Compare default tracking against FMM on real Quest captures; enable FMM only when it improves fast-stroke retention enough to justify jitter.
 9. Do not add Meta SDK types to `BirdFlightController`, wind, gameplay or world code.
 
-## Telemetry v4
+Verify API capability as well as package version before selecting dependencies: Meta documents `OVRHand.PoseSourceInferred` / `OVRPlugin.GetHandPoseSourceInferred` as experimental and requiring OVRPlugin **1.115.0+**. Record exact imported versions and confirm the API works with WMM enabled; a `v207+` package label alone is insufficient evidence. [Meta WMM documentation, checked September 28](https://developers.meta.com/horizon/documentation/unity/unity-wide-motion-mode/).
 
-Do not silently append these signals to schema 3. Version the binary schema/reader contract.
+## Telemetry: implemented v4 and planned hand schema
+
+Schema 4 now records raw/mapped supported turn and both wings' `MotionEstimated` flags (301 fields / 1224 bytes), with tested v1–v3 compatibility and provenance-preserving replay. See [telemetry contract](../docs/development/telemetry.md#schema-4-supported-turning-and-estimated-motion). The hand-specific fields below need a later explicit schema version (v5 or later); do not append them silently to v4.
+
+Before enabling hand input, `BirdFlightDriver.UpdateSessionTracking` and `FlightSessionTracker` must classify activity and estimate wingbeats with motion provenance. Keep estimated/low-confidence/recovery motion out of measured activity and wingbeat credit while retaining actual flight displacement. V4 fixes replay of the existing estimated-motion flag; source/confidence/continuity state is still prospective hand-adapter work. Preserve historical controller-reader behavior for v1–v4.
 
 Minimum new per-hand fields:
 
@@ -236,6 +240,8 @@ Required fixtures:
 Automated:
 
 - `MotionEstimated` wing motion produces zero active stroke force;
+- an estimated downstroke cannot trigger takeoff from supported rest;
+- estimated/recovery motion cannot earn measured activity or wingbeat credit, and v4 replay preserves the energy guard;
 - a source transition cannot create a higher flap impulse than a continuous trusted trajectory;
 - no first trusted frame after reacquisition has a derived velocity spike;
 - lost tracking does not change tuck/flare by itself;
@@ -258,11 +264,11 @@ Quest wearer:
 An implementation agent with the repository's normal Unity MCP/editor access should work in this order:
 
 1. Re-read `AGENTS.md`, agent current state and this design.
-2. Import Meta SDK dependencies in a dedicated commit and prove clean compilation before adding behavior.
+2. Import Meta SDK dependencies as a separate reviewable change and prove clean compilation before adding behavior. Commit only when the user requests it.
 3. Add a `MetaHandFlightInput` that produces `FlightInputFrame` without changing the solver.
 4. Add source/confidence state and continuity filters; wire `MotionEstimated` conservatively.
 5. Add EditMode tests for dropout/source transitions before wearer tuning.
-6. Add telemetry v4 and Python decoder compatibility tests.
+6. Extend the implemented v4 telemetry with a versioned hand schema and C#/Python compatibility tests for v1–v4.
 7. Add hand/gaze UI so every essential action is controller-free.
 8. Add compact calibration.
 9. Build/install on Quest and capture hand sessions with WMM off/on.

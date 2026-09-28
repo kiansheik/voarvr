@@ -24,12 +24,12 @@ def decode(path):
         head=f.read(8)
         if len(head)!=8: raise ValueError('Truncated header')
         version,length=struct.unpack('<ii',head)
-        if version not in (1,2,3): raise ValueError(f'Unsupported schema {version}')
+        if version not in (1,2,3,4): raise ValueError(f'Unsupported schema {version}')
         if not 0<length<=1024*1024: raise ValueError('Invalid header size')
         header=json.loads(f.read(length)); names=header['fields']
         if len(names)>4096 or len(names)!=len(set(names)): raise ValueError('Invalid fields')
         wide=header.get('wideFields',[])
-        if version==3 and (not isinstance(wide,list) or any(k not in names for k in wide)): raise ValueError('Invalid wide fields')
+        if version>=3 and (not isinstance(wide,list) or len(wide)!=len(set(wide)) or any(k not in names for k in wide)): raise ValueError('Invalid wide fields')
         layout=struct.Struct('<'+''.join('d' if version<3 or k in wide else 'f' for k in names))
         while prefix:=f.read(5):
             if len(prefix)!=5: truncated=True; break

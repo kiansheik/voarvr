@@ -11,7 +11,7 @@ namespace VoarVR.Input
     {
         private readonly InputActionMap actions = new InputActionMap("Flight");
         private readonly InputAction leftPosition, rightPosition, leftRotation, rightRotation;
-        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect, hudToggle, groundMove, leftGrip, rightGrip, markerClick;
+        private readonly InputAction leftTracked, rightTracked, headRotation, headPosition, headTracked, tuck, flare, recalibrate, pause, viewToggle, windMode, characterSelect, hudToggle, groundMove, groundTurn, leftGrip, rightGrip, markerClick;
         private WingInput previousLeft, previousRight;
         private readonly TrackedBodyFrame body = new TrackedBodyFrame();
         private readonly ControlModeGesture modeGesture=new ControlModeGesture();
@@ -19,6 +19,9 @@ namespace VoarVR.Input
         public FlightInputFrame LastDeviceFrame { get; private set; }
         public FlightInputFrame LastRawFrame { get; private set; }
         public bool WingsEnabled { get; set; }
+        // Guided in-place calibration still needs the A edge, but can suppress the
+        // legacy controller reset while it waits for that deliberate pose capture.
+        public bool ResetEnabled { get; set; } = true;
         public bool LastWingsEnabled { get; private set; }
         public string Mode => "XR / OpenXR";
 
@@ -42,6 +45,7 @@ namespace VoarVR.Input
             characterSelect = Action("CharacterSelect", "<XRController>{LeftHand}/menuButton");
             hudToggle = Action("HudToggle", "<XRController>{RightHand}/{Primary2DAxisClick}");
             groundMove = Action("GroundMove", "<XRController>{LeftHand}/primary2DAxis");
+            groundTurn = Action("GroundTurn", "<XRController>{RightHand}/primary2DAxis");
             leftGrip = Action("LeftGrip", "<XRController>{LeftHand}/grip");
             rightGrip = Action("RightGrip", "<XRController>{RightHand}/grip");
             markerClick = Action("MarkerClick", "<XRController>{LeftHand}/{Primary2DAxisClick}");
@@ -89,7 +93,7 @@ namespace VoarVR.Input
             bool viewNow = viewToggle.ReadValue<float>() > 0.5f;
             bool windNow = windMode.ReadValue<float>() > 0.5f;
             frame.RecalibratePressed = recalibrateNow && !recalibrateHeld;
-            frame.ResetPressed = frame.RecalibratePressed;
+            frame.ResetPressed = ResetEnabled && frame.RecalibratePressed;
             bool menuNow = characterSelect.ReadValue<float>() > .5f;
             frame.CharacterSelectPressed = menuNow && !menuHeld;
             menuHeld = menuNow;
@@ -108,6 +112,7 @@ namespace VoarVR.Input
             bool hudNow = hudToggle.ReadValue<float>() > .5f;
             frame.HudTogglePressed = hudNow && !hudHeld; hudHeld = hudNow;
             frame.GroundMove = Vector2.ClampMagnitude(groundMove.ReadValue<Vector2>(), 1f);
+            frame.GroundTurn = Mathf.Clamp(groundTurn.ReadValue<Vector2>().x, -1f, 1f);
             bool leftGripNow = leftGrip.ReadValue<float>() > .75f;
             bool rightGripNow = rightGrip.ReadValue<float>() > .75f;
             bool clickNow = markerClick.ReadValue<float>() > .5f;

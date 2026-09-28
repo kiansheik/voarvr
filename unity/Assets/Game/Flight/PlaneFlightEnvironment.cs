@@ -18,7 +18,8 @@ namespace VoarVR.Flight
             Vector3 center = Vector3.Lerp(from, to, fraction);
             center.y = centerHeight + FlightContactSolver.Skin;
             hit = new FlightContact { Position = center, Point = new Vector3(center.x, Height, center.z),
-                Normal = Vector3.up, Distance = Vector3.Distance(from, to) * fraction, Landable = true, SurfaceId = 1 };
+                Normal = Vector3.up, Distance = Vector3.Distance(from, to) * fraction, Landable = true,
+                SurfaceId = 1, SurfaceKind = FlightSurfaceKind.Terrain };
             return true;
         }
 
