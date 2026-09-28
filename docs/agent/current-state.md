@@ -1,3 +1,11 @@
+## Meta VR Start 2026 hands-first competition branch — plan and first safety guard
+
+Competition branch `meta-vr-start-2026-hand-flight` targets **Gaming / Adapted / Significantly Updated Experience**. The narrowed entry is a controller-free, compact seated version of A Route Home with a roughly five-minute launch → thermal → seed → arch → garden payoff. Strategy, rubric mapping, submission milestones and cut scope are in [competition plan](../competition/meta-vr-start-2026.md); tracking architecture and agent work order are in [hands-first flight](../../design/HAND_FLIGHT.md).
+
+First low-risk solver change is implemented: `WingInput.MotionEstimated` lets an inferred/predicted pose remain available for continuity and steering while `BirdFlightController` refuses to turn its estimated velocity into active stroke energy. A new EditMode regression compares an identical 2.5m/s measured versus estimated downstroke. This is the foundation for Wide Motion Mode/source transitions; no Meta XR SDK dependency, hand adapter, gaze UI or telemetry-v4 implementation has been added yet.
+
+Research target is Meta XR Core/Interaction SDK v207+ on the existing OpenXR backend, with Wide Motion Mode evaluated for lateral wing poses, Fast Motion Mode decided from Quest data, and unextrapolated hand poses recorded for replay/tuning. Unity compilation/tests and Quest behavior are **not yet validated for this branch**; the current changes were made through GitHub source review only.
+
 # Current state
 
 ## Route Home guidance and seed possession — built; wearer test deferred
