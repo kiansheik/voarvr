@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -13,6 +14,13 @@ namespace VoarVR.Tests
 {
     public sealed class JourneyRecoveryLifecycleTests
     {
+        private sealed class ScriptedInput : IFlightInput
+        {
+            public FlightInputFrame Frame;
+            public string Mode=>"Resume calibration regression";
+            public FlightInputFrame Sample(float deltaTime)=>Frame;
+        }
+
         private sealed class FailingFlushStorage : IFlightSaveStorage
         {
             private readonly Dictionary<string,string> values=new Dictionary<string,string>();
@@ -54,6 +62,87 @@ namespace VoarVR.Tests
             checkpoint.ActiveSeconds=120;checkpoint.RestSeconds=35;checkpoint.StrokeSeconds=44;
             checkpoint.HighestAltitude=245;checkpoint.SoaringGain=115;checkpoint.TechniqueCount=2;
             return checkpoint;
+        }
+
+        private static FlightInputFrame ComfortableFrame()
+        {
+            var frame=FlightInputFrame.Neutral;
+            // ScriptedInput is sampled through BirdFlightController, so leave the
+            // synthetic body frame untracked and keep these positions in tracking space.
+            frame.HeadTracked=true;frame.BodyTracked=false;
+            frame.HeadPosition=new Vector3(0,1.65f,0);
+            frame.BodyOrientation=frame.HeadOrientation=Quaternion.identity;
+            frame.LookDirection=new Vector3(0,-.12f,1).normalized;
+            frame.LeftWing.Position=new Vector3(-.7f,1.25f,.1f);
+            frame.RightWing.Position=new Vector3(.7f,1.25f,.1f);
+            return frame;
+        }
+
+        private ScriptedInput ConfigureResumedXrInput(ChallengeCheckpoint checkpoint)
+        {
+            Assert.That(driver.Expedition.Challenge.Restore(checkpoint),Is.True);
+            var input=new ScriptedInput{Frame=ComfortableFrame()};
+            var gate=new FlightActionGate(input);
+            var controller=new BirdFlightController(gate,driver.Controller.State.Position,
+                profile:Resources.Load<BirdCharacterDefinition>("Characters/Duck").BuildProfile(),
+                environment:driver.GetComponent<UnityFlightEnvironment>());
+            controller.SetPaused(true);
+            typeof(BirdFlightDriver).GetField("input",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(driver,input);
+            typeof(BirdFlightDriver).GetField("actionGate",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(driver,gate);
+            typeof(BirdFlightDriver).GetProperty(nameof(BirdFlightDriver.Controller)).SetValue(driver,controller);
+            typeof(BirdFlightDriver).GetProperty(nameof(BirdFlightDriver.UsesXR)).SetValue(driver,true);
+            typeof(BirdFlightDriver).GetField("resumeNeedsCalibration",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(driver,true);
+            return input;
+        }
+
+        [UnityTest]
+        public IEnumerator ResumedXrJourneyCanOpenMenuAndCalibrateWithoutRestartingRoute()
+        {
+            var checkpoint=EarnedSeedCheckpoint();
+            var input=ConfigureResumedXrInput(checkpoint);
+            var before=driver.Controller.State;
+            float simulationTime=driver.Controller.SimulationTime;
+
+            driver.Tick(.02f);
+            input.Frame.Tuck=1;
+            driver.Tick(.02f);
+            Assert.That(driver.FlightMenuVisible,Is.True,"The promised right-trigger menu must remain reachable before resumed XR calibration.");
+            Assert.That(driver.Expedition.Challenge.Stage,Is.EqualTo(checkpoint.Stage));
+
+            input.Frame.Tuck=0;input.Frame.GroundMove=Vector2.down;
+            driver.Tick(.02f);
+            input.Frame.GroundMove=Vector2.zero;
+            driver.Tick(.02f);
+            input.Frame.Tuck=1;
+            driver.Tick(.02f);
+            Assert.That(driver.CalibrationCoachVisible,Is.True);
+            Assert.That(driver.ResumeNeedsCalibration,Is.True);
+
+            input.Frame.Tuck=0;input.Frame.RecalibratePressed=true;
+            driver.Tick(.02f);
+            Assert.That(driver.Calibration.Captured,Is.True);
+            Assert.That(driver.ResumeNeedsCalibration,Is.False);
+            Assert.That(driver.FlightMenuVisible,Is.True);
+            Assert.That(driver.Controller.State.Position,Is.EqualTo(before.Position));
+            Assert.That(driver.Controller.State.Rotation,Is.EqualTo(before.Rotation));
+            Assert.That(driver.Controller.SimulationTime,Is.EqualTo(simulationTime));
+            Assert.That(driver.Expedition.Challenge.Stage,Is.EqualTo(checkpoint.Stage));
+            Assert.That(driver.Expedition.Challenge.SeedCollected,Is.True);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ResumedXrCalibrationShortcutPreservesRouteProgress()
+        {
+            var checkpoint=EarnedSeedCheckpoint();
+            var input=ConfigureResumedXrInput(checkpoint);
+            input.Frame.RecalibratePressed=true;
+            driver.Tick(.02f);
+            Assert.That(driver.CalibrationCoachVisible,Is.True);
+            Assert.That(driver.Expedition.Challenge.Stage,Is.EqualTo(checkpoint.Stage));
+            Assert.That(driver.Expedition.Challenge.SeedCollected,Is.True);
+            Assert.That(driver.ResumeNeedsCalibration,Is.True);
+            yield return null;
         }
         [UnityTest]
         public IEnumerator RecalibrateInPlacePreservesPhysicalStateAndEarnedJourney()

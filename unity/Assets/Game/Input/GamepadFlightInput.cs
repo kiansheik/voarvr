@@ -26,6 +26,7 @@ namespace VoarVR.Input
             frame.ControlModePressed=modeGesture.Sample(pad.leftStickButton.isPressed,false,deltaTime);
             frame.Bank = pad.leftStick.x.ReadValue();
             frame.GroundMove = pad.leftStick.ReadValue();
+            frame.GroundTurn = pad.rightStick.x.ReadValue();
             frame.HudTogglePressed = pad.rightStickButton.isPressed && !hudHeld;
             hudHeld = pad.rightStickButton.isPressed;
             frame.Tuck = pad.rightTrigger.ReadValue();

@@ -20,11 +20,14 @@ namespace VoarVR.Tests
             try
             {
                 var map=(InputActionMap)typeof(XRFlightInput).GetField("actions",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(input);
-                var hud=map.FindAction("HudToggle");var walk=map.FindAction("GroundMove");
+                var hud=map.FindAction("HudToggle");var walk=map.FindAction("GroundMove");var turn=map.FindAction("GroundTurn");
                 Assert.That(hud.controls,Has.Member(right.thumbstickClicked),"Bind by usage; Oculus names this control thumbstickClicked");
                 Assert.That(hud.controls,Has.No.Member(left.thumbstickClicked));
                 Assert.That(walk.controls,Has.Member(left.thumbstick));
                 Assert.That(walk.controls,Has.No.Member(right.thumbstick));
+                Assert.That(turn.controls,Has.Member(right.thumbstick));
+                Assert.That(turn.controls,Has.No.Member(left.thumbstick));
+                Assert.That(input.ResetEnabled,Is.True,"Legacy A-button reset remains the default until the guided coach opts out");
             }
             finally{input.Dispose();InputSystem.RemoveDevice(left);InputSystem.RemoveDevice(right);}
         }

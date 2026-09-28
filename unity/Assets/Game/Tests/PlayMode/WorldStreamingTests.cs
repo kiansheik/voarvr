@@ -26,8 +26,12 @@ namespace VoarVR.Tests
                 foreach (var collider in root.GetComponentsInChildren<MeshCollider>())
                 {
                     if (!collider.enabled) continue;
-                    Assert.That(collider.sharedMesh, Is.Not.Null, "Streamed ground must retain its native collision mesh across frames");
+                    Assert.That(collider.sharedMesh, Is.Not.Null,
+                        "Every active streamed mesh collider must retain its shared collision mesh across frames");
                     Assert.That(collider.bounds.size.y, Is.GreaterThan(0));
+                    var surface=collider.GetComponent<LandingSurface>();
+                    if(surface!=null&&surface.SurfaceKind!=VoarVR.Flight.FlightSurfaceKind.Terrain)
+                        continue; // Exact authored landmark meshes need not cover terrain's local (2,2) probe.
                     var origin = collider.transform.position + new Vector3(2, 100, 2);
                     Assert.That(collider.Raycast(new Ray(origin, Vector3.down), out _, 200), Is.True);
                 }

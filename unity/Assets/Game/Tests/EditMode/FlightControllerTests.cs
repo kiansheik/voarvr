@@ -77,6 +77,38 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void ResetOwnerCanSuppressPositionMutationUntilItReleasesTheLock()
+        {
+            var input = new SuppliedInput();
+            var spawn = Vector3.up * 10f;
+            var controller = new BirdFlightController(input, spawn);
+            controller.Step(.1f);
+            input.Frame.ResetPressed = true;
+            controller.ResetEnabled = false;
+            controller.Step(.1f);
+            Assert.That(controller.State.Position, Is.Not.EqualTo(spawn));
+            Assert.That(controller.LastInput.ResetPressed, Is.True,
+                "UI and telemetry still need to observe the blocked edge.");
+            controller.ResetEnabled = true;
+            controller.Step(.1f);
+            Assert.That(controller.State.Position, Is.EqualTo(spawn));
+        }
+
+        [Test]
+        public void PauseOwnerCanKeepSimulationFrozenWhenPauseButtonIsPressed()
+        {
+            var input=new SuppliedInput();
+            var controller=new BirdFlightController(input,Vector3.up*10f);
+            controller.SetPaused(true);controller.PauseEnabled=false;
+            var position=controller.State.Position;var simulationTime=controller.SimulationTime;
+            input.Frame.PausePressed=true;controller.Step(.25f);
+            Assert.That(controller.IsPaused,Is.True);
+            Assert.That(controller.State.Position,Is.EqualTo(position));
+            Assert.That(controller.SimulationTime,Is.EqualTo(simulationTime));
+            Assert.That(controller.CollisionCount,Is.Zero);
+        }
+
+        [Test]
         public void WingHeightAsymmetryBanksTowardLowerWing()
         {
             var input = new SuppliedInput();

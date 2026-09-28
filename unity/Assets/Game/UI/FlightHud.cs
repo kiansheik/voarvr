@@ -32,7 +32,7 @@ namespace VoarVR.UI
         private bool requestedVisible;
         public Canvas Instruments => canvas;
         public bool Visible => canvas != null && requestedVisible;
-        public void SetVisible(bool visible) { if(canvas == null)return; requestedVisible=visible; canvas.enabled=visible && (bird==null || !bird.FlightMenuVisible);lastTime=-1; }
+        public void SetVisible(bool visible) { if(canvas == null)return; requestedVisible=visible; canvas.enabled=visible && (bird==null || !bird.FlightOverlayBlocked);lastTime=-1; }
         public void Toggle() => SetVisible(!Visible);
         public string LiftReadout => air != null ? air.text : "";
         public void Configure(BirdFlightDriver driver, Camera camera, WorldStreamer streamer)
@@ -45,13 +45,13 @@ namespace VoarVR.UI
             root.transform.localScale=Vector3.one*.001f;
             canvas=root.GetComponent<Canvas>(); canvas.enabled=false; canvas.renderMode=RenderMode.WorldSpace; canvas.worldCamera=camera;
             root.GetComponent<RectTransform>().sizeDelta=new Vector2(1600,1000);
-            speed=Readout(root.transform,"Airspeed",new Vector2(-620,410),new Vector2(310,125));
-            altitude=Readout(root.transform,"Ground clearance",new Vector2(620,410),new Vector2(310,125));
-            climb=Readout(root.transform,"Climb rate",new Vector2(620,255),new Vector2(310,125));
+            speed=Readout(root.transform,"Airspeed",new Vector2(-620,245),new Vector2(310,125));
+            altitude=Readout(root.transform,"Ground clearance",new Vector2(620,245),new Vector2(310,125));
+            climb=Readout(root.transform,"Climb rate",new Vector2(620,90),new Vector2(310,125));
             air=Readout(root.transform,"Air guidance",new Vector2(0,-440),new Vector2(840,105));
             air.fontSize=30;
-            heading=Label(root.transform,"Heading",new Vector2(0,455),new Vector2(210,44),27);
-            var backdrop=Panel(root.transform,"Attitude",new Vector2(0,360),new Vector2(235,165));
+            heading=Label(root.transform,"Heading",new Vector2(0,335),new Vector2(210,44),27);
+            var backdrop=Panel(root.transform,"Attitude",new Vector2(0,240),new Vector2(235,165));
             var fixedLine=Panel(backdrop,"Level reference",Vector2.zero,new Vector2(180,3));
             fixedLine.GetComponent<Image>().color=new Color(1,1,1,.4f);
             attitude=Panel(backdrop,"Bird bank",Vector2.zero,new Vector2(145,7));
@@ -85,7 +85,7 @@ namespace VoarVR.UI
         public void TickInstruments()
         {
             if(bird==null||bird.Controller==null||canvas==null)return;
-            canvas.enabled=requestedVisible && !bird.FlightMenuVisible;
+            canvas.enabled=requestedVisible && !bird.FlightOverlayBlocked;
             if(!canvas.enabled)return;
             var c=bird.Controller;float time=c.SimulationTime;
             bool reset=lastTime<0||time<lastTime;

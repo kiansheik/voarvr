@@ -23,6 +23,7 @@ namespace VoarVR.Tests
                 rig.rightUpper=B("RightUpper");rig.rightForearm=B("RightForearm");rig.rightHand=B("RightHand");rig.rightTip=B("RightTip");
                 rig.restArmSpan=definition.RestArmSpan;rig.Configure();
                 var avian=owner.AddComponent<AvianWingPresentation>();avian.Configure(rig,definition.Articulation);
+                Assert.That(rig.TriggerGrossPose,Is.False,"Magpie fine feather controls remain the only trigger pose owner");
                 var calibration=new BirdTrackingCalibration();calibration.ConfigureBirdHalfSpan(definition.RestArmSpan);
                 var flight=new BirdFlightController(new SyntheticFlightInput(),Vector3.zero,profile:definition.BuildProfile());
                 var original=bones.Select(b=>b.localPosition).ToArray();

@@ -5,13 +5,14 @@ using VoarVR.World;
 namespace VoarVR.Gameplay
 {
     // Existing values are recorded in telemetry. Append new activities/objectives only.
-    public enum FlightActivity { FreeFlight = 0, Training = 1, SkywardExpedition = 2, RidgeJourney = 3, RouteHome = 4 }
+    public enum FlightActivity { FreeFlight = 0, Training = 1, SkywardExpedition = 2, RidgeJourney = 3, RouteHome = 4, ObstacleCourse = 5 }
     public enum ObjectiveKind { DiscoverLift = 0, Soar = 1, Precision = 2, Land = 3, Acrobatic = 4, Migration = 5, CollectSeed = 6 }
     public enum ChallengeStatus { Available, Active, Completed, Failed }
     public static class ActivitySelection
     {
         public static FlightActivity Chosen = FlightActivity.RouteHome;
         public static bool ResumeRequested;
+        public static string ChosenCourseId = "moth-line";
     }
 
     // This is the original score schema. Retain its records without comparing new rewards to them.
@@ -63,7 +64,7 @@ namespace VoarVR.Gameplay
         public int TechniqueCount { get; private set; }
         public int CollisionCount { get; private set; }
         public bool SeedCollected { get; private set; }
-        public int StageCount => Activity == FlightActivity.Training ? 2 : Activity == FlightActivity.RidgeJourney || Activity == FlightActivity.RouteHome ? 5 : 4;
+        public int StageCount => Activity == FlightActivity.ObstacleCourse ? 0 : Activity == FlightActivity.Training ? 2 : Activity == FlightActivity.RidgeJourney || Activity == FlightActivity.RouteHome ? 5 : 4;
         public string ContentId => ContentIdFor(Activity);
         public readonly LogicalPosition Destination;
         private readonly int worldSeed;
@@ -77,7 +78,7 @@ namespace VoarVR.Gameplay
             Activity = activity;
             worldSeed = seed;
             Destination = activity == FlightActivity.RidgeJourney ? FlightRegions.Island(seed, 1, 0) : FlightRegions.Island(seed, 0, 0);
-            if (activity == FlightActivity.FreeFlight) Status = ChallengeStatus.Available;
+            if (activity == FlightActivity.FreeFlight || activity == FlightActivity.ObstacleCourse) Status = ChallengeStatus.Available;
         }
 
         public static string ContentIdFor(FlightActivity activity)
@@ -89,6 +90,7 @@ namespace VoarVR.Gameplay
                 case FlightActivity.SkywardExpedition: return "skyward.v1";
                 case FlightActivity.RidgeJourney: return "ridge.v1";
                 case FlightActivity.RouteHome: return RouteHomeChapter.ContentId;
+                case FlightActivity.ObstacleCourse: return "obstacle-course.v1";
                 default: return null;
             }
         }
@@ -98,7 +100,7 @@ namespace VoarVR.Gameplay
             : Activity == FlightActivity.RouteHome ? (Stage == 2 ? ObjectiveKind.CollectSeed : Stage == 3 ? ObjectiveKind.Precision : ObjectiveKind.Land)
             : Stage == 2 ? (Activity == FlightActivity.RidgeJourney ? ObjectiveKind.Migration : ObjectiveKind.Precision)
             : Stage == 3 && Activity == FlightActivity.RidgeJourney ? ObjectiveKind.Precision : ObjectiveKind.Land;
-        public string Title => Activity == FlightActivity.Training ? "LEARNING THE AIR" : Activity == FlightActivity.RidgeJourney ? "RIDGE JOURNEY" : Activity == FlightActivity.RouteHome ? "A ROUTE HOME" : "SKYWARD EXPEDITION";
+        public string Title => Activity == FlightActivity.ObstacleCourse ? "OBSTACLE COURSE" : Activity == FlightActivity.Training ? "LEARNING THE AIR" : Activity == FlightActivity.RidgeJourney ? "RIDGE JOURNEY" : Activity == FlightActivity.RouteHome ? "A ROUTE HOME" : "SKYWARD EXPEDITION";
         public string Instruction => Status == ChallengeStatus.Completed
             ? Activity == FlightActivity.RouteHome ? "The garden is growing again. Your seed has a home." : "RESULT SAVED · CONTINUE EXPLORING"
             : Kind == ObjectiveKind.DiscoverLift ? Activity == FlightActivity.RouteHome ? "The quiet garden needs a seed. Follow the rising leaves." : "Find the rising leaves above the valley"

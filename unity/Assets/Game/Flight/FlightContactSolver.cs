@@ -4,10 +4,13 @@ namespace VoarVR.Flight
 {
     public struct FlightContactResult
     {
-        public Vector3 Position, Velocity, Normal;
+        public Vector3 Position, Velocity, Point, Normal;
         public bool Landed, UnsafeLanding;
-        public float ImpactSpeed;
+        // Side is body-relative: -1 left, +1 right, 0 centred/top/bottom.
+        public float ImpactSpeed, Side;
         public int SurfaceId, ContactCount, UnsafeSurfaceId;
+        public FlightSurfaceKind SurfaceKind;
+        public Collider Collider;
     }
 
     public static class FlightContactSolver
@@ -28,9 +31,11 @@ namespace VoarVR.Flight
         }
 
         public static FlightContactResult Resolve(IFlightEnvironment environment, Vector3 from, Vector3 velocity,
-            float dt, float radius, bool braking, bool allowLanding = true)
+            float dt, float radius, bool braking, bool allowLanding = true, Vector3 bodyRight = default)
         {
             var result = new FlightContactResult { Position = from, Velocity = velocity };
+            if (bodyRight.sqrMagnitude < .5f) bodyRight = Vector3.right;
+            else bodyRight.Normalize();
             float remaining = Mathf.Max(0f, dt);
             for (int i = 0; i < MaximumContacts; i++)
             {
@@ -38,10 +43,20 @@ namespace VoarVR.Flight
                 if (!environment.Sweep(result.Position, result.Position + displacement, radius, out var contact))
                 { result.Position += displacement; break; }
                 result.Position = contact.Position;
-                result.Normal = contact.Normal;
                 result.ContactCount++;
-                result.ImpactSpeed = Mathf.Max(result.ImpactSpeed, -Vector3.Dot(result.Velocity, contact.Normal));
-                result.SurfaceId = contact.SurfaceId;
+                float impact = Mathf.Max(0f, -Vector3.Dot(result.Velocity, contact.Normal));
+                // Feedback follows the strongest surface in a multi-contact solve, not
+                // whichever glancing contact happened to consume the final iteration.
+                if (result.ContactCount == 1 || impact >= result.ImpactSpeed)
+                {
+                    result.ImpactSpeed = impact;
+                    result.Point = contact.Point;
+                    result.Normal = contact.Normal;
+                    result.Side = Mathf.Clamp(Vector3.Dot(-contact.Normal, bodyRight), -1f, 1f);
+                    result.SurfaceId = contact.SurfaceId;
+                    result.SurfaceKind = contact.SurfaceKind;
+                    result.Collider = contact.Collider;
+                }
                 if (allowLanding && CanLand(contact, result.Velocity, braking))
                 { result.Landed = true; result.Velocity = Vector3.zero; break; }
                 if (allowLanding && contact.Landable && !CanLand(contact, result.Velocity, braking))

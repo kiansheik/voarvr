@@ -90,13 +90,16 @@ namespace VoarVR.World
             if(!root.gameObject.activeSelf)root.gameObject.SetActive(true);
             if(hasState && clock<lastClock)restoredAt=clock-4;
             bool chapter=challenge!=null && challenge.Activity==FlightActivity.RouteHome;
-            bool active=chapter && challenge.Status==ChallengeStatus.Active;
+            bool storyActive=chapter && challenge.Status==ChallengeStatus.Active;
+            bool routeActive=challenge!=null && challenge.Activity!=FlightActivity.FreeFlight
+                && challenge.Activity!=FlightActivity.ObstacleCourse
+                && challenge.Status==ChallengeStatus.Active;
             var pickup=RouteHomeChapter.SeedPosition;
             seed.position=space.ToLocal(pickup.X,pickup.Y,pickup.Z);
             seed.rotation=Quaternion.Euler(0,clock*13,0);
-            seed.gameObject.SetActive(active && challenge.Kind==ObjectiveKind.CollectSeed && !challenge.SeedCollected && Vector3.Distance(player,seed.position)<850);
+            seed.gameObject.SetActive(storyActive && challenge.Kind==ObjectiveKind.CollectSeed && !challenge.SeedCollected && Vector3.Distance(player,seed.position)<850);
 
-            carrier.gameObject.SetActive(active && challenge.SeedCollected);
+            carrier.gameObject.SetActive(storyActive && challenge.SeedCollected);
             // Attach ahead of the authored eyes, in body space. The Dragon's eyes
             // are farther forward than the small birds'; a fixed .5 m offset put
             // its carried seed behind the player. No camera or tracked-head follow.
@@ -107,9 +110,9 @@ namespace VoarVR.World
             // new challenge, clock reset or relocation shows its already-held seed directly.
             bool continuous=observedChallenge==challenge && clock>lastClock && clock-lastClock<=.5f
                 && Vector3.Distance(player,previousPlayer)<25;
-            if(active && challenge.SeedCollected && !observedSeed && observedKind==ObjectiveKind.CollectSeed && continuous)
+            if(storyActive && challenge.SeedCollected && !observedSeed && observedKind==ObjectiveKind.CollectSeed && continuous)
             {pickupAt=clock;pickupOrigin=seed.position;}
-            else if(!continuous || !active || !challenge.SeedCollected)pickupAt=-10;
+            else if(!continuous || !storyActive || !challenge.SeedCollected)pickupAt=-10;
             float transfer=Mathf.Clamp01((clock-pickupAt)/PickupTransferSeconds);
             carrier.position=Vector3.Lerp(pickupOrigin,carryDestination,Mathf.SmoothStep(0,1,transfer));
             carrier.rotation=bodyRotation*Quaternion.Euler(0,0,20);
@@ -144,7 +147,7 @@ namespace VoarVR.World
             crown.localScale=Vector3.one*(restored?Mathf.Lerp(.3f,1,Mathf.SmoothStep(0,1,(clock-restoredAt)/3)):1);
 
             var navigation=default(LogicalPosition);
-            NavigationAvailable=active && guidanceEnabled && TryNavigationTarget(challenge,clock,player.y,out navigation);
+            NavigationAvailable=routeActive && guidanceEnabled && TryNavigationTarget(challenge,clock,player.y,out navigation);
             NavigationTarget=navigation;
             guide.gameObject.SetActive(NavigationAvailable);targetMarker.gameObject.SetActive(NavigationAvailable);
             if(NavigationAvailable)

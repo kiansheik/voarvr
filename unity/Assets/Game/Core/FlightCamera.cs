@@ -13,6 +13,10 @@ namespace VoarVR.Core
         private Quaternion lastValidRotation = Quaternion.identity;
         private TextMesh calibrationPrompt;
         private string displayedPrompt;
+        private Vector3 collisionNormal=Vector3.up;
+        private float collisionSide,collisionStrength,collisionStarted=-100f,collisionDuration;
+        public int CollisionImpulseSequence { get; private set; }
+        public bool CollisionImpulseActive=>Time.unscaledTime-collisionStarted<collisionDuration;
         public bool FirstPerson { get => firstPerson; set => firstPerson=value; }
         private void OnEnable()
         {
@@ -50,7 +54,6 @@ namespace VoarVR.Core
                     * (bird.UsesXR
                         ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading)
                         : Quaternion.identity) * headRotation);
-                UpdateCalibrationPrompt();
             }
             else
             {
@@ -68,8 +71,41 @@ namespace VoarVR.Core
                     ? Quaternion.Inverse(bird.Calibration.NeutralLookPitch) * Quaternion.Inverse(cameraTrackingHeading) * lastValidRotation
                     : Quaternion.identity;
                 transform.rotation = baseRotation * headDelta;
-                UpdateCalibrationPrompt();
             }
+            ApplyCollisionPose(useFirstPerson);
+            UpdateCalibrationPrompt();
+        }
+
+        // Impacts perturb only presentation. The physical controller still owns the swept,
+        // dissipative slide, so feedback cannot add speed or compromise course scoring.
+        public void AddCollisionImpulse(Vector3 worldNormal,float impactSpeed,float side)
+        {
+            float strength=Mathf.InverseLerp(.8f,14f,impactSpeed);
+            if(strength<=0f)return;
+            if(Time.unscaledTime-collisionStarted>=collisionDuration)collisionStrength=0f;
+            collisionNormal=worldNormal.sqrMagnitude>.01f?worldNormal.normalized:Vector3.up;
+            collisionSide=Mathf.Clamp(side,-1f,1f);
+            collisionStrength=Mathf.Max(collisionStrength,strength);
+            collisionDuration=Mathf.Lerp(.14f,.24f,collisionStrength);
+            collisionStarted=Time.unscaledTime;
+            CollisionImpulseSequence++;
+        }
+
+        private void ApplyCollisionPose(bool useFirstPerson)
+        {
+            if(collisionDuration<=0f)return;
+            float age=(Time.unscaledTime-collisionStarted)/collisionDuration;
+            if(age>=1f){collisionDuration=collisionStrength=0f;return;}
+            float wave=Mathf.Sin(age*Mathf.PI*3f)*(1f-age);
+            float translation=Mathf.Lerp(.008f,.045f,collisionStrength)*(useFirstPerson?.28f:1f)*wave;
+            transform.position+=collisionNormal*translation;
+            // Artificial head rotation is deliberately suppressed in first-person VR.
+            // Chase view gets the visible disorientation requested for a hard impact.
+            if(useFirstPerson)return;
+            float roll=-collisionSide*Mathf.Lerp(.5f,3f,collisionStrength)*wave;
+            float yaw=(collisionSide>=0f?1f:-1f)*Mathf.Lerp(.25f,1.4f,collisionStrength)*wave;
+            transform.rotation=Quaternion.AngleAxis(roll,transform.forward)
+                *Quaternion.AngleAxis(yaw,Vector3.up)*transform.rotation;
         }
 
         private void UpdateCalibrationPrompt()
@@ -88,7 +124,8 @@ namespace VoarVR.Core
                 calibrationPrompt.characterSize = .008f;
                 calibrationPrompt.color = new Color(1f, .82f, .25f);
             }
-            calibrationPrompt.gameObject.SetActive(!bird.FlightMenuVisible && (!bird.Calibration.Captured || (bird.ShowFlightText && !string.IsNullOrEmpty(bird.CoachStatus))));
+            calibrationPrompt.gameObject.SetActive(!bird.FlightOverlayBlocked
+                && (!bird.Calibration.Captured || (bird.ShowFlightText && !string.IsNullOrEmpty(bird.CoachStatus))));
             if (!calibrationPrompt.gameObject.activeSelf) return;
             string text = ResolvePrompt(bird.Calibration.Captured, bird.CalibrationStatus, bird.CoachStatus);
             if (displayedPrompt == text) return;

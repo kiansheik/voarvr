@@ -23,7 +23,7 @@ namespace VoarVR.Tests
             Assert.That(cards, Is.Not.Empty, "Character select screen built no selectable cards");
             cards.First(b => b.GetComponentInChildren<Text>().text == "DUCK").onClick.Invoke();
             Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("CharacterSelect"), "Choosing a flyer must leave time to read the task preview");
-            cards.First(b => new[] { "BEGIN FLIGHT", "RESUME FLIGHT", "GO EXPLORING" }.Contains(b.GetComponentInChildren<Text>().text)).onClick.Invoke();
+            cards.First(b => new[] { "BEGIN FLIGHT", "RESUME AT SAVED PERCH", "GO EXPLORING" }.Contains(b.GetComponentInChildren<Text>().text)).onClick.Invoke();
             for (int i = 0; i < 120 && SceneManager.GetActiveScene().name != "BirdFlight"; i++)
                 yield return null;
             Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("BirdFlight"));

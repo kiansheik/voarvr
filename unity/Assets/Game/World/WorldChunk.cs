@@ -2,11 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoarVR.Flight;
+using VoarVR.Gameplay;
 
 namespace VoarVR.World
 {
     public sealed class WorldChunk : MonoBehaviour
     {
+        public const int MaxColliderProxyCount=170;
         public long X { get; private set; }
         public long Z { get; private set; }
         public bool Ready { get; private set; }
@@ -14,7 +16,7 @@ namespace VoarVR.World
         public int ColliderProxyCount => boxes.Count + (terrainCollider != null ? 1 : 0);
         public int EnabledColliderCount
         {
-            get { int count = terrainCollider != null && terrainCollider.enabled ? 1 : 0; foreach (var box in boxes) if (box.enabled) count++; return count; }
+            get { int count = terrainCollider != null && terrainCollider.enabled ? 1 : 0; for(int i=0;i<boxes.Count;i++)if(boxes[i].enabled||meshColliders[i].enabled)count++;return count; }
         }
         public int VertexCount
         {
@@ -27,6 +29,9 @@ namespace VoarVR.World
         private readonly List<int>[] triangles = new List<int>[5];
         private readonly Mesh[] meshes = new Mesh[5];
         private readonly List<BoxCollider> boxes = new List<BoxCollider>();
+        private readonly List<MeshCollider> meshColliders = new List<MeshCollider>();
+        private readonly List<bool> usesMeshCollider = new List<bool>();
+        private readonly List<LandingSurface> boxSurfaces = new List<LandingSurface>();
         private readonly List<Vector3> boxCenters = new List<Vector3>();
         private readonly List<Vector3> boxSizes = new List<Vector3>();
         private MeshCollider terrainCollider;
@@ -35,6 +40,16 @@ namespace VoarVR.World
         private int[] groundTriangles;
         private SkywardKit kit;
         private readonly List<Color> kitColors=new List<Color>();
+        private MeshRenderer authoredRenderer;
+        private MaterialPropertyBlock authoredBlock;
+        private Vector3 foliagePointLocal,foliageDirection;
+        private float foliageStarted,foliageStrength;
+        private const float FoliageDuration=.8f;
+        private static readonly int FoliagePointId=Shader.PropertyToID("_FoliageImpactPoint");
+        private static readonly int FoliageDirectionId=Shader.PropertyToID("_FoliageImpactDirection");
+        private static readonly int FoliageStateId=Shader.PropertyToID("_FoliageImpact");
+        public int FoliageImpactCount {get;private set;}
+        public float FoliageImpactStrength=>foliageStrength;
         private int seed, row, feature, boxCount;
         private bool collisionWanted;
 
@@ -50,12 +65,12 @@ namespace VoarVR.World
                 meshes[i] = new Mesh { name = "Reusable chunk " + i }; meshes[i].MarkDynamic();
                 go.AddComponent<MeshFilter>().sharedMesh = meshes[i];
                 var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterial = i==4 && kit!=null?kit.Material:materials[Mathf.Min(i,3)];
-                if(i==4){var block=new MaterialPropertyBlock();block.SetFloat("_HazeStart",65);block.SetFloat("_HazeEnd",235);renderer.SetPropertyBlock(block);}
+                if(i==4){authoredRenderer=renderer;authoredBlock=new MaterialPropertyBlock();authoredBlock.SetFloat("_HazeStart",65);authoredBlock.SetFloat("_HazeEnd",235);renderer.SetPropertyBlock(authoredBlock);}
                 renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
                 renderer.lightProbeUsage = LightProbeUsage.Off; renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 if (i == 0) { terrain = meshes[i]; terrainCollider = go.AddComponent<MeshCollider>(); go.AddComponent<LandingSurface>(); }
             }
-            gameObject.AddComponent<LandingSurface>();
+            gameObject.AddComponent<LandingSurface>().SurfaceKind=FlightSurfaceKind.Terrain;
             groundNormals = new Vector3[(Grid + 1) * (Grid + 1)];
             groundVertices = new Vector3[(Grid + 1) * (Grid + 1)]; groundTriangles = new int[Grid * Grid * 6];
             int t = 0;
@@ -73,8 +88,9 @@ namespace VoarVR.World
             terrainCollider.GetComponent<LandingSurface>().SurfaceId = unchecked((int)WorldTerrain.Hash(seed, x, z, 901)) | 1;
             Ready = false; GenerationStage = row = feature = boxCount = 0;
             boxCenters.Clear(); boxSizes.Clear();kitColors.Clear(); collisionWanted = false;
+            foliageStrength=0;FoliageImpactCount=0;ApplyFoliageImpact(0);
             terrainCollider.enabled = false; terrainCollider.sharedMesh = null;
-            foreach (var box in boxes) box.enabled = false;
+            for(int i=0;i<boxes.Count;i++){boxes[i].enabled=false;meshColliders[i].enabled=false;}
             for (int i = 0; i < 5; i++) { vertices[i].Clear(); triangles[i].Clear(); meshes[i].Clear(); }
             gameObject.SetActive(true);
         }
@@ -151,20 +167,38 @@ namespace VoarVR.World
             if (wx * wx + wz * wz < 225) return; // reliable clear departure area
             float y = WorldTerrain.Elevation(seed, wx, wz), river = WorldTerrain.RiverDistance(seed, wx, wz);
             if (river < 8) return;
+            if (CourseRouteReservation.IsActiveRouteReserved(wx, wz)) return;
             float biome = WorldTerrain.Biome(seed, wx, wz);
             float variety = WorldTerrain.Unit(seed, gx, gz, 3);
             if(kit!=null)
             {
                 string name=biome>.64f?(variety>.65f?"Tower":variety>.25f?"House":"Ruin"):biome<.57f?(variety>.22f?"Tree"+(cell%3):"DeadTree"):(variety>.8f?"Spire":variety>.5f?"Rock":"Log");
                 if(variety<.32f)return; // Fewer, richer authored landmarks preserve the standalone geometry budget.
+                var profile=SkywardKit.CollisionProfile(name);
+                int requiredProxies=profile.Count>0?profile.Count:1;
+                // Keep the pooled chunk ceiling deterministic. A complete landmark is
+                // omitted rather than rendering geometry after only part of its compound
+                // collision profile fits the Quest-facing proxy budget.
+                if(boxCenters.Count+requiredProxies>=MaxColliderProxyCount)return;
                 float scale=.55f+variety*.4f;var mesh=kit.Find(name);var matrix=Matrix4x4.TRS(new Vector3(x,y,z),Quaternion.Euler(0,variety*360,0),Vector3.one*scale);
                 var data=kit.Data(name);int offset=vertices[4].Count;
                 foreach(var v in data.Vertices)vertices[4].Add(matrix.MultiplyPoint3x4(v));foreach(var t in data.Triangles)triangles[4].Add(offset+t);kitColors.AddRange(data.Colors);
-                bool tree=name.StartsWith("Tree") || name=="DeadTree";
                 var bounds=mesh.bounds;Vector3 size=bounds.size*scale;
-                var center=new Vector3(x,y,z);var localCenter=bounds.center*scale;
-                if(tree){size.x=size.z=.9f;localCenter=new Vector3(0,size.y*.5f,0);}
-                AddProxy(center,size,Quaternion.Euler(0,variety*360,0),localCenter);return;
+                var center=new Vector3(x,y,z);var localCenter=bounds.center*scale;var rotation=Quaternion.Euler(0,variety*360,0);
+                var kind=SkywardKit.SurfaceKind(name);
+                if(profile.Count>0)
+                {
+                    for(int i=0;i<profile.Count;i++)
+                    {
+                        var box=profile[i];
+                        var proxyCenter=center+rotation*(box.Center*scale);
+                        var proxyRotation=rotation*box.Rotation;
+                        if(box.UsesMesh)AddMeshProxy(name,kind,proxyCenter,scale,proxyRotation,box,mesh);
+                        else AddProxy(name,kind,proxyCenter,box.Size*scale,proxyRotation);
+                    }
+                }
+                else AddProxy(name,kind,center,size,rotation,localCenter);
+                return;
             }
             if (biome > .64f && variety > .17f)
             {
@@ -193,14 +227,68 @@ namespace VoarVR.World
             corners[4] = new Vector3(-h.x, h.y, -h.z); corners[5] = new Vector3(h.x, h.y, -h.z);
             corners[6] = new Vector3(h.x, h.y, h.z); corners[7] = new Vector3(-h.x, h.y, h.z);
             for(int f=0;f<6;f++) { int a=v.Count; for(int p=0;p<4;p++)v.Add(center+corners[Faces[f*4+p]]); t.Add(a);t.Add(a+2);t.Add(a+1);t.Add(a);t.Add(a+3);t.Add(a+2); }
-            AddProxy(center,size);
+            AddProxy("Procedural",material==2?FlightSurfaceKind.Wood:FlightSurfaceKind.Structure,center,size);
         }
-        private void AddProxy(Vector3 center,Vector3 size,Quaternion rotation=default,Vector3 localCenter=default)
+        private void AddProxy(string label,FlightSurfaceKind kind,Vector3 center,Vector3 size,Quaternion rotation=default,Vector3 localCenter=default)
         {
             boxCenters.Add(center); boxSizes.Add(size);
-            if (boxes.Count < boxCenters.Count){var proxy=new GameObject("Authored collision");proxy.transform.SetParent(transform,false);proxy.layer=WorldStreamer.CollisionLayer;boxes.Add(proxy.AddComponent<BoxCollider>());}
-            var collider = boxes[boxCenters.Count - 1]; collider.enabled = false; collider.transform.localPosition=center;collider.transform.localRotation=rotation==default?Quaternion.identity:rotation;collider.center = localCenter; collider.size = size;
+            EnsureProxy();
+            int index=boxCenters.Count-1;var collider=boxes[index];var surface=boxSurfaces[index];
+            usesMeshCollider[index]=false;meshColliders[index].enabled=false;meshColliders[index].sharedMesh=null;
+            collider.gameObject.name=label+" collision "+index;collider.enabled = false;
+            collider.transform.localScale=Vector3.one;
+            collider.transform.localPosition=center;collider.transform.localRotation=rotation==default?Quaternion.identity:rotation;
+            collider.center = localCenter; collider.size = size;
+            surface.SurfaceId=GetComponent<LandingSurface>().SurfaceId;surface.SurfaceKind=kind;
             boxCount = boxCenters.Count;
+        }
+
+        private void AddMeshProxy(string label,FlightSurfaceKind kind,Vector3 center,float scale,Quaternion rotation,
+            SkywardKit.CollisionBox shape,Mesh authoredMesh)
+        {
+            boxCenters.Add(center);boxSizes.Add(shape.Size*scale);EnsureProxy();
+            int index=boxCenters.Count-1;var collider=meshColliders[index];var surface=boxSurfaces[index];
+            usesMeshCollider[index]=true;boxes[index].enabled=false;collider.enabled=false;collider.sharedMesh=null;
+            collider.gameObject.name=label+" collision "+index;
+            collider.transform.localPosition=center;collider.transform.localRotation=rotation;
+            collider.transform.localScale=Vector3.one*scale;
+            collider.convex=!shape.UsesAuthoredMesh;
+            collider.sharedMesh=SkywardKit.CollisionMesh(shape,authoredMesh);
+            surface.SurfaceId=GetComponent<LandingSurface>().SurfaceId;surface.SurfaceKind=kind;
+            boxCount=boxCenters.Count;
+        }
+
+        private void EnsureProxy()
+        {
+            if(boxes.Count>=boxCenters.Count)return;
+            var proxy=new GameObject("Authored collision");proxy.transform.SetParent(transform,false);proxy.layer=WorldStreamer.CollisionLayer;
+            var box=proxy.AddComponent<BoxCollider>();box.enabled=false;boxes.Add(box);
+            var meshCollider=proxy.AddComponent<MeshCollider>();meshCollider.enabled=false;meshColliders.Add(meshCollider);
+            usesMeshCollider.Add(false);boxSurfaces.Add(proxy.AddComponent<LandingSurface>());
+        }
+
+        public void DisturbFoliage(Vector3 worldPoint,Vector3 direction,float strength)
+        {
+            if(authoredRenderer==null)return;
+            foliagePointLocal=transform.InverseTransformPoint(worldPoint);
+            foliageDirection=direction.sqrMagnitude>.001f?direction.normalized:Vector3.up;
+            foliageStarted=Time.unscaledTime;foliageStrength=Mathf.Lerp(.05f,.35f,Mathf.Clamp01(strength));
+            FoliageImpactCount++;ApplyFoliageImpact(0);
+        }
+        private void LateUpdate()
+        {
+            if(foliageStrength<=0)return;
+            float age=Time.unscaledTime-foliageStarted;
+            if(age>=FoliageDuration)foliageStrength=0;
+            ApplyFoliageImpact(age);
+        }
+        private void ApplyFoliageImpact(float age)
+        {
+            if(authoredRenderer==null||authoredBlock==null)return;
+            authoredBlock.SetVector(FoliagePointId,transform.TransformPoint(foliagePointLocal));
+            authoredBlock.SetVector(FoliageDirectionId,foliageDirection);
+            authoredBlock.SetVector(FoliageStateId,new Vector4(foliageStrength,7f,age,FoliageDuration));
+            authoredRenderer.SetPropertyBlock(authoredBlock);
         }
         public void SetCollision(bool enabled)
         {
@@ -217,7 +305,12 @@ namespace VoarVR.World
                 // Placement and mesh-local bounds are established together in AddProxy.
                 // Re-enabling collision must not apply chunk-space placement a second time.
             }
-            for (int i = 0; i < boxes.Count; i++) boxes[i].enabled = enabled && Ready && i < boxCount;
+            for(int i=0;i<boxes.Count;i++)
+            {
+                bool active=enabled&&Ready&&i<boxCount;
+                boxes[i].enabled=active&&!usesMeshCollider[i];
+                meshColliders[i].enabled=active&&usesMeshCollider[i];
+            }
         }
         public bool TryGetGround(Vector3 position, out Vector3 point, out Vector3 normal, out int surfaceId)
         {

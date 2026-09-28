@@ -7,6 +7,12 @@ namespace VoarVR.Tests
 {
     public class ForagingPersistenceTests
     {
+        [Test] public void TypedEconomyUsesANewRecordKey()
+        {
+            Assert.That(PlayerPrefsForagingBestStorage.TypedForagingKey,
+                Is.Not.EqualTo(FlightJourneyStore.ForagingKey));
+        }
+
         private sealed class BestStorage : IForagingBestStorage
         {
             public int Best, Writes;
@@ -62,7 +68,7 @@ namespace VoarVR.Tests
             }
             finally{Object.DestroyImmediate(root);}
         }
-        [Test] public void ExistingLegacyRecordCannotDecrease()
+        [Test] public void ExistingTypedV2RecordCannotDecrease()
         {
             var root=new GameObject("Isolated legacy save");
             try
@@ -73,7 +79,7 @@ namespace VoarVR.Tests
             }
             finally{Object.DestroyImmediate(root);}
         }
-        [Test] public void UnsupportedJourneyPreservesItsBytesAndDoesNotClaimBestWasSaved()
+        [Test] public void UnsupportedJourneyDoesNotBlockTypedBestOrRewriteItsBytes()
         {
             var root=new GameObject("Isolated unsupported journey");
             var activity=ActivitySelection.Chosen;var resume=ActivitySelection.ResumeRequested;
@@ -84,13 +90,13 @@ namespace VoarVR.Tests
                 ActivitySelection.Chosen=FlightActivity.RouteHome;ActivitySelection.ResumeRequested=false;
                 var director=root.AddComponent<ExpeditionDirector>();director.Configure(null,null,journeyStorage);
                 var storage=new BestStorage();var food=root.AddComponent<SkyForaging>();food.ConfigurePersistence(director,storage);
-                food.Score.Catch(1);Assert.That(food.SaveBest(),Is.False);Assert.That(food.HasUnsavedBest,Is.True);
-                Assert.That(storage.Writes,Is.Zero);
+                food.Score.Catch(1);Assert.That(food.SaveBest(),Is.True);Assert.That(food.HasUnsavedBest,Is.False);
+                Assert.That(storage.Best,Is.EqualTo(10));Assert.That(storage.Writes,Is.EqualTo(1));
                 Assert.That(journeyStorage.Values[FlightJourneyStore.SaveKey],Is.EqualTo(raw));
             }
             finally{Object.DestroyImmediate(root);ActivitySelection.Chosen=activity;ActivitySelection.ResumeRequested=resume;}
         }
-        [Test] public void JourneyWriteFailureRetriesSameBestAndKeepsLaterHigherBest()
+        [Test] public void JourneyWriteFailureCannotBlockIndependentTypedBest()
         {
             var root=new GameObject("Isolated journey retry");
             var activity=ActivitySelection.Chosen;var resume=ActivitySelection.ResumeRequested;
@@ -99,16 +105,17 @@ namespace VoarVR.Tests
                 var journeyStorage=new JourneyStorage{Fail=true};ActivitySelection.Chosen=FlightActivity.FreeFlight;ActivitySelection.ResumeRequested=false;
                 var director=root.AddComponent<ExpeditionDirector>();director.Configure(null,null,journeyStorage);
                 var storage=new BestStorage();var food=root.AddComponent<SkyForaging>();food.ConfigurePersistence(director,storage);
-                food.Score.Catch(1);Assert.That(food.SaveBest(),Is.False);
-                Assert.That(storage.Writes,Is.Zero);Assert.That(food.SaveBest(),Is.False);
+                food.Score.Catch(1);Assert.That(food.SaveBest(),Is.True);
+                Assert.That(storage.Best,Is.EqualTo(10));Assert.That(storage.Writes,Is.EqualTo(1));
                 food.Score.Catch(2);journeyStorage.Fail=false;
                 Assert.That(food.SaveBest(),Is.True);
-                Assert.That(new FlightJourneyStore(journeyStorage).Load().ForagingBest,Is.EqualTo(30));
+                Assert.That(new FlightJourneyStore(journeyStorage).Load().ForagingBest,Is.Zero,
+                    "Typed rewards must not be reclassified as the legacy Sun-only record.");
                 Assert.That(storage.Best,Is.EqualTo(30));
             }
             finally{Object.DestroyImmediate(root);ActivitySelection.Chosen=activity;ActivitySelection.ResumeRequested=resume;}
         }
-        [Test] public void NewForagingBestIsDurableInBothJourneyAndLegacyRecord()
+        [Test] public void NewTypedBestLeavesLegacyJourneyRecordUntouched()
         {
             var root=new GameObject("Isolated integrated best");
             var activity=ActivitySelection.Chosen;var resume=ActivitySelection.ResumeRequested;
@@ -118,7 +125,7 @@ namespace VoarVR.Tests
                 var director=root.AddComponent<ExpeditionDirector>();director.Configure(null,null,journeyStorage);
                 var storage=new BestStorage();var food=root.AddComponent<SkyForaging>();food.ConfigurePersistence(director,storage);
                 food.Score.Catch(1);food.Score.Catch(2);Assert.That(food.SaveBest(),Is.True);
-                Assert.That(new FlightJourneyStore(journeyStorage).Load().ForagingBest,Is.EqualTo(30));
+                Assert.That(new FlightJourneyStore(journeyStorage).Load().ForagingBest,Is.Zero);
                 Assert.That(storage.Best,Is.EqualTo(30));
             }
             finally{Object.DestroyImmediate(root);ActivitySelection.Chosen=activity;ActivitySelection.ResumeRequested=resume;}
