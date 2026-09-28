@@ -8,6 +8,9 @@ namespace VoarVR.Input
         public Vector3 Velocity;
         public Quaternion Orientation;
         public bool Tracked;
+        // True when the pose is usable for continuity/presentation but its motion is
+        // inferred or predicted. Estimated motion must not create active flap energy.
+        public bool MotionEstimated;
 
         public static WingInput Rest(Vector3 position) => new WingInput
         {
