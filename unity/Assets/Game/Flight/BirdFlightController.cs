@@ -627,7 +627,7 @@ namespace VoarVR.Flight
 
         private float Stroke(WingInput wing, Quaternion neutral)
         {
-            if (!wing.Tracked) return 0f;
+            if (!wing.Tracked || wing.MotionEstimated) return 0f;
             var relative = Quaternion.Inverse(calibration.Heading) * wing.Orientation
                 * Quaternion.Inverse(neutral) * calibration.Heading;
             var normal = relative * Vector3.up;
@@ -644,7 +644,7 @@ namespace VoarVR.Flight
 
         private Vector3 WingStrokeForce(WingInput wing, Quaternion neutral, Quaternion bodyRotation)
         {
-            if (!wing.Tracked) return Vector3.zero;
+            if (!wing.Tracked || wing.MotionEstimated) return Vector3.zero;
             var relative = Quaternion.Inverse(calibration.Heading) * wing.Orientation
                 * Quaternion.Inverse(neutral) * calibration.Heading;
             var normalBody = relative * Vector3.up;
