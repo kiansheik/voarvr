@@ -7,7 +7,7 @@ using UnityEngine.XR;
 namespace VoarVR.Input
 {
     // Input System actions are required by OpenXR. No Meta SDK or XRI dependency.
-    public sealed class XRFlightInput : IFlightInput, IDisposable
+    public sealed class XRFlightInput : ITrackedFlightInput
     {
         private readonly InputActionMap actions = new InputActionMap("Flight");
         private readonly InputAction leftPosition, rightPosition, leftRotation, rightRotation;

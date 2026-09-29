@@ -17,6 +17,31 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void EditorDefaultLeaderboardKeepsRecordsOutOfPlayerPrefs()
+        {
+            var prior=CourseLeaderboardStore.EditorStorageOverride;
+            var isolated=new MemoryStorage();var explicitStorage=new MemoryStorage();
+            var key=new CourseResultKey(CourseCatalog.Find("moth-line"),"duck","beginner","assisted","assisted");
+            bool existed=UnityEngine.PlayerPrefs.HasKey(key.StorageKey);
+            string original=UnityEngine.PlayerPrefs.GetString(key.StorageKey,string.Empty);
+            try
+            {
+                CourseLeaderboardStore.EditorStorageOverride=()=>isolated;
+                var defaultStore=new CourseLeaderboardStore();
+                Assert.That(defaultStore.Record(Result(key,17),"review","Review","duck",DateTime.UtcNow),Is.True);
+                Assert.That(new CourseLeaderboardStore().PersonalBest(key,"review"),Is.EqualTo(17));
+                var explicitStore=new CourseLeaderboardStore(explicitStorage);
+                Assert.That(explicitStore.Load(key),Is.Empty);
+                Assert.That(explicitStore.Record(Result(key,16),"explicit","Explicit","duck",DateTime.UtcNow),Is.True);
+                Assert.That(isolated.SaveCount,Is.EqualTo(1));
+                Assert.That(explicitStorage.SaveCount,Is.EqualTo(1));
+                Assert.That(UnityEngine.PlayerPrefs.HasKey(key.StorageKey),Is.EqualTo(existed));
+                Assert.That(UnityEngine.PlayerPrefs.GetString(key.StorageKey,string.Empty),Is.EqualTo(original));
+            }
+            finally {CourseLeaderboardStore.EditorStorageOverride=prior;}
+        }
+
+        [Test]
         public void RankedResultsSortAndKeepIndependentPlayerBests()
         {
             var course=CourseCatalog.Find("moth-line");

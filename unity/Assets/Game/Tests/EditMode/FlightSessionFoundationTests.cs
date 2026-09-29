@@ -69,6 +69,36 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void EstimatedHandMotionKeepsFlightTravelButCannotEarnActivityOrBridgeWingbeats()
+        {
+            var tracker = NewTracker();
+            var up = At(0, 0, 0, FlightSessionTimeCategory.ActiveHand);
+            up.LeftHandVelocity = up.RightHandVelocity = Vector3.up;
+            tracker.Observe(up);
+            var estimated = At(0, 3, 4, FlightSessionTimeCategory.ActiveHand);
+            estimated.LeftHandVelocity = estimated.RightHandVelocity = Vector3.down * 8;
+            estimated.LeftHandMotionEstimated = true;
+            tracker.Observe(estimated);
+            var recoveredDown = At(0, 3, 5, FlightSessionTimeCategory.ActiveHand);
+            recoveredDown.LeftHandVelocity = recoveredDown.RightHandVelocity = Vector3.down;
+            tracker.Observe(recoveredDown);
+            var metrics = tracker.Snapshot().Metrics;
+            Assert.That(metrics.ActiveHandSeconds, Is.EqualTo(.1).Within(.00001));
+            Assert.That(metrics.QuietAirborneSeconds, Is.EqualTo(.05).Within(.00001));
+            Assert.That(metrics.FlightDistanceMeters, Is.EqualTo(6).Within(.00001));
+            Assert.That(metrics.GrossAscentMeters, Is.EqualTo(3).Within(.00001));
+            Assert.That(metrics.EstimatedWingbeats, Is.Zero);
+            Assert.That(FlightSessionTracker.ClassifyAirborneHands(Vector3.down * 8,
+                Vector3.down * 8, true, false), Is.EqualTo(FlightSessionTimeCategory.QuietAirborne));
+            var nextUp = At(0, 3, 6, FlightSessionTimeCategory.ActiveHand);
+            nextUp.LeftHandVelocity = nextUp.RightHandVelocity = Vector3.up;
+            tracker.Observe(nextUp);
+            recoveredDown.LogicalPosition = new VoarVR.World.LogicalPosition(0, 3, 7);
+            tracker.Observe(recoveredDown);
+            Assert.That(tracker.Snapshot().Metrics.EstimatedWingbeats, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TrackerCountsARealFrameHitchWithoutMultiplyingItsTravel()
         {
             var tracker=NewTracker();
@@ -181,6 +211,50 @@ namespace VoarVR.Tests
             Assert.That(repeated.EndedUtc, Is.EqualTo(summary.EndedUtc));
             Assert.That(tracker.Observe(At(1, 1, 1)), Is.False);
             Assert.That(tracker.RecordCollision(), Is.False);
+        }
+
+        [Test]
+        public void EditorDefaultStoresKeepLifecycleWritesInTheirIsolatedDirectories()
+        {
+            var priorProfiles=PlayerProfileCatalog.EditorDirectoryOverride;
+            var priorHistory=FlightSessionHistoryStore.EditorDirectoryOverride;
+            string profilesRoot=Path.Combine(temporaryRoot,"isolated-profiles");
+            string historyRoot=Path.Combine(temporaryRoot,"isolated-history");
+            PlayerProfileCatalog profiles;
+            FlightSessionHistoryStore history;
+            try
+            {
+                PlayerProfileCatalog.EditorDirectoryOverride=()=>profilesRoot;
+                FlightSessionHistoryStore.EditorDirectoryOverride=()=>historyRoot;
+                profiles=new PlayerProfileCatalog();history=new FlightSessionHistoryStore();
+                Assert.That(profiles.RootDirectory,Is.EqualTo(profilesRoot));
+                Assert.That(history.RootDirectory,Is.EqualTo(historyRoot));
+                Assert.That(profiles.CreateProfile("Review pilot",out _),Is.True,profiles.Notice);
+                Assert.That(history.SaveDraft(NewTracker().Snapshot()),Is.True,history.LastError);
+
+                string explicitProfiles=Path.Combine(temporaryRoot,"explicit-profiles");
+                string explicitHistory=Path.Combine(temporaryRoot,"explicit-history");
+                Assert.That(new PlayerProfileCatalog(explicitProfiles).Profiles.Length,Is.EqualTo(1),
+                    "An explicitly supplied store must not read the review catalog.");
+                Assert.That(new FlightSessionHistoryStore(explicitHistory)
+                    .TryLoadLatestDraft("default","session-1",out _),Is.False);
+                PlayerProfileCatalog.EditorDirectoryOverride=()=>null;
+                FlightSessionHistoryStore.EditorDirectoryOverride=()=>" ";
+                Assert.Throws<InvalidOperationException>(()=>new PlayerProfileCatalog());
+                Assert.Throws<InvalidOperationException>(()=>new FlightSessionHistoryStore());
+            }
+            finally
+            {
+                PlayerProfileCatalog.EditorDirectoryOverride=priorProfiles;
+                FlightSessionHistoryStore.EditorDirectoryOverride=priorHistory;
+            }
+            // Existing save owners retain their directory even after factories are restored,
+            // including destruction/focus callbacks that flush a previously created store.
+            var final=NewTracker().Finish("player-ended",DateTime.UtcNow);
+            Assert.That(history.Finalize(final),Is.True,history.LastError);
+            Assert.That(new FlightSessionHistoryStore(historyRoot)
+                .TryLoadFinal("default","session-1",out _),Is.True);
+            Assert.That(new PlayerProfileCatalog(profilesRoot).Profiles.Length,Is.EqualTo(2));
         }
 
         [Test]

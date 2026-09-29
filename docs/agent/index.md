@@ -4,6 +4,9 @@ Read in order: [current state](current-state.md), [repo map](repo-map.md), [open
 
 Source code/tests/configuration outrank these compiled notes. Update notes when evidence changes.
 
+- [Hands-first implementation review](../reviews/2026-09-28-hand-flight-implementation.md) and [handoff](session-handoffs/2026-09-28-hand-flight-implementation.md) — current state of the controller-free build, fixes, deferred items and Quest test plan.
+- [Executed September28 pre-Quest review](../reviews/2026-09-28-competition-preflight.md) — current tests, independent critiques, fixes and remaining candidate gates.
+- [Hands-first competition readiness](../competition/meta-vr-start-2026.md#readiness-at-september-28), [implementation contract](../../design/HAND_FLIGHT.md) and [September 28 merge review](session-handoffs/2026-09-28-hand-flight-merge-review.md) — current branch direction and evidence gates.
 - [First adventure implementation and remaining gates](../reviews/2026-09-10-route-home-implementation.md) — A Route Home, durable progress, comfort/help and focused visual changes, with actual validation.
 - [Game critique and prioritized future work](../reviews/2026-09-10-game-critique-and-roadmap.md) — original evidence-scoped grades and24 work orders; use the implementation report for current status.
 - [Architecture](../ARCHITECTURE.md)

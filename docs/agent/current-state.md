@@ -1,5 +1,46 @@
 # Current state
 
+## September 29 — hand controls revision 2 installed on Quest
+
+First wearer session (`6a5e0f27`) compared with five controller sessions: inputs matched controller speeds, but 16% of airborne time was an unintended flare (span wider than the compact calibration) and natural shoulder-plane hands dropped to Wide Motion Mode's inferred pose, which jumps 25–39 cm at handoffs and correctly earns no flap force. Revision: no span flare for hands, forward-sweep "backstroke" flare latched until a normal downstroke, calibration 0.25–0.65 m per side, continuous inferred handoff, 0.06 s recovery, perched wings mirror arm spread. EditMode 324/324, PlayMode 70/70. APK `fe75c541…` installed and running on Quest 3 (no fatal or Unity errors). Awaiting wearer feedback. [Telemetry review](../reviews/2026-09-29-hand-controls-telemetry.md).
+
+## September 29 — hands-first flow closed out locally; ready for a Quest test
+
+Controller-free Magpie Route Home is implemented end to end in source: gaze + pinch preflight, calibration perched on an authored ridge lookout (`FlightRegions.DepartureLookout*`) with the bird visible, measured takeoff, two-pinch rest, settings, recalibration, results and return. Cards draw over terrain; gaze uses a two-tone reticle and hover. Round-3 visual/player critique drove fixes for calibration exits, hands resume, focus return and card re-anchoring (technical critic was cut off by a usage limit). **EditMode 318/318, PlayMode 70/70, host 29/29.** Scripted Magpie pilot completes from the lookout in 215.85 simulated s. Fresh Development APK built from this tree (see handoff for hash, manifest and `VerifyApk()` result). Not installed; no Quest evidence. Deferred items (HUD-hidden coaching, moth tally, chase-camera horizon roll, afterglow) are listed in the [review](../reviews/2026-09-28-hand-flight-implementation.md). [Handoff](session-handoffs/2026-09-28-hand-flight-implementation.md). No commit/push.
+
+## September 28 — Quest discovery subnet fix
+
+`quest.py` now uses the default interface and actual IPv4 netmask, instead of hardcoding `/24`. This Mac is on `192.168.68.0/22`; all1022 hosts are covered with bounded discovery.27 host tests pass. Live full-subnet discovery found no TCP5555 listener; cached address192.168.68.52 responds to ping but refuses5555, and ADB/mDNS discovery is empty. Network presence is not an enabled wireless-debugging session. No install/launch occurred. [Handoff](session-handoffs/2026-09-28-quest-discovery.md).
+
+## September 28 — local competition preflight executed; hands-first candidate pending
+
+User confirmed US/Start membership. Reconnected Unity6000.6.0f1 and ran the merged branch: **297/297 EditMode**, **58/58 full PlayMode**, **12/12 final affected player-facing tests**, **23/23 host tests**. Independent visual/player/technical review drove bounded fixes for rival landability, course input recovery, v4 turn/estimated-motion replay, objective/reward feedback and UI layout. [Full review](../reviews/2026-09-28-competition-preflight.md), [handoff](session-handoffs/2026-09-28-competition-preflight.md).
+
+Fresh evidence includes72 staged lifecycle/UI captures across all five courses,46 runtime-camera guidance fixtures and a202.073s Magpie input-only Route Home with seed, real landing and saved restoration. The final screenshot agrees with completion. These do not establish physical completion of the five courses, authored cold-start onboarding or Quest acceptance. Saves are unchanged:311 gameplay files, no additions, no gameplay preference changes. Temporary EditorSettings/XR preloads are restored byte-for-byte; no authored scene/prefab was changed.
+
+Scoped UI/guidance/safety scores are8/10; world composition/materials remain6/10 and stylization7/10. The overall visual gate is not met. SDK/hand adapter/continuity, compact calibration, gaze/pinch UI and the perched Magpie judge opening are still missing. V4 now preserves supported yaw and estimated-motion flags; future hand signals require another schema version and activity/wingbeat accounting still needs provenance. No Quest install/recording, commit or push. The conflict is resolved; the merge remains uncommitted. The checker retains24 known TMP findings.
+
+Fresh local Android development APK succeeded in57.835s (0 errors/32 warnings),100,681,339 bytes, SHA-256 `4067556e…e2a2aba`; embedded source fingerprint matches. This controller regression APK was not installed. Build evidence and warnings are in the current review.
+
+## Earlier September 28 merge-only phase — superseded by executed preflight
+
+The following records the initial merge-only pass; the current verification, eligibility and telemetry status is above.
+
+
+Feature head `7798d3a` and incoming main `183557f` match origin. Resolved the sole conflict in `log.md` by preserving both September 12 entries and the September 27 competition entry. Auto-merged code retains `MotionEstimated` and both stroke-energy guards alongside the course/session/gameplay work. The merge is uncommitted; prior staged assets and runtime changes are preserved. [Review handoff](session-handoffs/2026-09-28-hand-flight-merge-review.md).
+
+The [competition brief](../competition/meta-vr-start-2026.md#readiness-at-september-28) now tracks concrete exit evidence. Next: compatible hand SDK/adapter, continuity and telemetry v4, then complete hand UI and compact calibration. Session activity/wingbeat accounting and replay must preserve motion provenance before hand input is enabled. Entrant eligibility is separately unconfirmed under the current official rules.
+
+This pass: 21/21 host tests pass; repository checking still reports only the 24 documented TMP GUID findings. Unity 6000.6.0f1 is open for this project but MCP reports zero connected instances, so no fresh Unity tests or APK were produced. Reconnect with **VoarVR → Tools → Reconnect Installed MCP Session**, then run current hand-safety/flight/ground/replay tests through the Test Runner. The September 12 suite counts, source-matched APK and headset connectivity below are historical evidence for that controller build, not validation of this merged branch or current device status.
+
+## Meta VR Start 2026 hands-first competition branch — plan and first safety guard
+
+Competition branch `meta-vr-start-2026-hand-flight` targets **Gaming / Adapted / Significantly Updated Experience**. The narrowed entry is a controller-free, compact seated version of A Route Home with a roughly five-minute launch → thermal → seed → arch → garden payoff. Strategy, rubric mapping, submission milestones and cut scope are in [competition plan](../competition/meta-vr-start-2026.md); tracking architecture and agent work order are in [hands-first flight](../../design/HAND_FLIGHT.md).
+
+First low-risk solver change is implemented: `WingInput.MotionEstimated` lets an inferred/predicted pose remain available for continuity and steering while `BirdFlightController` refuses to turn its estimated velocity into active stroke energy. A new EditMode regression compares an identical 2.5m/s measured versus estimated downstroke. This is the foundation for Wide Motion Mode/source transitions; no Meta XR SDK dependency, hand adapter or gaze UI has been added. The later September28 preflight implements the limited telemetry-v4 contract described above.
+
+Research target is Meta XR Core/Interaction SDK v207+ on the existing OpenXR backend, with Wide Motion Mode evaluated for lateral wing poses, Fast Motion Mode decided from Quest data, and unextrapolated hand poses recorded for replay/tuning. The September 27 changes had source review only; merged Unity regression tests now pass in the September28 preflight above; Quest hand validation remains pending.
+
 ## Quest playtest follow-through — built; headset install and wearer acceptance pending
 
 The September 12 wearer capture remains the latest Quest recording: `acb16e8e…`, Magpie/Skyward, 96,393 frames and 1,338.96 simulated seconds with a clean footer and zero writer drops. A fresh read-only check now confirms the remote and local 116,227,660-byte files share SHA-256 `d5185550…b02bc`; no newer remote session exists. The trace and original diagnosis remain in the [evidence brief](../reviews/2026-09-12-quest-playtest-next-round.md).
@@ -10,7 +51,7 @@ Course timing and persistence include safety/fairness handling: pause, reset, tr
 
 Unity 6000.6.0f1 passes 286/286 EditMode (job `101b9fb371d047d0adca5115b01857bb`) and 54/54 PlayMode tests (job `6234e8eebc3548438b151791e57ea7d2`); the final focused collider suite passes 5/5 (job `7bc2d7ede2934fa7b63327d157b85908`). Host tooling passes 21/21 and `git diff --check` passes. A fresh seven-screen independent review found no high objective defect and scored legibility, hierarchy, provisional VR comfort, completeness and course guidance 8/10; this is not Quest hardware validation. The repository checker still reports the known 24 unused TextMesh Pro sample GUID findings. Current ignored screenshots are under `artifacts/reviews/playtest-features/`; the implementation handoff is [here](session-handoffs/2026-09-12-playtest-features-implementation.md).
 
-A current Quest development APK was built from the live Unity Editor in 91.360 seconds with BuildReport `Succeeded`, zero errors and five warnings: `builds/quest/VoarVR.apk`, 82,339,095 bytes, SHA-256 `61a4b5ee5e4aca70ab32b82b7c7052dea4aabcfa0078e9b0a5c09cd82d8d36b7`. ZIP integrity is clean and its embedded source SHA-256 `7764cae054cd89b5b93a609cd983bdd309c2dd62c28ede5835daa8efc573fb10` matches the current source. Exact OpenXR preload subassets were restored live and on disk after tests/build, leaving no settings delta. Quest 3 remains `adb offline` and reconnect reports `Host is down`, so install, launch, real-controller completion of all five courses, stereo text size, comfort, collision feel and sustained Quest performance remain acceptance work. No commit or push was made.
+A current Quest development APK was built from the live Unity Editor in 91.360 seconds with BuildReport `Succeeded`, zero errors and five warnings: `builds/quest/VoarVR.apk`, 82,339,095 bytes, SHA-256 `61a4b5ee5e4aca70ab32b82b7c7052dea4aabcfa0078e9b0a5c09cd82d8d36b7`. ZIP integrity is clean and its embedded source SHA-256 `7764cae054cd89b5b93a609cd983bdd309c2dd62c28ede5835daa8efc573fb10` matched the September 12 source. Exact OpenXR preload subassets were restored live and on disk after tests/build, leaving no settings delta. Quest 3 remains `adb offline` and reconnect reports `Host is down`, so install, launch, real-controller completion of all five courses, stereo text size, comfort, collision feel and sustained Quest performance remain acceptance work. No commit or push was made.
 
 ## Route Home guidance and seed possession — built; Route Home wearer test deferred
 
@@ -95,6 +136,6 @@ Curated rigs retain their authored wing/root and leg/foot joints. `BirdGroundPre
 
 ## Validation and next gate
 
-Current final validation is 286/286 EditMode, 54/54 PlayMode and 21/21 Python tests, with the focused `SkywardWorldTests` collider run passing 5/5 and a clean diff check. The independent current seven-screen gate passes at 8/10 in every required dimension with no high objective defect; it is not Quest hardware evidence. Repo checking retains 24 pre-existing TMP example GUID failures. A source-matched Quest development APK was built successfully and passed ZIP integrity, but it has not been installed or launched because the headset is offline.
+September 12 controller validation was 286/286 EditMode, 54/54 PlayMode and 21/21 Python tests, with the focused `SkywardWorldTests` collider run passing 5/5 and a clean diff check. The independent current seven-screen gate passes at 8/10 in every required dimension with no high objective defect; it is not Quest hardware evidence. Repo checking retains 24 pre-existing TMP example GUID failures. A source-matched Quest development APK was built successfully and passed ZIP integrity, but it has not been installed or launched because the headset is offline.
 
 Do not claim zero allocations: `GC.GetAllocatedBytesForCurrentThread` reports zero even for known allocations in this editor. Current stereo readability, real-controller completion, haptic/audio/collision feel, turn/calibration comfort, sustained frame time and thermals require installation and a wearer pass. Installed VoarVR persists under Quest Library→Unknown Sources. Preserve the exact restored Android XR preload subassets around future Unity tests/builds (see handoff/history), and do not call stale-assembly/zero-test jobs successful validation.

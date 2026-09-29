@@ -165,6 +165,7 @@ namespace VoarVR.World
             float z = (cell / 6 + .2f + WorldTerrain.Unit(seed, gx, gz, 2) * .6f) * (128f / 6);
             double wx = X * 128d + x, wz = Z * 128d + z;
             if (wx * wx + wz * wz < 225) return; // reliable clear departure area
+            if (FlightRegions.InDepartureLookoutClearing(wx, wz)) return;
             float y = WorldTerrain.Elevation(seed, wx, wz), river = WorldTerrain.RiverDistance(seed, wx, wz);
             if (river < 8) return;
             if (CourseRouteReservation.IsActiveRouteReserved(wx, wz)) return;

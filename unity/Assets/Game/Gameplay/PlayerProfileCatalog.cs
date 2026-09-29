@@ -51,6 +51,10 @@ namespace VoarVR.Gameplay
     // those save schemas remain independent and can be associated during later integration.
     public sealed class PlayerProfileCatalog
     {
+#if UNITY_EDITOR
+        // Install before loading scenes so their default catalogs cannot touch player data.
+        public static Func<string> EditorDirectoryOverride;
+#endif
         public const int CurrentStorageVersion = 1;
         public const string BuiltInProfileId = "default";
         public const string BuiltInProfileName = "Player 1";
@@ -86,6 +90,14 @@ namespace VoarVR.Gameplay
         public PlayerProfileCatalog(string directory = null, Func<string> profileIdFactory = null,
             Func<DateTime> utcNow = null)
         {
+#if UNITY_EDITOR
+            if (string.IsNullOrWhiteSpace(directory) && EditorDirectoryOverride != null)
+            {
+                directory = EditorDirectoryOverride();
+                if (string.IsNullOrWhiteSpace(directory))
+                    throw new InvalidOperationException("The editor profile directory override must return an isolated directory.");
+            }
+#endif
             rootDirectory = string.IsNullOrWhiteSpace(directory)
                 ? Path.Combine(Application.persistentDataPath, DefaultDirectoryName)
                 : Path.GetFullPath(directory);

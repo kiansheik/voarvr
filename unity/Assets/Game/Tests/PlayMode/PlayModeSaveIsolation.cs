@@ -1,10 +1,12 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using VoarVR.Flight;
 using VoarVR.Gameplay;
+using VoarVR.Telemetry;
 
 namespace VoarVR.Tests
 {
@@ -28,8 +30,18 @@ namespace VoarVR.Tests
             public int Load()=>best;
             public bool Save(int value){best=Math.Max(best,value);return true;}
         }
+        private sealed class MemoryLeaderboardStorage : ICourseLeaderboardStorage
+        {
+            private readonly Dictionary<string,string> values=new Dictionary<string,string>();
+            public string Load(string key)=>values.TryGetValue(key,out var value)?value:string.Empty;
+            public bool Save(string key,string value){values[key]=value;return true;}
+        }
         private Func<IFlightSaveStorage> priorJourneyFactory;
         private Func<IForagingBestStorage> priorBestFactory;
+        private Func<ICourseLeaderboardStorage> priorLeaderboardFactory;
+        private Func<string> priorProfileDirectory,priorHistoryDirectory;
+        private string temporaryRoot,priorCourseId;
+        private bool? priorTelemetryEnabled;
         private FlightActivity priorActivity;
         private bool priorResume;
         private BirdCharacterDefinition priorCharacter;
@@ -38,11 +50,21 @@ namespace VoarVR.Tests
         {
             priorJourneyFactory=FlightJourneyStore.EditorStorageOverride;
             priorBestFactory=SkyForaging.EditorStorageOverride;
+            priorLeaderboardFactory=CourseLeaderboardStore.EditorStorageOverride;
+            priorProfileDirectory=PlayerProfileCatalog.EditorDirectoryOverride;
+            priorHistoryDirectory=FlightSessionHistoryStore.EditorDirectoryOverride;
+            priorTelemetryEnabled=FlightTelemetry.EditorEnabledOverride;
             priorActivity=ActivitySelection.Chosen;priorResume=ActivitySelection.ResumeRequested;
+            priorCourseId=ActivitySelection.ChosenCourseId;
             priorCharacter=CharacterSelection.Chosen;
-            var journey=new MemoryJourneyStorage();var best=new MemoryBestStorage();
+            temporaryRoot=Path.Combine(Path.GetTempPath(),"voarvr-playmode-"+Guid.NewGuid().ToString("N"));
+            var journey=new MemoryJourneyStorage();var best=new MemoryBestStorage();var leaderboard=new MemoryLeaderboardStorage();
             FlightJourneyStore.EditorStorageOverride=()=>journey;
             SkyForaging.EditorStorageOverride=()=>best;
+            CourseLeaderboardStore.EditorStorageOverride=()=>leaderboard;
+            PlayerProfileCatalog.EditorDirectoryOverride=()=>Path.Combine(temporaryRoot,"profiles");
+            FlightSessionHistoryStore.EditorDirectoryOverride=()=>Path.Combine(temporaryRoot,"history");
+            FlightTelemetry.EditorEnabledOverride=false;
             ActivitySelection.ResumeRequested=false;
         }
         [OneTimeTearDown]
@@ -58,8 +80,14 @@ namespace VoarVR.Tests
                 if(food!=null)UnityEngine.Object.DestroyImmediate(food);
             FlightJourneyStore.EditorStorageOverride=priorJourneyFactory;
             SkyForaging.EditorStorageOverride=priorBestFactory;
+            CourseLeaderboardStore.EditorStorageOverride=priorLeaderboardFactory;
+            PlayerProfileCatalog.EditorDirectoryOverride=priorProfileDirectory;
+            FlightSessionHistoryStore.EditorDirectoryOverride=priorHistoryDirectory;
+            FlightTelemetry.EditorEnabledOverride=priorTelemetryEnabled;
             ActivitySelection.Chosen=priorActivity;ActivitySelection.ResumeRequested=priorResume;
+            ActivitySelection.ChosenCourseId=priorCourseId;
             CharacterSelection.Chosen=priorCharacter;
+            if(Directory.Exists(temporaryRoot))Directory.Delete(temporaryRoot,true);
         }
     }
 }

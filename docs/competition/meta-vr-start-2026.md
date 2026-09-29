@@ -1,0 +1,224 @@
+# Meta VR Start Developer Competition 2026
+
+This document is the competition-facing product brief for VoarVR. It is intentionally narrower than the long-term game roadmap.
+
+## Readiness at September 28
+
+Reviewed feature head `7798d3a` with incoming main `183557f`; both match origin. The conflict is resolved and the merge remains uncommitted. The combined controller baseline has now compiled and run in Unity 6000.6.0f1: 297/297 EditMode, 58/58 full PlayMode, then 12/12 affected player-facing tests after the final UI revisions; 23/23 host tests pass. [Current pre-Quest review](../reviews/2026-09-28-competition-preflight.md) records fixes, fresh evidence and remaining gates.
+
+The critical path is a complete compact, hands-first Magpie Route Home. Existing extra modes can support replay later; they should not expand the opening judge route. Every menu and mode exposed in the competition build must work with hands; hide or defer controller-dependent extras until their full hand path is validated. Track readiness through evidence rather than a promised score or award:
+
+| Order | Deliverable | Exit evidence | Current status |
+| --- | --- | --- | --- |
+| 0 | Merge baseline | Current Unity compile and executed hand-safety/flight/ground/replay regressions | Passed locally; controller baseline only |
+| 1 | Compatible hand stack | Exact SDK/OVRPlugin versions pinned; existing OpenXR path compiles | Meta XR Core 207.0.0 / OVRPlugin 1.207.0 on Unity OpenXR 1.18; compiles; Android Development APK builds with hands required and hand/body permissions. Not installed |
+| 2 | Safe hand adapter and recording | Direct/inferred/lost transitions, supported takeoff and dropout tests; versioned provenance-preserving replay | Implemented: `MetaHandFlightInput` + `HandPoseContinuity`, provenance-aware effort/activity/wingbeats and telemetry v5; deterministic dropout/recovery/replay tests pass. No real hand recording |
+| 3 | Complete hands-first flow | Cold start, selection, compact calibration, flight, pause/help/recalibration, landing and results with no controller | Implemented in source: Magpie default, gaze + pinch preflight/courses, compact READY calibration, perched ridge-lookout departure, two-pinch rest, settings page, recalibration, results and return. Desktop evidence uses synthetic hands and Button callbacks; physical gesture recognition is unverified |
+| 4 | Measured tracking | Quest WMM comparisons, FMM decision and recorded recovery without false propulsion or activity credit | No hand recordings |
+| 5 | Opening payoff | Fresh wearer understands launch, thermal, seed ownership, arch and garden without coaching, around five minutes | Scripted semantic-input Magpie pilot completes from the perched lookout in 215.85 simulated seconds (air-spawn baseline 202.07 s); lift is found 2.2 s after launch. Hand pacing and comprehension unverified |
+| 6 | Candidate quality | Independent visual/player/technical review plus sustained Quest performance, comfort and restart/resume evidence | Round-3 hands review: high lifecycle/gaze defects fixed and retested; deferred HUD-hidden coaching, moth tally, chase-camera horizon roll and afterglow card. World art 5–6/10. No Quest comfort/performance evidence |
+| 7 | Submission | Verified channel access, frozen APK identity and honest gameplay video/text | Not prepared. Needs a non-Development build (the Development APK carries Meta's dev-only XR Operator layer and Unity's profiler address), Meta's API 32 / single-GameActivity checks, and a fresh manifest and `VerifyApk()` pass |
+
+Telemetry v5 records hand source classification, native sample/capture timestamps, unextrapolated poses and SDK-reported WMM state, with v1–v4 reader compatibility. Session activity/wingbeat accounting excludes estimated, low-confidence and recovering motion. The current five obstacle courses have executed staged lifecycle/presentation checks, not input-only physical completion. Neither these fixtures nor the controller regression APK are submission footage. See [hand-flight contract](../../design/HAND_FLIGHT.md).
+
+## Entrant eligibility — user confirmed
+
+On September 28 the user confirmed they are a US member in response to the entrant/Start-membership question. Treat this as user-confirmed eligibility for the project plan; the earlier residency question is closed. Official entry requirements remain the submission reference. [Official rules](https://start-developer-competition-26.devpost.com/rules).
+
+## Submission path
+
+**Track:** Gaming  
+**Division:** Adapted / Significantly Updated Experience  
+**Primary target:** Best Adapted / Significantly Updated Gaming Experience  
+**Secondary positioning:** Best First Five Minutes, Boldest Original Concept, and Best Reason to Come Back.
+
+Do **not** enter this repository as a New Experience. VoarVR had a working prototype and commits before the competition window opened on September 24, 2026. The competition explicitly lists implementing hand interactions as an example of a significant update, which makes the controller-to-hands conversion both required for the 2026 rules and an unusually clean adapted-experience story.
+
+The entry deadline is November 18, 2026 at 12:00 PM PT. Keep judge access free and available until the winner announcement, currently around December 11; freeze the submitted version after the deadline. The current implementation uses Unity and therefore the competition build should be uploaded to a Meta VR Developer Dashboard release channel named `Competition`, with an invite URL supplied to judges. The demo video must be public on YouTube or Vimeo and under three minutes. [Official rules](https://start-developer-competition-26.devpost.com/rules).
+
+Official sources:
+
+- https://start-developer-competition-26.devpost.com/
+- https://start-developer-competition-26.devpost.com/rules
+- https://start-developer-competition-26.devpost.com/details/judging
+- https://start-developer-competition-26.devpost.com/details/special-awards
+- https://start-developer-competition-26.devpost.com/details/faqs
+- https://developers.meta.com/blog/meta-connect-2026-vr-start-developer-competition/
+
+## Competition version of the product
+
+The competition pitch is not “a large bird simulator.” It is:
+
+> **Spread your hands. Become a bird. Fly home.**
+
+The judge should understand the fantasy in seconds and experience a complete physical story within roughly five minutes.
+
+The preferred competition slice is a tightened version of **A Route Home**:
+
+1. **Perch / 0:00–0:20.** The player sees their bird and hands/wings responding immediately. A compact comfortable hand pose establishes neutral flight. No controller is paired.
+2. **First launch / 0:20–0:50.** One natural downstroke launches the bird. The game teaches by response rather than a text wall.
+3. **First mastery / 0:50–1:45.** Glide, bank and make one useful flap. The player learns that hand height/orientation and motion have physical consequences.
+4. **Thermal payoff / 1:45–2:45.** A highly legible rising-air feature lets the player climb by spreading and circling instead of repeatedly flapping.
+5. **Purpose / 2:45–4:00.** Reach and collect the Route Home seed, then pass through the arch. Existing route guidance should keep the objective in view without requiring HUD text.
+6. **Return / 4:00–5:00.** Flare physically, land in the garden, and visibly restore it.
+7. **Afterglow.** Show the persistent consequence and one obvious reason to fly again: another route, species, restored sanctuary element, or mastery target.
+
+This slice directly supports the special-award language without sacrificing the main division: fast controller-free learning, an early payoff, an XR-native premise, and persistent progression.
+
+## What to cut from the judging path
+
+The competition branch should aggressively protect the first five minutes.
+
+Do not make any of these prerequisites for submission:
+
+- multiplayer;
+- passthrough/MR merely to demonstrate another Meta API;
+- a larger procedural world;
+- additional species beyond what already exists;
+- more acrobatic depth before Beginner/competition flight is excellent;
+- a large campaign;
+- new economy systems;
+- generalized UGC;
+- controller parity work beyond preserving the existing fallback.
+
+Passthrough should be added only if it materially changes the experience. The current full-immersion “become a bird” fantasy is already spatially native.
+
+## Rubric translation
+
+The official judging criteria are equally weighted.
+
+### Innovation & Creativity
+
+Evidence we should put in front of judges:
+
+- bare hands become biological control surfaces rather than generic cursors;
+- hand pose, wing orientation, motion, air mass and species parameters feed a real force-integrated flight model;
+- soaring/thermals create a spatial mechanic that is hard to reproduce on a flat screen;
+- the player embodies an articulated bird rather than piloting a vehicle.
+
+The submission text should explain the pre-competition controller baseline and the competition-window hand implementation as a meaningful new platform integration.
+
+### Experience Design
+
+The build must pass three simple tests:
+
+- **Hands-first:** every required action from cold start to completion works without pairing a controller.
+- **Airplane-seat:** the competition mode works within an approximately two-foot radius around the seated player.
+- **Bus-stop:** there is a complete satisfying arc in ten minutes or less; our internal target is about five.
+
+The competition default should use a **compact wing envelope**. Calibrate a comfortable half-span well inside the two-foot radius and scale that to the selected bird's authored span. Full-wing/fitness mode may remain available, but cannot be the only viable interaction model.
+
+### Technical Implementation
+
+The floor is a stable Quest build at at least 60 fps. Our technical story should be:
+
+- OpenXR runtime retained;
+- Meta XR Core / Interaction SDK v207+ added deliberately for hand/gaze capabilities;
+- OpenXR hand skeleton used for wrist/palm tracking;
+- Wide Motion Mode evaluated for side-of-headset wing motion;
+- Fast Motion Mode evaluated from measured tracking loss rather than enabled blindly;
+- confidence/source-aware continuity prevents tracking loss or reacquisition from producing impossible aerodynamic impulses;
+- gaze + pinch handles menus and settings;
+- local telemetry and deterministic replay drive tuning.
+
+The implementation plan lives in [hand flight](../../design/HAND_FLIGHT.md).
+
+### Polish & Presentation
+
+The judge should not be asked to imagine the finished experience. Before content expansion, prioritize:
+
+- readable bird silhouette and feather response;
+- strong launch, thermal, seed, arch and landing feedback;
+- spatial audio and wind;
+- clean hand-first menus;
+- stable pause/resume;
+- zero obvious tracking pops;
+- no unexplained HUD clutter;
+- an under-three-minute trailer made from actual Quest gameplay.
+
+## Hero species
+
+Use **Magpie** as the initial competition hero unless the first hand-tracked wearer tests show a clear readability problem. It is the most developed avian rig, gives the strongest “I am a bird” silhouette, and avoids making the competition pitch depend on a fantasy creature. Duck and Dragon can remain available as retention/replay rewards without entering the critical path.
+
+## Milestones
+
+### Sep 27–Oct 4 — hand foundation
+
+- Import/validate Meta XR Core + Interaction SDK v207+ without replacing the OpenXR backend.
+- Build `MetaHandFlightInput : IFlightInput`.
+- Enable end-to-end hands in the existing BirdFlight scene.
+- Add gaze/pinch UI path for all required menu actions.
+- Establish direct/inferred/lost pose telemetry.
+- Get first Quest recordings of side wing motion.
+
+Exit: launch, glide, flap, bank, pause/recalibrate and land without a controller.
+
+### Oct 5–12 — compact competition flight
+
+- Add compact seated calibration and scale it into existing bird-space control.
+- Evaluate Wide Motion Mode on actual side sweeps.
+- Compare default 30 Hz vs Fast Motion Mode 60 Hz using telemetry.
+- Tune tracking continuity and reacquisition.
+- Make Route Home completable hand-only.
+
+Exit: no physics spikes through direct → inferred → lost → recovered transitions; complete Route Home inside the competition movement envelope.
+
+### Oct 13–25 — first-five-minute loop
+
+- Tighten route spacing/pacing for a roughly five-minute first run.
+- Improve thermal readability and early payoff.
+- Make launch, seed pickup and garden restoration self-explanatory with HUD off.
+- Run repeated fresh-user wearer tests.
+- Preserve a visible persistent change/replay hook.
+
+Exit: new player can finish without verbal coaching from the developer.
+
+### Oct 26–Nov 8 — polish and Quest performance
+
+- Quality-loop passes for visual, player and Quest technical review.
+- Profile representative route on hardware; maintain >=60 fps and remove obvious hitches.
+- Polish audio, animation, UI, hand transitions and restart/resume.
+- Freeze feature scope.
+
+Exit: release candidate survives repeated cold-start-to-completion runs.
+
+### Nov 9–16 — submission candidate
+
+- Build to the `Competition` release channel and verify invite from a separate account/device path if possible.
+- Produce final screenshots and under-three-minute video from real gameplay.
+- Write a concise submission description (internal target: <=500 words) and adapted-experience changelog, including future plans and target launch date.
+- Verify English text/subtitles, policies, third-party licenses and credits.
+- Run a judge-path checklist from a clean install.
+
+### Nov 17 — internal freeze
+
+Only submission blockers after this point. Submit before the November 18 deadline rather than treating noon PT as the working target.
+
+## Competition definition of done
+
+A release candidate is not ready until all of the following are true:
+
+- no controller is paired during the complete judge route;
+- all required UI is hands or gaze+pinch;
+- the seated compact mode works inside the intended two-foot-radius envelope;
+- first meaningful flight occurs in under one minute;
+- a complete Route Home payoff is reachable in roughly five minutes and comfortably under ten;
+- a tracking dropout/reacquisition cannot add active flap energy or snap the bird;
+- WMM inferred pose state is observable in telemetry;
+- FMM decision is backed by measured Quest data;
+- current representative Quest run stays at or above the competition's 60 fps floor;
+- pause, focus loss, resume and recalibration are clean;
+- cold install and Competition-channel access have been tested;
+- the final video leads with actual hand flight, not menus or architecture slides.
+
+## Submission narrative skeleton
+
+Draft intended positioning only. The hand conversion and broader return hooks below are not delivered claims. Rewrite against the final recorded build before submission; currently the persistent Route Home restoration, existing species and local course/session records are the concrete return hooks.
+
+**Inspiration:** people know what spreading their arms like wings means before a tutorial explains it.
+
+**What changed during the competition:** VoarVR's pre-existing controller-tracked flight prototype became an end-to-end hands-first experience. Hand pose now directly controls biological wings, with confidence-aware continuity for the difficult side-of-headset motion inherent to flapping flight. Menus/onboarding are controller-free, and the existing Route Home journey was rebuilt around a compact seated interaction envelope.
+
+**How it works:** the game calibrates the player's comfortable hand pose into bird-specific wing geometry. Relative hand motion and orientation feed the existing force-integrated lift/drag/stroke model. Direct camera tracking, Wide Motion Mode inference, tracking confidence and short-gap continuity are treated differently so tracking artifacts cannot create free energy.
+
+**Why return:** each short flight restores the sanctuary and exposes new routes/species/mastery goals rather than ending as a one-off tech demo.

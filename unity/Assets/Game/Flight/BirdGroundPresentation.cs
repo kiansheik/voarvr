@@ -14,10 +14,12 @@ namespace VoarVR.Flight
         private Transform[] feet;
         private Vector3[] footRest;
         private Quaternion[] footRotation;
-        private float blend, stride;
+        private float blend, stride, armFold = 1f;
         private float radius;
         private Quaternion leftHandFrame,rightHandFrame,leftUpperFrame,rightUpperFrame,leftLowerFrame,rightLowerFrame;
         public float GroundBlend=>blend;
+        // Fold actually applied: grounded blend scaled by how relaxed the tracked arms are.
+        public float FoldBlend=>blend*armFold;
         public int LegCount=>feet?.Length??0;
         public void Configure(BirdRigDriver wings,float collisionRadius)
         {
@@ -42,11 +44,13 @@ namespace VoarVR.Flight
             root.localPosition=rootRest;root.localRotation=rootRotation;
             for(int i=0;i<feet.Length;i++){feet[i].localPosition=footRest[i];feet[i].localRotation=footRotation[i];}
         }
-        public void Present(BirdFlightController c,float dt)
+        // armFold 1 folds fully; 0 leaves the tracked wing pose so perched wings mirror arms.
+        public void Present(BirdFlightController c,float dt,float armFoldTarget=1f)
         {
             if(root==null)return;
             bool grounded=c.State.Phase==FlightPhase.Perched;
             blend=Mathf.MoveTowards(blend,grounded?1:0,dt*(grounded?4:7));
+            armFold=Mathf.MoveTowards(armFold,Mathf.Clamp01(armFoldTarget),dt*4);
             float speed=new Vector2(c.GroundVelocity.x,c.GroundVelocity.z).magnitude;
             if(grounded)stride+=speed*dt/Mathf.Max(.12f,radius*.8f);
             float walk=grounded?Mathf.Clamp01(speed/.7f):0;
@@ -55,8 +59,8 @@ namespace VoarVR.Flight
             root.localRotation=rootRotation;
             root.rotation=Quaternion.AngleAxis(Mathf.Sin(stride*Mathf.PI)*3f*walk*blend,transform.forward)*root.rotation;
             // Fold in the bird's heading frame; no override of the physical headset.
-            Fold(rig.leftUpper,rig.leftForearm,rig.leftHand,rig.leftTip,true,blend);
-            Fold(rig.rightUpper,rig.rightForearm,rig.rightHand,rig.rightTip,false,blend);
+            Fold(rig.leftUpper,rig.leftForearm,rig.leftHand,rig.leftTip,true,FoldBlend);
+            Fold(rig.rightUpper,rig.rightForearm,rig.rightHand,rig.rightTip,false,FoldBlend);
             for(int i=0;i<feet.Length;i++)
             {
                 var foot=feet[i];foot.localPosition=footRest[i];foot.localRotation=footRotation[i];

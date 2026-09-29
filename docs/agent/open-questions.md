@@ -1,5 +1,16 @@
 # Open questions
 
+## Hands-first competition gates
+
+- Entrant/Start membership: user confirmed US membership on September 28; the earlier eligibility question is closed. See the [competition brief](../competition/meta-vr-start-2026.md#entrant-eligibility--user-confirmed).
+- Merged hand-safety/flight/ground/replay tests now pass locally; see the [current pre-Quest review](../reviews/2026-09-28-competition-preflight.md). Physical input-only completion of all five obstacle courses and the authored cold-start opening remain unverified.
+- ~~Pin SDK/OVRPlugin, hand adapter/continuity, provenance-aware metrics, v5 hand telemetry, controller-free UI and compact calibration~~ Implemented September 28 with deterministic tests and synthetic-hand desktop evidence; see the [hand-flight review](../reviews/2026-09-28-hand-flight-implementation.md).
+- Does `OVRPlugin.GetHandPoseSourceInferred` succeed on the target Quest OS with and without Wide Motion Mode, including after a denied body-tracking permission? Source-query failure decides whether direct hands can calibrate, pinch and flap at all. Needs the first device session.
+- Record actual Quest hand tracking, physical gaze/pinch and two-pinch rest recognition, uncoached Route Home completion from the ridge lookout, comfort (including always-on-top cards) and sustained frame pacing. Prior controller recordings and screenshot scores do not close these gates. See [readiness table](../competition/meta-vr-start-2026.md#readiness-at-september-28).
+- Submission build: non-Development APK without Meta's dev-only XR Operator layer or Unity's profiler address; Meta's API 32 / single-GameActivity checks; fresh manifest and `VerifyApk()` pass.
+
+## Existing controller game
+
 - ~~First real Unity compilation, URP import and package resolution~~ Resolved 2026-09-08 with Unity 6000.6.0f1.
 - ~~Android Build Support / Quest install-launch~~ Resolved 2026-09-09: a Quest 3 was connected and the current build installs, launches, stays alive and reaches BirdFlight over adb (see [quest-recovery handoff](session-handoffs/2026-09-09-quest-recovery.md)).
 - ~~September 12 gameplay follow-through~~ Implemented locally: typed moth/value ribbon, mission counts, explicit session results and per-player records, supported right-stick yaw, richer contact/foliage response, branch/compound landmark collision, non-overlapping/HUD-independent guidance, Duck/Dragon trigger poses, diagram-led safe calibration and five short data-driven courses. [Original evidence](../reviews/2026-09-12-quest-playtest-next-round.md), [implementation handoff](session-handoffs/2026-09-12-playtest-features-implementation.md). The Quest wearer acceptance items below remain open; earlier unattended CharacterSelect auto-advance is separate.

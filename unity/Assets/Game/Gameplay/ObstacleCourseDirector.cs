@@ -177,9 +177,15 @@ namespace VoarVR.Gameplay
 
         // Called before the normal paused-flight trigger router. Course result and enforced
         // rest interactions therefore cannot accidentally open or activate the pause menu.
-        public bool HandleInput(FlightInputFrame frame,bool desktopSelect=false)
+        public bool HandleInput(FlightInputFrame frame,bool desktopSelect=false,bool inputAvailable=true)
         {
             if(runtime==null)return false;
+            if(!inputAvailable)
+            {
+                // A stale trigger at focus/tracking recovery is not a new confirmation.
+                waitingRelease=true;triggerHeld=false;
+                return IsPresentingResult || awaitingRetry || IsCountdown(runtime.State);
+            }
             // Keep FINISH SESSION and calibration reachable during course results/rest.
             if(bird!=null && bird.FlightMenuVisible)return false;
             bool trigger=triggerHeld?frame.Tuck>.25f:frame.Tuck>=.65f;
@@ -348,7 +354,7 @@ namespace VoarVR.Gameplay
                     +" • "+runtime.ElapsedSeconds.ToString("F1")+"s\n"
                     +p.Label.ToUpperInvariant()+" "+amount+" • "+DirectionHint();
             }
-            if(runtime.State==CourseState.Ready&&awaitingRetry)return definition.Title.ToUpperInvariant()+"  •  REST COMPLETE  •  TRIGGER TO RETRY";
+            if(runtime.State==CourseState.Ready&&awaitingRetry)return definition.Title.ToUpperInvariant()+(bird.UsesHands ? "  •  REST COMPLETE  •  PINCH TO RETRY" : "  •  REST COMPLETE  •  TRIGGER TO RETRY");
             return definition.Title.ToUpperInvariant()+"  •  "+runtime.State.ToString().ToUpperInvariant();
         }
 
@@ -490,7 +496,8 @@ namespace VoarVR.Gameplay
                     overlay.text="REST BREAK  "+remaining+"\nLET YOUR ARMS HANG · BREATHE · RESET YOUR SHOULDERS";
                 }
             }
-            else overlay.text="REST COMPLETE\nRIGHT TRIGGER: RETRY   ·   LEFT MENU: FINISH SESSION";
+            else overlay.text=bird.UsesHands ? "REST COMPLETE\nPINCH: RETRY   ·   HOLD BOTH PINCHES IN FRONT: MENU"
+                : "REST COMPLETE\nRIGHT TRIGGER: RETRY   ·   LEFT MENU: FINISH SESSION";
         }
 
         private string ResultText()
@@ -501,6 +508,8 @@ namespace VoarVR.Gameplay
                 .Append(lastResult.CompletedTasks).Append('/').Append(lastResult.TotalTasks).Append(" tasks  ·  ")
                 .Append(!lastResult.Completed?FailureText(lastResult.FailureReason)
                     :lastResult.Ranked?"RANKED":"PRACTICE RUN · NOT ADDED TO LEADERBOARD").Append("\n");
+            if(lastResult.Completed&&!lastResult.Ranked)
+                text.Append("WHY: ").Append(PracticeReasons(lastResult.NonRankedReasons)).Append("\n");
             var entries=leaderboard.Load(lastResult.Key);
             if(!string.IsNullOrEmpty(leaderboard.LastError))leaderboardError=leaderboard.LastError;
             double personal=double.PositiveInfinity;
@@ -511,7 +520,29 @@ namespace VoarVR.Gameplay
             else for(int i=0;i<Math.Min(5,entries.Length);i++)text.Append("\n").Append(i+1).Append("  ")
                     .Append(entries[i].ProfileName).Append("  ").Append(entries[i].Seconds.ToString("F2")).Append(" s");
             if(!string.IsNullOrEmpty(leaderboardError))text.Append("\nRECORD WARNING  ").Append(leaderboardError);
-            text.Append("\n\nRIGHT TRIGGER: BEGIN REQUIRED REST");return text.ToString();
+            text.Append(bird.UsesHands ? "\n\nPINCH: BEGIN REQUIRED REST" : "\n\nRIGHT TRIGGER: BEGIN REQUIRED REST");return text.ToString();
+        }
+
+        private static string PracticeReasons(CourseNonRankedReason reasons)
+        {
+            var labels=new List<string>();
+            if((reasons&(CourseNonRankedReason.TrackingLost|CourseNonRankedReason.CalibrationLost))!=0)
+                labels.Add("tracking interrupted");
+            if((reasons&(CourseNonRankedReason.Paused|CourseNonRankedReason.ApplicationSuspended))!=0)
+                labels.Add("flight paused");
+            if((reasons&CourseNonRankedReason.Collision)!=0)labels.Add("obstacle contact");
+            if((reasons&(CourseNonRankedReason.Reset|CourseNonRankedReason.Recovery))!=0)
+                labels.Add("position reset");
+            if((reasons&(CourseNonRankedReason.ControlModeChanged|CourseNonRankedReason.WeatherChanged
+                |CourseNonRankedReason.AssistanceChanged))!=0)labels.Add("flight settings changed");
+            if((reasons&CourseNonRankedReason.FrameTiming)!=0)labels.Add("frame delay");
+            if((reasons&CourseNonRankedReason.StreamingBlocked)!=0)labels.Add("world loading");
+            if((reasons&(CourseNonRankedReason.ClockInvalid|CourseNonRankedReason.ClockWentBackward))!=0)
+                labels.Add("timer interrupted");
+            if((reasons&CourseNonRankedReason.ExplicitPractice)!=0)labels.Add("practice selected");
+            // Bound the results card even when several interruptions occur in one run.
+            string visible=string.Join(" · ",labels.GetRange(0,Math.Min(3,labels.Count)));
+            return labels.Count==0?"ranking unavailable":visible+(labels.Count>3?" +"+(labels.Count-3)+" more":"");
         }
 
         private string FailureText(CourseFailureReason reason)

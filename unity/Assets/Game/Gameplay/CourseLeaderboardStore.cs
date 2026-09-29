@@ -41,12 +41,24 @@ namespace VoarVR.Gameplay
     // species, control mode, weather and assistance so unlike runs are never mixed.
     public sealed class CourseLeaderboardStore
     {
+#if UNITY_EDITOR
+        // Match journey/foraging isolation for scene-created course directors and menus.
+        public static Func<ICourseLeaderboardStorage> EditorStorageOverride;
+#endif
         public const int MaximumEntries=20;
         private readonly ICourseLeaderboardStorage storage;
         public string LastError {get;private set;}="";
 
         public CourseLeaderboardStore(ICourseLeaderboardStorage storage=null)
-        {this.storage=storage??new PlayerPrefsCourseLeaderboardStorage();}
+        {this.storage=storage??CreateDefaultStorage();}
+
+        private static ICourseLeaderboardStorage CreateDefaultStorage()
+        {
+#if UNITY_EDITOR
+            if(EditorStorageOverride!=null)return EditorStorageOverride();
+#endif
+            return new PlayerPrefsCourseLeaderboardStorage();
+        }
 
         public CourseLeaderboardEntry[] Load(CourseResultKey key)
         {

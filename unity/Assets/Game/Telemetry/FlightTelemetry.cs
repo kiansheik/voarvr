@@ -14,9 +14,9 @@ namespace VoarVR.Telemetry
     {
         [Serializable] public sealed class Header
         {
-            public int schemaVersion=3;
+            public int schemaVersion=TelemetrySample.CurrentSchemaVersion;
             public string[] wideFields=TelemetrySample.WideFields;
-            public string effortDefinition="valid airborne simulation-time movement proxies only; capped dt excludes pause/perch/tracking gaps; hand speed threshold0.35m/s, quiet3s, EMA2s; not calories or medical fatigue";
+            public string effortDefinition="valid direct-measured airborne simulation-time movement proxies only; capped dt excludes pause/perch/tracking gaps; hand speed threshold0.35m/s, quiet3s, EMA2s; not calories or medical fatigue";
             public string encoding="float32 except wideFields float64; clearance sampled10Hz";
             public string session, utc, git, unity, app, device, os, character, input, worldSettings;
             public string[] fields=TelemetrySample.Fields;
@@ -35,6 +35,7 @@ namespace VoarVR.Telemetry
             public double plumeCellSize,plumeEpochSeconds,plumeLifetime;
             public int seed;
             public bool allocationCounterAvailable=false;
+            public string handConvention="v5: pose source 0 unknown/controller, 1 direct high, 2 direct low, 3 inferred, 4 lost; hand timestamps float64 runtime seconds; unextrapolated values unavailable unless flagged; WMM2 is reported runtime state; FMM is requested state only";
             public string velocityConvention="raw_*_velocity: body-relative finite difference in tracking axes; native_*: XR tracking-space device feature, m/s and rad/s; unavailable values NaN";
         }
         private TelemetryWriter writer;
@@ -54,7 +55,13 @@ namespace VoarVR.Telemetry
         private readonly List<XRDisplaySubsystem> displays=new List<XRDisplaySubsystem>();
         public string SessionPath { get; private set; }
         public int Dropped => writer?.Dropped??0;
-        public static bool DefaultEnabled => Debug.isDebugBuild || Application.isEditor;
+#if UNITY_EDITOR
+        // Explicit review/test opt-out. Normal editor captures retain their existing default.
+        public static bool? EditorEnabledOverride { get; set; }
+        public static bool DefaultEnabled => EditorEnabledOverride ?? (Debug.isDebugBuild || Application.isEditor);
+#else
+        public static bool DefaultEnabled => Debug.isDebugBuild;
+#endif
         public void Configure(BirdFlightDriver owner,BirdRigDriver bird,WorldStreamer streamed,
             BirdCharacterDefinition character,BirdFlightProfile profile)
         {
@@ -156,6 +163,30 @@ namespace VoarVR.Telemetry
             var island=FlightRegions.Island(world!=null?world.Space.Seed:7319,(long)Math.Floor(logicalPosition.X/768),(long)Math.Floor(logicalPosition.Z/768));
             var sample=new TelemetrySample
             {
+                raw_left_pose_source = (int)raw.LeftWing.Source,
+                raw_left_sample_timestamp = raw.LeftWing.Source != HandPoseSource.Unknown ? raw.LeftWing.SampleTimestamp : double.NaN,
+                raw_left_unextrapolated_available = raw.LeftWing.HasUnextrapolatedPose ? 1 : 0,
+                raw_left_unextrapolated_position_x = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedPosition.x : double.NaN,
+                raw_left_unextrapolated_position_y = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedPosition.y : double.NaN,
+                raw_left_unextrapolated_position_z = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedPosition.z : double.NaN,
+                raw_left_unextrapolated_rotation_x = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedOrientation.x : double.NaN,
+                raw_left_unextrapolated_rotation_y = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedOrientation.y : double.NaN,
+                raw_left_unextrapolated_rotation_z = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedOrientation.z : double.NaN,
+                raw_left_unextrapolated_rotation_w = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedOrientation.w : double.NaN,
+                raw_left_unextrapolated_timestamp = raw.LeftWing.HasUnextrapolatedPose ? raw.LeftWing.UnextrapolatedTimestamp : double.NaN,
+                raw_right_pose_source = (int)raw.RightWing.Source,
+                raw_right_sample_timestamp = raw.RightWing.Source != HandPoseSource.Unknown ? raw.RightWing.SampleTimestamp : double.NaN,
+                raw_right_unextrapolated_available = raw.RightWing.HasUnextrapolatedPose ? 1 : 0,
+                raw_right_unextrapolated_position_x = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedPosition.x : double.NaN,
+                raw_right_unextrapolated_position_y = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedPosition.y : double.NaN,
+                raw_right_unextrapolated_position_z = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedPosition.z : double.NaN,
+                raw_right_unextrapolated_rotation_x = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedOrientation.x : double.NaN,
+                raw_right_unextrapolated_rotation_y = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedOrientation.y : double.NaN,
+                raw_right_unextrapolated_rotation_z = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedOrientation.z : double.NaN,
+                raw_right_unextrapolated_rotation_w = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedOrientation.w : double.NaN,
+                raw_right_unextrapolated_timestamp = raw.RightWing.HasUnextrapolatedPose ? raw.RightWing.UnextrapolatedTimestamp : double.NaN,
+                hand_wmm2_enabled = HandInteraction.WideMotionEnabled ? 1 : 0,
+                hand_fmm_requested = 0, // Default mode; no FMM request is made by the hand adapter.
                 span_ratio=c.SpanRatio,inferred_tuck=c.InferredTuck,feather_support=c.FeatherSupport,feather_degrees=c.WingFeatherDeg,
                 aero_torque_x=c.Acrobatic.AerodynamicTorque.x,aero_torque_y=c.Acrobatic.AerodynamicTorque.y,aero_torque_z=c.Acrobatic.AerodynamicTorque.z,
                 effort_active_seconds=effort.ActiveSeconds,effort_rest_seconds=effort.RestSeconds,effort_hand_travel_m=effort.HandTravelMeters,effort_speed_ema=effort.SmoothedSpeed,effort_strokes=effort.Strokes,effort_continuous_seconds=effort.ContinuousActiveSeconds,effort_resting=effort.Resting?1:0,
@@ -210,6 +241,9 @@ namespace VoarVR.Telemetry
                 raw_flare = raw.Flare,
                 raw_ground_move_x = raw.GroundMove.x,
                 raw_ground_move_y = raw.GroundMove.y,
+                raw_ground_turn = raw.GroundTurn,
+                raw_left_motion_estimated = raw.LeftWing.MotionEstimated ? 1 : 0,
+                raw_right_motion_estimated = raw.RightWing.MotionEstimated ? 1 : 0,
                 raw_reset = raw.ResetPressed ? 1 : 0,
                 raw_recalibrate = raw.RecalibratePressed ? 1 : 0,
                 raw_characterselect = raw.CharacterSelectPressed ? 1 : 0,
@@ -262,6 +296,9 @@ namespace VoarVR.Telemetry
                 mapped_flare = mapped.Flare,
                 mapped_ground_move_x = mapped.GroundMove.x,
                 mapped_ground_move_y = mapped.GroundMove.y,
+                mapped_ground_turn = mapped.GroundTurn,
+                mapped_left_motion_estimated = mapped.LeftWing.MotionEstimated ? 1 : 0,
+                mapped_right_motion_estimated = mapped.RightWing.MotionEstimated ? 1 : 0,
                 mapped_reset = mapped.ResetPressed ? 1 : 0,
                 mapped_recalibrate = mapped.RecalibratePressed ? 1 : 0,
                 mapped_characterselect = mapped.CharacterSelectPressed ? 1 : 0,

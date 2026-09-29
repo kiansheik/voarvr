@@ -83,6 +83,19 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void NonLandableSurfaceStillCollidesButCannotSupportOrOfferLanding()
+        {
+            ground.GetComponent<LandingSurface>().CanLand=false;
+            Assert.That(environment.Sweep(new Vector3(20000,3,20000),
+                new Vector3(20000,-2,20000),.3f,out var hit),Is.True);
+            Assert.That(hit.SurfaceId,Is.EqualTo(123));
+            Assert.That(hit.Normal.y,Is.GreaterThan(.99f));
+            Assert.That(hit.Landable,Is.False,"A vertical top contact must remain a bump.");
+            Assert.That(environment.IsSupported(hit.Position,.3f,123),Is.False);
+            Assert.That(environment.TryFindLanding(new Vector3(20000,2,20000),10,out _),Is.False);
+        }
+
+        [Test]
         public void RealSphereSweepAndInsideRecoveryKeepBodyAbovePlatform()
         {
             Assert.That(environment.Sweep(new Vector3(20000, 10, 20000), new Vector3(20000, -10, 20000), .55f, out var hit), Is.True);

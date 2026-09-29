@@ -22,6 +22,21 @@
 
 Follow GUID-preserving Unity asset workflows. Setup-created settings live under `Assets/Settings/` / `Assets/XR/` after import; they are shared sources, not ignored caches. Never search/edit generated Library blobs to change first-party behavior.
 
+## Hands-first competition branch
+
+- [Competition brief](../competition/meta-vr-start-2026.md): narrow judge route, live-rule references, entrant eligibility and readiness gates.
+- [Hand-flight contract](../../design/HAND_FLIGHT.md): implemented Meta XR Core 207.0.0 / OVRPlugin 1.207.0 adapter on OpenXR, with device acceptance and future instrumentation explicitly separate.
+- `Input/{ITrackedFlightInput,MetaHandFlightInput,HandPoseContinuity}.cs`: Android hand default, confidence/source classification, native unextrapolated samples, bounded lost-pose hold and safe recovery. Requests body permission/WMM2; FMM remains default. Actual Quest WMM/tracking behavior is unverified.
+- `UI/{HandGazePointer,CharacterSelectController,CalibrationCoach,FlightMenu}.cs`: first-party UGUI gaze/pinch, fresh-release gating, compact READY confirmation, Magpie default and separate settings page. Meta Interaction SDK is not required. Two forward pinches open rest; pinch-drag supports walking/turning on perches.
+- `Flight/{BirdFlightDriver,WingRigSolver,BirdFlightController}.cs`: shared tracked-input lifecycle, measured-only compact calibration, real supported departure for non-course hands flights, and estimated-motion energy guards. `HandTrackingSafetyTests`, `HandInputContinuityTests`, `HandFlightLifecycleTests` and `HandMenuTests` cover the deterministic boundaries; hardware acceptance remains separate.
+- `BirdFlightDriver.UpdateSessionTracking`, `FlightSessionTracker`, runtime effort and offline cadence analysis exclude estimated/non-direct movement credit. `TelemetryReplayInput` preserves v5 source/capture provenance and v4 estimated flags/turn, retaining v1–v4 reader behavior. [Exact schema and limitations](../development/telemetry.md#schema-5-hand-source-and-capture-provenance).
+- `Editor/HandFlightReview.cs`: explicit isolated synthetic-hand runtime captures for preflight, calibration, native supported departure, rest/settings and saved results. Desktop mono evidence, not hand-only Quest completion.
+- `World/FlightRegions.DepartureLookout*` + `WorldChunk` clearing: authored ridge perch for supported departures (the spawn is a bowl). `BirdFlightDriver` recovery falls back SavedPerch → Departure lookout → spawn floor. `UI/WorldCardRendering.cs`: rest/settings/calibration/result cards draw over terrain. `RouteHomeReview.RunSpeciesFromLookout` pilots Route Home from that perch.
+- `Editor/{HandFlightSetup,LocalSdkBuildSettings}.cs`: explicit hands configuration plus Android build validation; DevAgent credential sanitizer and `VerifyApk()` scan (exempts only Unity's Development profiler address).
+- [September 28 merge review](session-handoffs/2026-09-28-hand-flight-merge-review.md): preserved main/feature work and exact verification limits.
+
+## World, input and development evidence
+
 Endless-world ownership and budgets: [architecture](../ARCHITECTURE.md). Reproducible evidence lives under ignored `artifacts/reviews/infinite-world-landing-v1/`; WorldReview exposes explicit glide, actual traversal, contact and camera captures. Scene changes use Unity editor serialization.
 
 Flight instruments: `UI/FlightHud.cs` and `World/BirdAirflowTrails.cs`, installed by BirdFlightDriver after essential rig wiring. Explicit `Editor/FlightInstrumentReview.cs` captures HUD/wake/thermal evidence; `AtmosphereLiftReview.cs` reproduces failed and successful assistance candidates. Current evidence: `artifacts/reviews/flight-instruments-v1/`.
@@ -65,3 +80,5 @@ Flight instruments: `UI/FlightHud.cs` and `World/BirdAirflowTrails.cs`, installe
 - `Flight/{BirdFlightDriver,BirdFlightController,BirdRigDriver,AvianWingPresentation,FlightContactSolver,FlightFeedback}`: session/course lifecycle ownership, supported right-stick yaw, Duck/Dragon trigger pose parity and directional/material-safe impact response.
 - `World/{ProceduralFlightWorld,WorldChunk,UnityFlightEnvironment,JourneyPresentation,SkyRivals,BirdAirflowTrails}`: compound landmark/tree-branch collision, foliage disturbance, campaign-wide HUD-off guidance, three bounded noncombat rivals and modal-safe world presentation.
 - `Tests/EditMode/{CourseDomainTests,CourseLeaderboardStoreTests,FlightSessionFoundationTests}` and `Tests/PlayMode/PlayerFacingFeatureTests`: domain, persistence, fairness and complete player-facing lifecycle coverage. Evidence and remaining Quest gates are in the [implementation handoff](session-handoffs/2026-09-12-playtest-features-implementation.md).
+
+- `Editor/CompetitionPreflightReview.cs`: explicit isolated runtime review across five course lifecycles, menus, calibration, session results and objective states; stages observations, not physical completion. `Editor/RouteHomeReview.cs` separately runs input-only Route Home and labeled runtime-camera guidance. [September 28 preflight](../reviews/2026-09-28-competition-preflight.md).

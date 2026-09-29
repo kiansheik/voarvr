@@ -19,6 +19,17 @@
     "com.unity.modules.physicscore2d": "1.0.0",
     "com.unity.modules.tetgen": "1.0.0",
     "com.unity.modules.timelinefoundation": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
-  }
+    "com.unity.modules.xr": "1.0.0",
+    "com.meta.xr.sdk.core": "207.0.0",
+    "com.unity.modules.assetbundle": "1.0.0"
+  },
+  "scopedRegistries": [
+    {
+      "name": "Meta XR",
+      "url": "https://npm.developer.oculus.com",
+      "scopes": [
+        "com.meta.xr"
+      ]
+    }
+  ]
 }

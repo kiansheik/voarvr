@@ -57,8 +57,9 @@ namespace VoarVR.UI
                 : challenge.Activity == FlightActivity.ObstacleCourse
                     ? courseStatus?.Invoke() ?? "COURSE  •  READY"
                     : challenge.Status == ChallengeStatus.Completed
-                        ? challenge.Title + "  •  COMPLETE"
-                        : challenge.Title + "  " + (challenge.Stage + 1) + "/" + challenge.StageCount + "  •  " + ShortGoal(challenge);
+                        ? challenge.Title + "  •  " + CompletionGoal(challenge)
+                        : challenge.Title + "  " + (challenge.Stage + 1) + "/" + challenge.StageCount
+                            + (challenge.Kind == ObjectiveKind.Soar ? "\n" : "  •  ") + ShortGoal(challenge);
             string collection = foraging == null
                 ? string.Empty
                 : CollectionLine(foraging);
@@ -85,7 +86,10 @@ namespace VoarVR.UI
         private static string ShortGoal(FlightChallenge challenge)
         {
             if (challenge.Kind == ObjectiveKind.Soar)
-                return Mathf.RoundToInt(challenge.SoaringGain) + "/" + Mathf.RoundToInt(challenge.RequiredGain) + " m climb";
+                return Mathf.FloorToInt(Mathf.Min(challenge.SoaringGain, challenge.RequiredGain)) + "/"
+                    + Mathf.RoundToInt(challenge.RequiredGain) + " m climb  •  "
+                    + Mathf.FloorToInt((float)System.Math.Min(challenge.HighestAltitude, challenge.RequiredAltitude)) + "/"
+                    + Mathf.RoundToInt(challenge.RequiredAltitude) + " m peak altitude";
             switch (challenge.Kind)
             {
                 case ObjectiveKind.DiscoverLift: return "FIND GOLD LIFT";
@@ -95,6 +99,16 @@ namespace VoarVR.UI
                 case ObjectiveKind.Land: return "LAND AT THE GARDEN";
                 default: return challenge.Instruction.ToUpperInvariant();
             }
+        }
+
+        private string CompletionGoal(FlightChallenge challenge)
+        {
+            if (challenge.IsEfficiencyTrial)
+                return (challenge.Medal == 3 ? "GOLD" : challenge.Medal == 2 ? "SILVER" : "BRONZE")
+                    + "  " + challenge.Score;
+            if (challenge.Activity == FlightActivity.RouteHome && bird.Expedition?.Journey?.GardenRestored == true)
+                return "GARDEN RESTORED";
+            return "COMPLETE";
         }
 
         private void OnDestroy()

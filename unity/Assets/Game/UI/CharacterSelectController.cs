@@ -9,6 +9,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 using VoarVR.Flight;
 using VoarVR.Gameplay;
+using VoarVR.Input;
 
 namespace VoarVR.UI
 {
@@ -43,7 +44,7 @@ namespace VoarVR.UI
         private readonly List<Image> statFills = new List<Image>();
         private BirdCharacterDefinition[] characters;
         private BirdCharacterDefinition selectedCharacter;
-        private Text routeTitle, routeDescription, routeSteps, saveStatus, speciesDescription;
+        private Text routeTitle, routeDescription, routeSteps, saveStatus, speciesDescription, courseRecords;
         private Text beginLabel, newLabel, comfortLabel, calibrationBriefing;
         private Text profileLabel,profileHistory;
         private Button beginButton, newButton;
@@ -65,10 +66,16 @@ namespace VoarVR.UI
                 var rig = Own(Instantiate(xrRigPrefab));
                 var locomotion = rig.transform.Find("Locomotion");
                 if (locomotion != null) locomotion.gameObject.SetActive(false);
+                if (HandInputSettings.UseHands)
+                {
+                    foreach (var child in rig.GetComponentsInChildren<Transform>(true))
+                        if (child.name == "Left Controller" || child.name == "Right Controller"
+                            || child.name == "Gaze Interactor") child.gameObject.SetActive(false);
+                }
             }
-            if (FindAnyObjectByType<XRInteractionManager>() == null)
+            if (!HandInputSettings.UseHands && FindAnyObjectByType<XRInteractionManager>() == null)
                 Own(new GameObject("XR Interaction Manager", typeof(XRInteractionManager)));
-            if (FindAnyObjectByType<EventSystem>() == null)
+            if (!HandInputSettings.UseHands && FindAnyObjectByType<EventSystem>() == null)
                 Own(new GameObject("EventSystem", typeof(EventSystem), typeof(XRUIInputModule)));
             profileCatalog = new PlayerProfileCatalog();
             sessionHistory = new FlightSessionHistoryStore();
@@ -80,7 +87,8 @@ namespace VoarVR.UI
                 throw new InvalidOperationException("No BirdCharacterDefinition assets under Resources/Characters. Run VoarVR/Configure Characters.");
             BuildUI();
             ChooseCharacter(CharacterSelection.Chosen != null && characters.Contains(CharacterSelection.Chosen)
-                ? CharacterSelection.Chosen : characters[0]);
+                ? CharacterSelection.Chosen : HandInputSettings.UseHands
+                    ? characters.FirstOrDefault(c => c.name == "Magpie") ?? characters[0] : characters[0]);
             ChooseActivity(ActivitySelection.Chosen);
         }
 
@@ -88,7 +96,8 @@ namespace VoarVR.UI
 
         private void BuildUI()
         {
-            var root = Own(new GameObject("Journey preflight", typeof(RectTransform), typeof(Canvas), typeof(TrackedDeviceGraphicRaycaster)));
+            var root = Own(new GameObject("Journey preflight", typeof(RectTransform), typeof(Canvas)));
+            if (!HandInputSettings.UseHands) root.AddComponent<TrackedDeviceGraphicRaycaster>();
             canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
             var rect = root.GetComponent<RectTransform>(); rect.sizeDelta = new Vector2(1920, 1440); rect.localScale = Vector3.one * .00142f;
             var eye = Camera.main; canvas.worldCamera = eye;
@@ -113,6 +122,8 @@ namespace VoarVR.UI
             var route = Box(root.transform, "Journey preview", new Vector2(-350, 28), new Vector2(1090, 620), Panel);
             routeTitle = Label(route.transform, "Route title", "", new Vector2(0, 241), new Vector2(982, 70), 43, Ink);
             routeDescription = Label(route.transform, "Route description", "", new Vector2(0, 134), new Vector2(982, 128), 30, Muted);
+            courseRecords = Label(route.transform, "Course records", "", new Vector2(0, 77), new Vector2(982, 43), 27, Muted);
+            courseRecords.gameObject.SetActive(false);
             Label(route.transform, "Route heading", "THE FLIGHT AHEAD", new Vector2(0, 20), new Vector2(982, 45), 26, Gold);
             routeSteps = Label(route.transform, "Route steps", "", new Vector2(0, -78), new Vector2(982, 150), 31, Ink);
             saveStatus = Label(route.transform, "Save status", "", new Vector2(0, -233), new Vector2(982, 113), 25, Muted);
@@ -121,6 +132,7 @@ namespace VoarVR.UI
                 string courseId = CourseIds[i];
                 var coursePosition=i<3?new Vector2(-300+i*300,-195):new Vector2(-150+(i-3)*300,-253);
                 var course = Button(route.transform, CourseLabels[i], coursePosition, new Vector2(280, 50), 20);
+                course.GetComponentInChildren<Text>().rectTransform.sizeDelta = new Vector2(256, 48);
                 course.onClick.AddListener(() => ChooseCourse(courseId));
                 courseButtons.Add(course);
                 course.gameObject.SetActive(false);
@@ -156,7 +168,9 @@ namespace VoarVR.UI
             RefreshComfort();
             calibrationBriefing = Label(root.transform, "Calibration briefing", "Begin in third-person. Spread your arms comfortably, then press A to calibrate.",
                 new Vector2(0, -468), new Vector2(1770, 62), 29, Ink);
-            Label(root.transform, "Control briefing", "RIGHT TRIGGER  Select / tuck     X  Pause     A  Calibration coach     B  View\nON GROUND  Left stick walk · right stick turn     LEFT MENU  Session + results\nInstruments start hidden. World markers and the goal ribbon remain when gauges are hidden.",
+            Label(root.transform, "Control briefing", HandInputSettings.UseHands
+                ? "LOOK AT A BUTTON · PINCH THUMB + INDEX TO SELECT · RELEASE BETWEEN CHOICES\nREST  Palms down, hands forward: hold both pinches 0.6s, release. Flap to fly; sweep hands forward to slow.\nON A PERCH  Pinch + move: left hand to walk, right hand to turn. Draw hands inward to tuck."
+                : "RIGHT TRIGGER  Select / tuck     X  Pause     A  Calibration coach     B  View\nON GROUND  Left stick walk · right stick turn     LEFT MENU  Session + results\nInstruments start hidden. World markers and the goal ribbon remain when gauges are hidden.",
                 new Vector2(0, -548), new Vector2(1770, 94), 24, Muted);
             var playerBar=Box(root.transform,"Player history card",new Vector2(0,-645),new Vector2(1770,70),Panel);
             var profileButton=Button(playerBar.transform,"PLAYER",new Vector2(-650,0),new Vector2(430,52),23);
@@ -165,6 +179,7 @@ namespace VoarVR.UI
             addPlayer.onClick.AddListener(CreatePlayer);
             profileHistory=Label(playerBar.transform,"Player history","",new Vector2(350,0),new Vector2(1040,54),23,Muted);
             RefreshProfile();
+            if (HandInputSettings.UseHands) root.AddComponent<HandGazePointer>().Configure(canvas, eye);
         }
 
         public void ChooseCharacter(BirdCharacterDefinition character)
@@ -218,12 +233,17 @@ namespace VoarVR.UI
                     break;
             }
             bool courses = activity == FlightActivity.ObstacleCourse;
+            courseRecords.gameObject.SetActive(courses);
+            routeDescription.rectTransform.anchoredPosition = new Vector2(0, courses ? 151 : 134);
+            routeDescription.rectTransform.sizeDelta = new Vector2(982, courses ? 88 : 128);
             for (int i = 0; i < courseButtons.Count; i++) courseButtons[i].gameObject.SetActive(courses);
             saveStatus.gameObject.SetActive(!courses);
             bool resume = !courses && journey.HasResume(activity);
-            if (calibrationBriefing != null) calibrationBriefing.text = resume
-                ? "Resume opens paused at your saved perch. Choose Recalibrate Here, match the relaxed pose, then press A only when the coach says ready."
-                : "Begin in third-person. Spread your arms comfortably, then press A to calibrate.";
+            if (calibrationBriefing != null) calibrationBriefing.text = HandInputSettings.UseHands
+                ? resume ? "Resume opens at your saved perch. Recalibrate with relaxed, bent elbows; look at READY and pinch."
+                    : "Begin in third-person. Open your arms with hands just ahead of your shoulders; the coach fits your wings."
+                : resume ? "Resume opens paused at your saved perch. Choose Recalibrate Here, match the relaxed pose, then press A only when the coach says ready."
+                    : "Begin in third-person. Spread your arms comfortably, then press A to calibrate.";
             var checkpoint = journey.GetCheckpoint(activity);
             string progress = resume && checkpoint != null ? "Checkpoint saved / step " + (checkpoint.Stage + 1) + ". Resume from a safe perch."
                 : activity == FlightActivity.RouteHome && journey.GardenRestored ? "The garden remembers your gift. Fly the journey again whenever you like."
@@ -255,11 +275,11 @@ namespace VoarVR.UI
             for (int i = 0; i < courseButtons.Count; i++) SetSelected(courseButtons[i], i == index);
             var definition = CourseCatalog.Find(CourseIds[index]);
             routeTitle.text = CourseLabels[index].Substring(3);
-            routeDescription.text = index == 0 ? "A fast first chase through broad gates and a line of moths.\nShort skill course / personal records / rest before retry."
-                : index == 1 ? "Weave through four alternating canopy gaps without touching the trunks.\nShort gate-precision course / clean contact matters."
-                : index == 2 ? "Cross two ruin windows, hold the gallery line, then land on the marked perch.\nCollision-accurate route trial."
-                : index == 3 ? "Climb through three marked lift bands, then dive through the exit gate.\nLift-reading and altitude-control trial."
-                : "Start in acrobatic mode, complete a safe trick, catch the crown moth and settle on the finish perch.\nControl and landing trial.";
+            routeDescription.text = index == 0 ? "Chase through broad gates and a line of Sun Moths.\nShort skill course / personal records / rest before retry."
+                : index == 1 ? "Weave through four canopy gaps without touching trunks.\nGate precision / clean contact matters."
+                : index == 2 ? "Cross ruin windows, follow the gallery, then land.\nCollision-accurate route trial."
+                : index == 3 ? "Climb through three lift bands, then dive through the exit.\nLift-reading and altitude-control trial."
+                : "Hold inverted, catch the Crown Moth, then land.\nStarts in acrobatic mode / control and landing trial.";
             routeSteps.text = "3, 2, 1… START  •  "
                 + string.Join("  →  ", definition.Tasks.Select(task => task.Label.ToUpperInvariant()))
                 + "\nFinish before " + definition.TimeLimitSeconds.ToString("F0") + " s, then take the required rest.";
@@ -276,7 +296,7 @@ namespace VoarVR.UI
                 var course=CourseCatalog.Find(CourseIds[i]);
                 double best=FastestPersonalBest(course,characterId,profileCatalog.ActiveProfileId);
                 courseButtons[i].GetComponentInChildren<Text>().text=CourseLabels[i]+"\n"+(double.IsInfinity(best)?"—":best.ToString("F2")+" s");
-                if(i==selected)routeDescription.text+="\nTARGET "+course.ExpectedSeconds.ToString("F0")+" s  ·  PERSONAL BEST "+(double.IsInfinity(best)?"—":best.ToString("F2")+" s");
+                if(i==selected)courseRecords.text="TARGET "+course.ExpectedSeconds.ToString("F0")+" s  ·  PERSONAL BEST "+(double.IsInfinity(best)?"—":best.ToString("F2")+" s");
             }
         }
 

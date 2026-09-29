@@ -52,7 +52,7 @@ namespace VoarVR.World
             }
             var collider=root.AddComponent<SphereCollider>();collider.radius=.65f;
             var surface=root.AddComponent<LandingSurface>();surface.SurfaceId=9800+index;
-            surface.SurfaceKind=FlightSurfaceKind.Structure;surface.MaxSlopeDegrees=0;
+            surface.SurfaceKind=FlightSurfaceKind.Structure;surface.CanLand=false;
             var bones=model.GetComponentsInChildren<Transform>();
             var left=bones.FirstOrDefault(t=>t.name=="LeftUpper");var right=bones.FirstOrDefault(t=>t.name=="RightUpper");
             rivals.Add(new Rival{Root=root,LeftUpper=left,RightUpper=right,

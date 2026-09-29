@@ -10,6 +10,10 @@ namespace VoarVR.Gameplay
     // make an interrupted replacement recoverable; a final is never overwritten once readable.
     public sealed class FlightSessionHistoryStore
     {
+#if UNITY_EDITOR
+        // Install before loading scenes; lifecycle draft/final writes stay in the review scope.
+        public static Func<string> EditorDirectoryOverride;
+#endif
         public const int CurrentStorageVersion = 1;
         public const string DefaultDirectoryName = "session-history-v1";
 
@@ -35,6 +39,14 @@ namespace VoarVR.Gameplay
 
         public FlightSessionHistoryStore(string directory = null)
         {
+#if UNITY_EDITOR
+            if (string.IsNullOrWhiteSpace(directory) && EditorDirectoryOverride != null)
+            {
+                directory = EditorDirectoryOverride();
+                if (string.IsNullOrWhiteSpace(directory))
+                    throw new InvalidOperationException("The editor history directory override must return an isolated directory.");
+            }
+#endif
             rootDirectory = string.IsNullOrWhiteSpace(directory)
                 ? Path.Combine(Application.persistentDataPath, DefaultDirectoryName)
                 : Path.GetFullPath(directory);

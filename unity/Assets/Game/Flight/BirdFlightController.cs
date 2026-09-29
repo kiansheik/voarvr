@@ -143,6 +143,9 @@ namespace VoarVR.Flight
         public Vector3 DragForce { get; private set; }
         public Vector3 StrokeForce { get; private set; }
         public float SpanRatio {get;private set;}
+        // Controllers brake by spreading past the calibrated span. Hands fly with a natural
+        // spread wider than their compact calibration, so their flare is an explicit input.
+        public bool SpanFlareEnabled {get;set;}=true;
         public float InferredTuck {get;private set;}
         public float FeatherSupport {get;private set;}
         public float AngleOfAttackDeg { get; private set; }
@@ -233,6 +236,20 @@ namespace VoarVR.Flight
             perchCooldown = 0f;
             State = new BirdState { Position = landedPos, Velocity = Vector3.zero,
                 Rotation = Quaternion.Euler(0, heading, 0), Phase = phase };
+            return true;
+        }
+
+        // The first hands flight glides off its perch at cruise speed, so the neutral pose just
+        // captured is felt in the air immediately; a downstroke is still the only way to climb.
+        public bool LaunchGlide()
+        {
+            if (paused || phase != FlightPhase.Perched) return false;
+            phase = FlightPhase.Gliding;
+            GroundVelocity = Vector3.zero;
+            perchCooldown = profile.PerchRecaptureCooldown;
+            State = new BirdState { Position = landedPos + Vector3.up * profile.TakeoffClearance,
+                Velocity = Quaternion.Euler(0f, yawDeg, 0f) * Vector3.forward * profile.InitialSpeedMps + Vector3.up * .5f,
+                Rotation = Quaternion.Euler(0f, yawDeg, 0f), Phase = phase };
             return true;
         }
 
@@ -380,7 +397,7 @@ namespace VoarVR.Flight
             float tuckSignal = Mathf.Clamp01(Mathf.Clamp01((1f - wingSpanRatio) / profile.MaxTuckSpanRatio)
                 + Mathf.Clamp01(LastInput.Tuck) * profile.TriggerTuckWeight);
             SpanRatio=wingSpanRatio;InferredTuck=tuckSignal;
-            float flareSignal = Mathf.Clamp01(Mathf.Clamp01((wingSpanRatio - 1f) / profile.MaxFlareSpanRatio)
+            float flareSignal = Mathf.Clamp01((SpanFlareEnabled ? Mathf.Clamp01((wingSpanRatio - 1f) / profile.MaxFlareSpanRatio) : 0f)
                 + Mathf.Clamp01(LastInput.Flare) * profile.TriggerFlareWeight);
             float raised = wingsTracked ? Mathf.Min(LastInput.LeftWing.Position.y - calibration.LeftPos.y,
                 LastInput.RightWing.Position.y - calibration.RightPos.y) : 0f;
@@ -663,7 +680,7 @@ namespace VoarVR.Flight
 
         private float Stroke(WingInput wing, Quaternion neutral)
         {
-            if (!wing.Tracked) return 0f;
+            if (!wing.Tracked || wing.MotionEstimated) return 0f;
             var relative = Quaternion.Inverse(calibration.Heading) * wing.Orientation
                 * Quaternion.Inverse(neutral) * calibration.Heading;
             var normal = relative * Vector3.up;
@@ -680,7 +697,10 @@ namespace VoarVR.Flight
 
         private Vector3 WingStrokeForce(WingInput wing, Quaternion neutral, Quaternion bodyRotation)
         {
-            if (!wing.Tracked) return Vector3.zero;
+            // Estimated motion earns only the authority its adapter measured (default none).
+            // Takeoff and the flapping phase still use measured strokes only (Stroke above).
+            float authority = wing.MotionEstimated ? Mathf.Clamp01(wing.EstimatedStrokeAuthority) : 1f;
+            if (!wing.Tracked || authority <= 0f) return Vector3.zero;
             var relative = Quaternion.Inverse(calibration.Heading) * wing.Orientation
                 * Quaternion.Inverse(neutral) * calibration.Heading;
             var normalBody = relative * Vector3.up;
@@ -690,7 +710,7 @@ namespace VoarVR.Flight
             // can convert that work to forward thrust without demanding a tilted wrist.
             // No motion (or an upstroke) still produces no active force.
             var reaction = normalBody + Vector3.forward * (profile.StrokeForwardRatio * Mathf.Max(0f, normalBody.y));
-            return bodyRotation * reaction * (speed * speed * profile.StrokeForcePerSpeedSquared * .5f);
+            return bodyRotation * reaction * (authority * speed * speed * profile.StrokeForcePerSpeedSquared * .5f);
         }
 
         private static float ApplyDeadzone(float value, float deadzone) =>

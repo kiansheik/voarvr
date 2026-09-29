@@ -1,7 +1,8 @@
 using System.IO;
 namespace VoarVR.Telemetry
 {
-    // v3 uses float32 for native float/int signals; time and logical coordinates retain float64.
+    // v5 appends hand-source/capture provenance to the frozen v4 prefix.
+    // Native float/int signals use float32; time and logical coordinates retain float64.
     public struct TelemetrySample
     {
         public double timestamp;
@@ -299,6 +300,36 @@ namespace VoarVR.Telemetry
         public double objective_quiet_gain;
         public double objective_highest_altitude;
         public double clearance_age_seconds;
+        public double raw_ground_turn;
+        public double mapped_ground_turn;
+        public double raw_left_motion_estimated;
+        public double raw_right_motion_estimated;
+        public double mapped_left_motion_estimated;
+        public double mapped_right_motion_estimated;
+        public double raw_left_pose_source;
+        public double raw_left_sample_timestamp;
+        public double raw_left_unextrapolated_available;
+        public double raw_left_unextrapolated_position_x;
+        public double raw_left_unextrapolated_position_y;
+        public double raw_left_unextrapolated_position_z;
+        public double raw_left_unextrapolated_rotation_x;
+        public double raw_left_unextrapolated_rotation_y;
+        public double raw_left_unextrapolated_rotation_z;
+        public double raw_left_unextrapolated_rotation_w;
+        public double raw_left_unextrapolated_timestamp;
+        public double raw_right_pose_source;
+        public double raw_right_sample_timestamp;
+        public double raw_right_unextrapolated_available;
+        public double raw_right_unextrapolated_position_x;
+        public double raw_right_unextrapolated_position_y;
+        public double raw_right_unextrapolated_position_z;
+        public double raw_right_unextrapolated_rotation_x;
+        public double raw_right_unextrapolated_rotation_y;
+        public double raw_right_unextrapolated_rotation_z;
+        public double raw_right_unextrapolated_rotation_w;
+        public double raw_right_unextrapolated_timestamp;
+        public double hand_wmm2_enabled;
+        public double hand_fmm_requested;
         public static readonly string[] Fields = {
             "timestamp",
             "frame",
@@ -595,9 +626,46 @@ namespace VoarVR.Telemetry
             "objective_quiet_gain",
             "objective_highest_altitude",
             "clearance_age_seconds",
+            "raw_ground_turn",
+            "mapped_ground_turn",
+            "raw_left_motion_estimated",
+            "raw_right_motion_estimated",
+            "mapped_left_motion_estimated",
+            "mapped_right_motion_estimated",
+            "raw_left_pose_source",
+            "raw_left_sample_timestamp",
+            "raw_left_unextrapolated_available",
+            "raw_left_unextrapolated_position_x",
+            "raw_left_unextrapolated_position_y",
+            "raw_left_unextrapolated_position_z",
+            "raw_left_unextrapolated_rotation_x",
+            "raw_left_unextrapolated_rotation_y",
+            "raw_left_unextrapolated_rotation_z",
+            "raw_left_unextrapolated_rotation_w",
+            "raw_left_unextrapolated_timestamp",
+            "raw_right_pose_source",
+            "raw_right_sample_timestamp",
+            "raw_right_unextrapolated_available",
+            "raw_right_unextrapolated_position_x",
+            "raw_right_unextrapolated_position_y",
+            "raw_right_unextrapolated_position_z",
+            "raw_right_unextrapolated_rotation_x",
+            "raw_right_unextrapolated_rotation_y",
+            "raw_right_unextrapolated_rotation_z",
+            "raw_right_unextrapolated_rotation_w",
+            "raw_right_unextrapolated_timestamp",
+            "hand_wmm2_enabled",
+            "hand_fmm_requested",
         };
-        public static readonly string[] WideFields = { "timestamp","simulation_time","logical_x","logical_y","logical_z" };
-        public const int CompactSize = 1200;
+        public static readonly string[] LegacyWideFields = { "timestamp","simulation_time","logical_x","logical_y","logical_z" };
+        public static readonly string[] WideFields = { "timestamp","simulation_time","logical_x","logical_y","logical_z",
+            "raw_left_sample_timestamp","raw_left_unextrapolated_timestamp","raw_right_sample_timestamp","raw_right_unextrapolated_timestamp" };
+        public const int CurrentSchemaVersion = 5;
+        public const int LegacyV3FieldCount = 295;
+        public const int LegacyV3CompactSize = 1200;
+        public const int LegacyV4FieldCount = 301;
+        public const int LegacyV4CompactSize = 1224;
+        public const int CompactSize = 1336;
         public void Write(BinaryWriter w)
         {
             w.Write(timestamp);
@@ -895,6 +963,36 @@ namespace VoarVR.Telemetry
             w.Write(objective_quiet_gain);
             w.Write(objective_highest_altitude);
             w.Write(clearance_age_seconds);
+            w.Write(raw_ground_turn);
+            w.Write(mapped_ground_turn);
+            w.Write(raw_left_motion_estimated);
+            w.Write(raw_right_motion_estimated);
+            w.Write(mapped_left_motion_estimated);
+            w.Write(mapped_right_motion_estimated);
+            w.Write(raw_left_pose_source);
+            w.Write(raw_left_sample_timestamp);
+            w.Write(raw_left_unextrapolated_available);
+            w.Write(raw_left_unextrapolated_position_x);
+            w.Write(raw_left_unextrapolated_position_y);
+            w.Write(raw_left_unextrapolated_position_z);
+            w.Write(raw_left_unextrapolated_rotation_x);
+            w.Write(raw_left_unextrapolated_rotation_y);
+            w.Write(raw_left_unextrapolated_rotation_z);
+            w.Write(raw_left_unextrapolated_rotation_w);
+            w.Write(raw_left_unextrapolated_timestamp);
+            w.Write(raw_right_pose_source);
+            w.Write(raw_right_sample_timestamp);
+            w.Write(raw_right_unextrapolated_available);
+            w.Write(raw_right_unextrapolated_position_x);
+            w.Write(raw_right_unextrapolated_position_y);
+            w.Write(raw_right_unextrapolated_position_z);
+            w.Write(raw_right_unextrapolated_rotation_x);
+            w.Write(raw_right_unextrapolated_rotation_y);
+            w.Write(raw_right_unextrapolated_rotation_z);
+            w.Write(raw_right_unextrapolated_rotation_w);
+            w.Write(raw_right_unextrapolated_timestamp);
+            w.Write(hand_wmm2_enabled);
+            w.Write(hand_fmm_requested);
         }
         public void WriteCompact(BinaryWriter w)
         {
@@ -1193,6 +1291,36 @@ namespace VoarVR.Telemetry
             w.Write((float)objective_quiet_gain);
             w.Write((float)objective_highest_altitude);
             w.Write((float)clearance_age_seconds);
+            w.Write((float)raw_ground_turn);
+            w.Write((float)mapped_ground_turn);
+            w.Write((float)raw_left_motion_estimated);
+            w.Write((float)raw_right_motion_estimated);
+            w.Write((float)mapped_left_motion_estimated);
+            w.Write((float)mapped_right_motion_estimated);
+            w.Write((float)raw_left_pose_source);
+            w.Write(raw_left_sample_timestamp);
+            w.Write((float)raw_left_unextrapolated_available);
+            w.Write((float)raw_left_unextrapolated_position_x);
+            w.Write((float)raw_left_unextrapolated_position_y);
+            w.Write((float)raw_left_unextrapolated_position_z);
+            w.Write((float)raw_left_unextrapolated_rotation_x);
+            w.Write((float)raw_left_unextrapolated_rotation_y);
+            w.Write((float)raw_left_unextrapolated_rotation_z);
+            w.Write((float)raw_left_unextrapolated_rotation_w);
+            w.Write(raw_left_unextrapolated_timestamp);
+            w.Write((float)raw_right_pose_source);
+            w.Write(raw_right_sample_timestamp);
+            w.Write((float)raw_right_unextrapolated_available);
+            w.Write((float)raw_right_unextrapolated_position_x);
+            w.Write((float)raw_right_unextrapolated_position_y);
+            w.Write((float)raw_right_unextrapolated_position_z);
+            w.Write((float)raw_right_unextrapolated_rotation_x);
+            w.Write((float)raw_right_unextrapolated_rotation_y);
+            w.Write((float)raw_right_unextrapolated_rotation_z);
+            w.Write((float)raw_right_unextrapolated_rotation_w);
+            w.Write(raw_right_unextrapolated_timestamp);
+            w.Write((float)hand_wmm2_enabled);
+            w.Write((float)hand_fmm_requested);
         }
         public static TelemetrySample Read(BinaryReader r)=>new TelemetrySample
         {
@@ -1491,8 +1619,38 @@ namespace VoarVR.Telemetry
             objective_quiet_gain = r.ReadDouble(),
             objective_highest_altitude = r.ReadDouble(),
             clearance_age_seconds = r.ReadDouble(),
+            raw_ground_turn = r.ReadDouble(),
+            mapped_ground_turn = r.ReadDouble(),
+            raw_left_motion_estimated = r.ReadDouble(),
+            raw_right_motion_estimated = r.ReadDouble(),
+            mapped_left_motion_estimated = r.ReadDouble(),
+            mapped_right_motion_estimated = r.ReadDouble(),
+            raw_left_pose_source = r.ReadDouble(),
+            raw_left_sample_timestamp = r.ReadDouble(),
+            raw_left_unextrapolated_available = r.ReadDouble(),
+            raw_left_unextrapolated_position_x = r.ReadDouble(),
+            raw_left_unextrapolated_position_y = r.ReadDouble(),
+            raw_left_unextrapolated_position_z = r.ReadDouble(),
+            raw_left_unextrapolated_rotation_x = r.ReadDouble(),
+            raw_left_unextrapolated_rotation_y = r.ReadDouble(),
+            raw_left_unextrapolated_rotation_z = r.ReadDouble(),
+            raw_left_unextrapolated_rotation_w = r.ReadDouble(),
+            raw_left_unextrapolated_timestamp = r.ReadDouble(),
+            raw_right_pose_source = r.ReadDouble(),
+            raw_right_sample_timestamp = r.ReadDouble(),
+            raw_right_unextrapolated_available = r.ReadDouble(),
+            raw_right_unextrapolated_position_x = r.ReadDouble(),
+            raw_right_unextrapolated_position_y = r.ReadDouble(),
+            raw_right_unextrapolated_position_z = r.ReadDouble(),
+            raw_right_unextrapolated_rotation_x = r.ReadDouble(),
+            raw_right_unextrapolated_rotation_y = r.ReadDouble(),
+            raw_right_unextrapolated_rotation_z = r.ReadDouble(),
+            raw_right_unextrapolated_rotation_w = r.ReadDouble(),
+            raw_right_unextrapolated_timestamp = r.ReadDouble(),
+            hand_wmm2_enabled = r.ReadDouble(),
+            hand_fmm_requested = r.ReadDouble(),
         };
-        public static TelemetrySample ReadCompact(BinaryReader r)=>new TelemetrySample
+        public static TelemetrySample ReadCompact(BinaryReader r, int schemaVersion = CurrentSchemaVersion)=>new TelemetrySample
         {
             timestamp = r.ReadDouble(),
             frame = r.ReadSingle(),
@@ -1789,6 +1947,36 @@ namespace VoarVR.Telemetry
             objective_quiet_gain = r.ReadSingle(),
             objective_highest_altitude = r.ReadSingle(),
             clearance_age_seconds = r.ReadSingle(),
+            raw_ground_turn = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            mapped_ground_turn = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            raw_left_motion_estimated = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            raw_right_motion_estimated = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            mapped_left_motion_estimated = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            mapped_right_motion_estimated = schemaVersion >= 4 ? r.ReadSingle() : 0,
+            raw_left_pose_source = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_sample_timestamp = schemaVersion >= 5 ? r.ReadDouble() : 0,
+            raw_left_unextrapolated_available = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_position_x = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_position_y = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_position_z = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_rotation_x = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_rotation_y = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_rotation_z = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_rotation_w = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_left_unextrapolated_timestamp = schemaVersion >= 5 ? r.ReadDouble() : 0,
+            raw_right_pose_source = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_sample_timestamp = schemaVersion >= 5 ? r.ReadDouble() : 0,
+            raw_right_unextrapolated_available = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_position_x = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_position_y = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_position_z = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_rotation_x = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_rotation_y = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_rotation_z = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_rotation_w = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            raw_right_unextrapolated_timestamp = schemaVersion >= 5 ? r.ReadDouble() : 0,
+            hand_wmm2_enabled = schemaVersion >= 5 ? r.ReadSingle() : 0,
+            hand_fmm_requested = schemaVersion >= 5 ? r.ReadSingle() : 0,
         };
     }
 }

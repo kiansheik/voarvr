@@ -2,12 +2,26 @@ using UnityEngine;
 
 namespace VoarVR.Input
 {
+    public enum HandPoseSource { Unknown, DirectHigh, DirectLow, Inferred, Lost }
+
     public struct WingInput
     {
         public Vector3 Position;
         public Vector3 Velocity;
         public Quaternion Orientation;
         public bool Tracked;
+        // True when the pose is usable for continuity/presentation but its motion is
+        // inferred or predicted. Estimated motion must not create active flap energy.
+        public bool MotionEstimated;
+        // Fraction of active stroke force an estimated pose may still earn; 0 by default, so
+        // estimated motion stays forceless unless an adapter measured it is trustworthy.
+        public float EstimatedStrokeAuthority;
+        public HandPoseSource Source;
+        public double SampleTimestamp;
+        public bool HasUnextrapolatedPose;
+        public Vector3 UnextrapolatedPosition;
+        public Quaternion UnextrapolatedOrientation;
+        public double UnextrapolatedTimestamp;
 
         public static WingInput Rest(Vector3 position) => new WingInput
         {

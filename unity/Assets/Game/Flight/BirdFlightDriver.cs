@@ -51,8 +51,11 @@ namespace VoarVR.Flight
         private ObstacleCourseDirector obstacleCourse;
         private JourneyPresentation journeyPresentation;
         private SkyRivals skyRivals;
-        private bool recoveryPending, recoveryFallback, resumeNeedsCalibration;
+        private enum RecoveryStage { SavedPerch, Departure, SpawnFloor }
+        private bool recoveryPending, resumeNeedsCalibration;
         private bool guidedCalibrationPending;
+        private bool resumeAfterDepartureRecovery;
+        private RecoveryStage recoveryStage;
         private LogicalPosition recoveryTarget;
         private float recoveryWait;
         private bool menuToggle, menuSelect;
@@ -99,6 +102,7 @@ namespace VoarVR.Flight
         private FlightActionGate actionGate;
         public BirdFlightController Controller { get; private set; }
         public bool UsesXR { get; private set; }
+        public bool UsesHands => UsesXR && HandInputSettings.UseHands;
         private bool CalibrationLocksFlight => UsesXR && (!calibration.Captured
             || guidedCalibrationPending || platformRecenterPending);
         private bool AuthoritativePause => recoveryPending || resumeNeedsCalibration
@@ -113,9 +117,9 @@ namespace VoarVR.Flight
             viewMode = FlightViewMode.ThirdPerson;
             // Auto chooses XR on device; macOS Editor remains hardware-independent.
             UsesXR = inputMode == FlightInputMode.XR || (inputMode == FlightInputMode.Auto
-                && Application.platform == RuntimePlatform.Android && !Application.isEditor);
+                && (HandInputSettings.UseHands || Application.platform == RuntimePlatform.Android && !Application.isEditor));
             if (UsesXR)
-                input = new XRFlightInput();
+                input = HandInputSettings.UseHands ? (IFlightInput)new MetaHandFlightInput() : new XRFlightInput();
             else if (inputMode == FlightInputMode.Gamepad || (inputMode == FlightInputMode.Auto && Gamepad.current != null))
                 input = new GamepadFlightInput();
             else
@@ -129,6 +133,8 @@ namespace VoarVR.Flight
                 profile = character.BuildProfile();
                 calibration.ConfigureBirdHalfSpan(character.RestArmSpan);
             }
+            calibration.CompactHands = UsesHands;
+            if (UsesHands) CalibrationStatus = "Spread your hands comfortably, then look at READY and pinch";
             wind = FindAnyObjectByType<WindField>();
             world = FindAnyObjectByType<WorldStreamer>();
             wind?.ConfigureSpecies(profile);
@@ -136,6 +142,7 @@ namespace VoarVR.Flight
             var environment = gameObject.AddComponent<UnityFlightEnvironment>();
             actionGate = new FlightActionGate(input);
             Controller = new BirdFlightController(actionGate, originalSpawn, profile:profile, wind:wind, environment:environment);
+            Controller.SpanFlareEnabled = !UsesHands;
             rig = GetComponent<BirdRigDriver>();
             groundPresentation = gameObject.AddComponent<BirdGroundPresentation>();
             groundPresentation.Configure(rig,profile.CollisionRadius);
@@ -167,9 +174,10 @@ namespace VoarVR.Flight
             gameObject.AddComponent<BirdAirflowTrails>().Configure(this, worldPresentation != null ? worldPresentation.AirflowMaterial : null,
                 world != null ? world.Space : null);
             flightMenu = gameObject.AddComponent<FlightMenu>();
-            flightMenu.Configure(Camera.main, HandleMenuAction, MenuStatus);
+            flightMenu.Configure(Camera.main, HandleMenuAction, MenuStatus, MenuActionLabel);
             calibrationCoach = gameObject.AddComponent<CalibrationCoach>();
             calibrationCoach.Configure(Camera.main);
+            calibrationCoach.ConfirmRequested += ConfirmHandCalibration;
             if (world != null)
             {
                 journeyPresentation = gameObject.AddComponent<JourneyPresentation>();
@@ -190,14 +198,21 @@ namespace VoarVR.Flight
                 resumeNeedsCalibration = UsesXR;
                 CalibrationStatus = "Journey resumed: recalibrate here from the flight menu";
                 BeginPerchRecovery(Expedition.ResumeCheckpoint.HasSafePerch
-                    ? Expedition.ResumeCheckpoint.SafePerch : DeparturePerch(), !Expedition.ResumeCheckpoint.HasSafePerch);
+                    ? Expedition.ResumeCheckpoint.SafePerch : DeparturePerch(),
+                    Expedition.ResumeCheckpoint.HasSafePerch ? RecoveryStage.SavedPerch : RecoveryStage.Departure);
             }
             else if (UsesXR && !calibration.Captured)
             {
                 calibrationCoach.Show(false);
                 Controller.SetPaused(true);
+                // Hands calibrate on the departure perch, so the first view is the bird
+                // on the ridge rather than the spawn bowl followed by a cut.
+                if (UsesHands && obstacleCourse == null && world != null)
+                    BeginPerchRecovery(DeparturePerch(), RecoveryStage.Departure);
             }
-            if (UsesXR) Debug.Log("Duck calibration: spread both tracked arms comfortably, then press the right primary button.");
+            if (UsesXR) Debug.Log(UsesHands
+                ? "Hand calibration: spread tracked hands comfortably, look at READY and pinch."
+                : "Flight calibration: spread both tracked arms comfortably, then press the right primary button.");
         }
 
         // Replaces any rig baked in by the editor Configure tools with the selected species'
@@ -276,7 +291,7 @@ namespace VoarVR.Flight
                 ||Controller.State.Phase==FlightPhase.Perched;
             Controller.ResetEnabled=!UsesXR && !ResetActionBlocked;
             Controller.PauseEnabled=!lockPause;
-            if(input is XRFlightInput resettableInput)resettableInput.ResetEnabled=false;
+            if(input is ITrackedFlightInput resettableInput)resettableInput.ResetEnabled=false;
             if(lockPause)Controller.SetPaused(true);
             Controller.StreamingBlocked = recoveryPending || resumeNeedsCalibration || (world != null && (!world.IsReadyAt(Controller.State.Position)
                 || !world.IsReadyAt(Controller.State.Position + Controller.State.Velocity * deltaTime)));
@@ -300,7 +315,7 @@ namespace VoarVR.Flight
                 RebaseWorld(new Vector3(Mathf.Floor(p.x/128f)*128f,0f,Mathf.Floor(p.z/128f)*128f));
             }
             transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
-            var xr = input as XRFlightInput;
+            var xr = input as ITrackedFlightInput;
             var frame = xr != null ? xr.LastRawFrame : Controller.LastInput;
             if(finalizedSession!=null)
             {
@@ -309,7 +324,7 @@ namespace VoarVR.Flight
                 // it visible, require a clean release, and restore it if another lifecycle
                 // event temporarily disabled its canvas.
                 bool resultsInputAvailable=applicationFocused&&!applicationPaused
-                    &&(!UsesXR||frame.HeadTracked&&frame.LeftWing.Tracked&&frame.RightWing.Tracked);
+                    && MenuTrackingAvailable(frame);
                 Controller.SetPaused(true);
                 if(resultsInputAvailable)
                 {
@@ -328,7 +343,8 @@ namespace VoarVR.Flight
                 GetComponent<SkyForaging>()?.InvalidateSweep();GetComponent<BirdAirflowTrails>()?.ClearHistory();
                 obstacleCourse?.RequestSafetyReset();
             }
-            calibrationCoach?.UpdateReadiness(frame, calibration);
+            if (UsesHands && xr != null) calibrationCoach?.UpdateHands(frame, xr.LastDeviceFrame, deltaTime);
+            else calibrationCoach?.UpdateReadiness(frame, calibration);
             if(frame.ControlModePressed)ShowMode();
             if (Controller.Tricks.Count != lastTrickCount)
             {
@@ -351,7 +367,7 @@ namespace VoarVR.Flight
                     calibrationCoach?.Hide();
                     OpenSessionMenu();
                 }
-                else if(resumeNeedsCalibration)OpenSessionMenu();
+                else if(resumeNeedsCalibration){calibrationCoach?.Hide();OpenSessionMenu();}
                 else if(platformRecenterPending)
                 {
                     // An OpenXR origin update is not a request to abandon the flight.
@@ -359,7 +375,9 @@ namespace VoarVR.Flight
                     // fresh stable pose is accepted.
                     calibrationCoach?.Show(true);actionGate?.RequireRelease();
                 }
-                else if(!calibration.Captured)ReturnToCharacterSelect();
+                // Hands pinch READY on this coach: holding both pinches while trying is
+                // not a request to abandon the flight (Left Menu keeps that on controllers).
+                else if(!calibration.Captured){if(!UsesHands)ReturnToCharacterSelect();}
                 else OpenSessionMenu();
             }
             if (xr != null && !calibration.HeadCaptured) calibration.CaptureHead(frame);
@@ -392,27 +410,49 @@ namespace VoarVR.Flight
                 }
                 else if (!ResetActionBlocked) RestartAndCalibrate(frame);
             }
-            else if (platformRecenterPending) TryCompletePlatformRecenter(frame, deltaTime);
+            else if (platformRecenterPending && !UsesHands) TryCompletePlatformRecenter(frame, deltaTime);
             bool menuInputAvailable = applicationFocused && !applicationPaused
                 &&(!CalibrationLocksFlight||resumeNeedsCalibration||flightMenu?.Visible==true)
-                && (!UsesXR || (frame.HeadTracked && frame.LeftWing.Tracked && frame.RightWing.Tracked));
-            bool courseConsumed=obstacleCourse!=null && obstacleCourse.HandleInput(frame,menuSelect);
-            if (menuInputAvailable && !courseConsumed)
-                flightMenu?.HandleInput(frame, Controller.IsPaused, menuToggle, menuNavigation, menuSelect);
-            else { flightMenu?.Close(); flightMenu?.RequireInputRelease(); actionGate?.RequireRelease(); }
+                && MenuTrackingAvailable(frame);
+            // Pinch confirms paused course prompts; it never becomes an airborne tuck.
+            var courseFrame = frame;
+            if (UsesHands) courseFrame.Tuck = (frame.ButtonsHeld & (512u | 1024u)) != 0 ? 1f : 0f;
+            bool courseInputAvailable = menuInputAvailable && (!UsesHands
+                || MeasuredHandMotion(frame.LeftWing) && MeasuredHandMotion(frame.RightWing));
+            bool courseConsumed=obstacleCourse!=null && !FlightMenuVisible
+                && obstacleCourse.HandleInput(courseFrame,menuSelect,courseInputAvailable);
+            if (menuInputAvailable)
+            {
+                if(!courseConsumed)
+                    flightMenu?.HandleInput(frame, Controller.IsPaused, menuToggle, menuNavigation, menuSelect);
+                else { flightMenu?.Close(); flightMenu?.RequireInputRelease(); }
+            }
+            else
+            {
+                // Hands naturally leave tracking while arms rest. Keep the card readable;
+                // fresh trusted input still requires a release before any action.
+                if (!UsesHands) flightMenu?.Close();
+                flightMenu?.RequireInputRelease(); actionGate?.RequireRelease();
+            }
             menuToggle = menuSelect = false; menuNavigation = 0;
             if (returningToSelection) return;
-            rig?.SetPresentationVisible(!FlightOverlayBlocked);
+            // Hands have no pause button: a pause with nothing to look at (focus return,
+            // headset removal, an interrupted departure) always shows the rest card.
+            if (UsesHands && obstacleCourse == null && Controller.IsPaused && !AuthoritativePause
+                && !FlightMenuVisible && !CalibrationCoachVisible) OpenSessionMenu();
+            // Cards draw over the world. The calibration coach sits above the bird so the
+            // player sees their bird while fitting the pose; rest and course cards hide it.
+            rig?.SetPresentationVisible(!FlightMenuVisible && obstacleCourse?.ModalOverlayVisible != true);
             if (Controller.LandingCount != lastLandingCount)
             {
                 lastLandingCount=Controller.LandingCount;
                 RecordSupportedPerch();
-                CoachStatus="LANDED - LEFT STICK: WALK · RIGHT STICK: TURN · FLAP: FLY"; coachUntil=Time.unscaledTime+3f;
+                CoachStatus=UsesHands ? "LANDED · REST YOUR ARMS · FLAP TO FLY" : "LANDED - LEFT STICK: WALK · RIGHT STICK: TURN · FLAP: FLY"; coachUntil=Time.unscaledTime+3f;
             }
             if (!platformRecenterPending && Time.unscaledTime >= coachUntil)
             {
                 if (Controller.State.Phase == FlightPhase.Paused)
-                    CoachStatus = "PAUSED - X TO RESUME\nRIGHT TRIGGER: FLIGHT MENU\nRIGHT STICK CLICK: HUD / B: VIEW\nLEFT MENU: SESSION / A: CALIBRATION COACH"
+                    CoachStatus = UsesHands ? "PAUSED · LOOK AT A MENU ACTION AND PINCH\nHOLD BOTH PINCHES IN FRONT TO OPEN THE MENU" : "PAUSED - X TO RESUME\nRIGHT TRIGGER: FLIGHT MENU\nRIGHT STICK CLICK: HUD / B: VIEW\nLEFT MENU: SESSION / A: CALIBRATION COACH"
                         + (VoarVR.Telemetry.FlightTelemetry.DefaultEnabled ? "\nMARK: BOTH GRIPS + LEFT STICK CLICK" : "");
                 else if (Controller.State.Phase == FlightPhase.Perched)
                     CoachStatus = Controller.LandingCount != lastLandingCount ? "LANDED - LEFT STICK: WALK · RIGHT STICK: TURN · FLAP: FLY" : null;
@@ -429,8 +469,8 @@ namespace VoarVR.Flight
             {
                 groundPresentation?.RestoreBase();
                 if (rig != null) rig.Present(presentationFrame, calibration, Controller.ControlMode==FlightControlMode.Acrobatic?Controller.State.Rotation:Heading, deltaTime);
-                groundPresentation?.Present(Controller, deltaTime);
-                avian?.Present(presentationFrame,calibration,Controller,groundPresentation.GroundBlend,deltaTime);
+                groundPresentation?.Present(Controller, deltaTime, GroundArmFold(presentationFrame));
+                avian?.Present(presentationFrame,calibration,Controller,groundPresentation.FoldBlend,deltaTime);
             }
             feedback?.Tick(deltaTime);
             bool hadSeed = Expedition?.Challenge?.SeedCollected == true;
@@ -471,6 +511,18 @@ namespace VoarVR.Flight
             return goal;
         }
 
+        private string MenuActionLabel(FlightMenuAction action)
+        {
+            switch (action)
+            {
+                case FlightMenuAction.ToggleView: return "View: " + (viewMode == FlightViewMode.FirstPerson ? "first-person" : "third-person");
+                case FlightMenuAction.ToggleControlMode: return "Controls: " + (Controller.ControlMode == FlightControlMode.Beginner ? "Beginner" : "Acrobatic");
+                case FlightMenuAction.ToggleWind: return "Wind: " + WindModeName;
+                case FlightMenuAction.ToggleHud: return "Instruments: " + (GetComponent<FlightHud>()?.Visible == true ? "shown" : "hidden");
+                default: return null;
+            }
+        }
+
         private void HandleMenuAction(FlightMenuAction action)
         {
             actionGate?.RequireRelease();
@@ -494,12 +546,29 @@ namespace VoarVR.Flight
                         if(obstacleCourse.RequestRestart())flightMenu.Close();
                         else flightMenu.ShowMessage("Finish the result and rest steps before retrying this course.");
                     }
-                    else RestartAndCalibrate(input is XRFlightInput xr ? xr.LastRawFrame : Controller.LastInput);
+                    else RestartAndCalibrate(input is ITrackedFlightInput xr ? xr.LastRawFrame : Controller.LastInput);
                     break;
                 case FlightMenuAction.FinishSession:
                     FinishSession(); break;
                 case FlightMenuAction.ReturnAfterResults:
+                case FlightMenuAction.ReturnToSelection:
                     ReturnToCharacterSelect(); break;
+                case FlightMenuAction.ToggleView:
+                    ToggleView(); break;
+                case FlightMenuAction.ToggleHud:
+                    GetComponent<FlightHud>()?.Toggle(); break;
+                case FlightMenuAction.ToggleControlMode:
+                    Controller.SetControlMode(Controller.ControlMode == FlightControlMode.Beginner
+                        ? FlightControlMode.Acrobatic : FlightControlMode.Beginner);
+                    ShowMode(); break;
+                case FlightMenuAction.ToggleWind:
+                    if (wind != null)
+                    {
+                        wind.CycleMode();
+                        CoachStatus = "WIND: " + wind.ModeName.ToUpperInvariant();
+                        coachUntil = Time.unscaledTime + 3f;
+                    }
+                    break;
                 case FlightMenuAction.ToggleHaptics:
                 case FlightMenuAction.ToggleAudio:
                 case FlightMenuAction.ToggleFirstPersonComfort:
@@ -511,18 +580,56 @@ namespace VoarVR.Flight
         public bool RecalibrateInPlace()
         {
             if (Controller == null || !Controller.IsPaused || recoveryPending) return false;
-            var frame = input is XRFlightInput xr ? xr.LastRawFrame : Controller.LastInput;
+            var frame = input is ITrackedFlightInput xr ? xr.LastRawFrame : Controller.LastInput;
             if (UsesXR && !CaptureNeutral(frame, "READY TO RESUME"))
             {
-                flightMenu?.ShowMessage("Pose not accepted.\nHold both tracked controllers in a comfortable level spread and try again.\nYour journey is unchanged.");
+                flightMenu?.ShowMessage(UsesHands
+                    ? "Pose not accepted.\nHold both tracked hands in a comfortable level spread and try again.\nYour journey is unchanged."
+                    : "Pose not accepted.\nHold both tracked controllers in a comfortable level spread and try again.\nYour journey is unchanged.");
                 return false;
             }
             if (!UsesXR) Controller.Calibrate(frame);
             resumeNeedsCalibration = false;
             Expedition?.InvalidateObservation();
             actionGate?.RequireRelease();
-            flightMenu?.ShowMessage("Comfortable neutral captured.\nYour position and journey are unchanged.\nChoose RESUME when ready.");
+            flightMenu?.ShowMessage("Comfortable neutral captured.\nYour position and journey are unchanged.\nChoose "
+                + (obstacleCourse != null ? "RETURN TO COURSE" : "CONTINUE FLYING") + " when ready.");
             return true;
+        }
+
+        private void ConfirmHandCalibration()
+        {
+            if (!UsesHands || input is not ITrackedFlightInput tracked || !applicationFocused
+                || applicationPaused || recoveryPending || finalizedSession != null) return;
+            // Raised by the hands-free countdown: capture its latest frame, seen or inferred.
+            var frame = tracked.LastRawFrame;
+            if (!frame.HeadTracked || !HandCalibrationFlow.HandVisible(frame.LeftWing)
+                || !HandCalibrationFlow.HandVisible(frame.RightWing)) return;
+            var flow = calibrationCoach.Flow;
+            if (input is MetaHandFlightInput hands && flow.HasContext)
+                hands.SetInferredBias(flow.LeftBiasKnown, flow.LeftInferredBias, flow.RightBiasKnown, flow.RightInferredBias);
+            if (guidedCalibrationPending) CompleteGuidedCalibration(frame);
+            else if (platformRecenterPending || resumeNeedsCalibration)
+            {
+                guidedCalibrationPending = true;
+                CompleteGuidedCalibration(frame);
+            }
+            else if (!calibration.Captured)
+            {
+                // A fresh session already rests on its departure perch: calibrate in place
+                // instead of resetting the streamed world and re-perching.
+                if (Controller.HasSupportedPerch && obstacleCourse == null
+                    && CaptureNeutral(frame, "GLIDING IN YOUR NEUTRAL · FLAP DOWN TO CLIMB"))
+                {
+                    // Glide off the ridge straight away so the new neutral is felt in the air.
+                    actionGate?.RequireRelease();
+                    Controller.SetPaused(false);
+                    Controller.LaunchGlide();
+                    CoachStatus = "GLIDING IN YOUR NEUTRAL · FLAP DOWN TO CLIMB";
+                    coachUntil = Time.unscaledTime + 6f;
+                }
+                else RestartAndCalibrate(frame, false);
+            }
         }
 
         private void BeginGuidedCalibration()
@@ -531,7 +638,7 @@ namespace VoarVR.Flight
                 || sessionTracker?.IsFinished == true) return;
             Controller.SetPaused(true);
             guidedCalibrationPending = true;
-            if (input is XRFlightInput xr) xr.ResetEnabled = false;
+            if (input is ITrackedFlightInput xr) xr.ResetEnabled = false;
             flightMenu?.Close();
             flightMenu?.RequireInputRelease();
             actionGate?.RequireRelease();
@@ -545,13 +652,22 @@ namespace VoarVR.Flight
                 || finalizedSession != null || sessionTracker?.IsFinished == true) return false;
             if (!CaptureNeutral(frame, "COMFORTABLE NEUTRAL CAPTURED"))
             {
-                CalibrationStatus = "Calibration rejected: relax into the illustrated T pose";
+                CalibrationStatus = UsesHands ? "Calibration rejected: relax into the illustrated compact spread"
+                    : "Calibration rejected: relax into the illustrated T pose";
                 calibrationCoach?.UpdateReadiness(frame, calibration);
                 return false;
             }
             guidedCalibrationPending = false;
-            if (input is XRFlightInput xr) xr.ResetEnabled = false;
+            if (input is ITrackedFlightInput xr) xr.ResetEnabled = false;
             calibrationCoach?.Hide();
+            if (UsesHands)
+            {
+                // The countdown already confirmed readiness: carry on flying in the new neutral.
+                actionGate?.RequireRelease();
+                if (!AuthoritativePause && !FlightMenuVisible) Controller.SetPaused(false);
+                CoachStatus = "NEUTRAL SET · FLAP DOWN TO CLIMB"; coachUntil = Time.unscaledTime + 4f;
+                return true;
+            }
             flightMenu?.Open();
             flightMenu?.RequireInputRelease();
             flightMenu?.ShowMessage("Comfortable neutral captured.\nYour position and journey are unchanged.\nChoose CONTINUE FLYING when ready.");
@@ -576,23 +692,27 @@ namespace VoarVR.Flight
             RecordSupportedPerch();
             Expedition?.SaveCheckpoint();
             var checkpoint = Expedition?.Journey.GetCheckpoint(Expedition.Challenge.Activity);
-            BeginPerchRecovery(checkpoint != null && checkpoint.HasSafePerch ? checkpoint.SafePerch : DeparturePerch(),
-                checkpoint == null || !checkpoint.HasSafePerch);
+            bool saved = checkpoint != null && checkpoint.HasSafePerch;
+            BeginPerchRecovery(saved ? checkpoint.SafePerch : DeparturePerch(),
+                saved ? RecoveryStage.SavedPerch : RecoveryStage.Departure);
         }
 
-        private LogicalPosition DeparturePerch()
+        // The ridge lookout gives a supported start an open view toward the first lift.
+        // The reliably clear spawn floor remains the last resort if it cannot be supported.
+        private LogicalPosition DeparturePerch() => GroundPerch(FlightRegions.DepartureLookoutX, FlightRegions.DepartureLookoutZ);
+        private LogicalPosition SpawnFloorPerch() => GroundPerch(originalSpawn.x, originalSpawn.z);
+        private LogicalPosition GroundPerch(double x, double z)
         {
             int seed = world != null ? world.Space.Seed : 7319;
-            return new LogicalPosition(originalSpawn.x,
-                WorldTerrain.Elevation(seed, originalSpawn.x, originalSpawn.z) + profile.CollisionRadius + FlightContactSolver.Skin,
-                originalSpawn.z);
+            return new LogicalPosition(x, WorldTerrain.Elevation(seed, x, z) + profile.CollisionRadius + FlightContactSolver.Skin, z);
         }
 
-        private void BeginPerchRecovery(LogicalPosition target, bool fallback)
+        private void BeginPerchRecovery(LogicalPosition target, RecoveryStage stage)
         {
-            if (world == null) { flightMenu?.ShowMessage("A loaded perch is not available here."); return; }
+            resumeAfterDepartureRecovery = false;
             Controller.SetPaused(true);
-            recoveryTarget = target; recoveryFallback = fallback; recoveryWait = 0; recoveryPending = true;
+            if (world == null) { flightMenu?.Open(); flightMenu?.ShowMessage("A loaded perch is not available here."); return; }
+            recoveryTarget = target; recoveryStage = stage; recoveryWait = 0; recoveryPending = true;
             Expedition?.InvalidateObservation();
             GetComponent<SkyForaging>()?.InvalidateSweep();
             actionGate?.RequireRelease();
@@ -614,22 +734,46 @@ namespace VoarVR.Flight
             {
                 sky?.Tick(target);
                 Physics.SyncTransforms();
-                if (Controller.TryRecoverToPerch(target, 0))
+                if (Controller.TryRecoverToPerch(target,
+                        recoveryStage == RecoveryStage.Departure ? FlightRegions.DepartureLookoutHeading : 0))
                 {
                     recoveryPending = false; world.SetRecoveryFocus(null);
                     transform.SetPositionAndRotation(Controller.State.Position, Controller.State.Rotation);
                     comfortYaw = 0; comfortTransition = false;
+                    // Cards placed before the move would be left behind in the world. A hands
+                    // resume has no pause button, so it goes straight to its READY coach.
+                    if (UsesHands && resumeNeedsCalibration && !FlightMenuVisible && !CalibrationCoachVisible)
+                        calibrationCoach?.Show(true);
+                    calibrationCoach?.Reanchor(); flightMenu?.Reanchor();
                     Expedition?.InvalidateObservation();
                     GetComponent<SkyForaging>()?.InvalidateSweep();
                     GetComponent<BirdAirflowTrails>()?.ClearHistory();
                     RecordSupportedPerch();
-                    flightMenu?.ShowMessage(resumeNeedsCalibration ? MenuStatus() : "Your journey is ready.\nRest here, then choose RESUME.\nFlap to leave the perch.");
+                    if (resumeAfterDepartureRecovery)
+                    {
+                        resumeAfterDepartureRecovery = false;
+                        if (!FlightMenuVisible && applicationFocused && !applicationPaused
+                            && !CalibrationLocksFlight && finalizedSession == null) Controller.SetPaused(false);
+                        CoachStatus = "REST HERE · SPREAD YOUR HANDS AND FLAP TO TAKE OFF";
+                        coachUntil = Time.unscaledTime + 6f;
+                    }
+                    flightMenu?.ShowMessage(resumeNeedsCalibration ? MenuStatus() : "Your journey is ready.\nRest here, then choose CONTINUE FLYING.\nFlap to leave the perch.");
                     return;
                 }
             }
             else if (recoveryWait < 15) return;
-            if (!recoveryFallback) { BeginPerchRecovery(DeparturePerch(), true); return; }
-            recoveryPending = false; world.SetRecoveryFocus(null);
+            if (recoveryStage != RecoveryStage.SpawnFloor)
+            {
+                // A fallback continues the same departure, including its automatic resume.
+                bool resume = resumeAfterDepartureRecovery;
+                if (recoveryStage == RecoveryStage.SavedPerch) BeginPerchRecovery(DeparturePerch(), RecoveryStage.Departure);
+                else BeginPerchRecovery(SpawnFloorPerch(), RecoveryStage.SpawnFloor);
+                resumeAfterDepartureRecovery = resume && recoveryPending;
+                return;
+            }
+            recoveryPending = resumeAfterDepartureRecovery = false; world.SetRecoveryFocus(null);
+            // Hands have no pause button: keep the choices visible for gaze and pinch.
+            if (UsesHands && !FlightMenuVisible) flightMenu?.Open();
             flightMenu?.ShowMessage("No clear supported perch was found.\nYou remain paused. Your journey is saved.\nUse RESTART ROUTE to return to the beginning.");
         }
 
@@ -639,7 +783,10 @@ namespace VoarVR.Flight
                 Expedition?.RecordSupportedPerch(world.Space.ToLogical(Controller.State.Position));
         }
         private void ShowMode()
-        { CoachStatus=Controller.ControlMode==FlightControlMode.Acrobatic?"ACROBATIC FLIGHT\nBANK TO ROLL / TILT BOTH WRISTS TO PITCH\nA: CALIBRATION COACH / HOLD LEFT STICK: BEGINNER":"BEGINNER FLIGHT";coachUntil=Time.unscaledTime+5; }
+        { CoachStatus=Controller.ControlMode==FlightControlMode.Acrobatic
+            ? UsesHands ? "ACROBATIC FLIGHT\nBANK TO ROLL · TILT BOTH WRISTS TO PITCH\nFLIGHT SETTINGS: CHANGE CONTROLS"
+                : "ACROBATIC FLIGHT\nBANK TO ROLL / TILT BOTH WRISTS TO PITCH\nA: CALIBRATION COACH / HOLD LEFT STICK: BEGINNER"
+            : "BEGINNER FLIGHT";coachUntil=Time.unscaledTime+5; }
 
         public void ShowTelemetryMarker(int number)
         { CoachStatus="MARK "+number; coachUntil=Time.unscaledTime+1f; }
@@ -650,7 +797,7 @@ namespace VoarVR.Flight
         private bool RestartAndCalibrate(FlightInputFrame frame,bool resetCourse)
         {
             guidedCalibrationPending = false;
-            if (input is XRFlightInput resettable) resettable.ResetEnabled = false;
+            if (input is ITrackedFlightInput resettable) resettable.ResetEnabled = false;
             recoveryPending = resumeNeedsCalibration = false;
             world?.SetRecoveryFocus(null);
             flightMenu?.Close(); flightMenu?.RequireInputRelease(); actionGate?.RequireRelease();
@@ -665,15 +812,24 @@ namespace VoarVR.Flight
             viewMode = FlightViewMode.ThirdPerson;
             platformRecenterPending = false;
             resumeNeedsCalibration = false;
-            if (CaptureNeutral(frame, "READY - GLIDE + FLAP\nB: VIEW / X: PAUSE / LEFT MENU: SESSION"))
+            if (CaptureNeutral(frame, UsesHands ? "READY · FLAP TO TAKE OFF\nHOLD BOTH PINCHES IN FRONT: MENU"
+                : "READY - GLIDE + FLAP\nB: VIEW / X: PAUSE / LEFT MENU: SESSION"))
             {
                 calibrationCoach?.Hide();
+                if (UsesHands && obstacleCourse == null)
+                {
+                    BeginPerchRecovery(DeparturePerch(), RecoveryStage.Departure);
+                    resumeAfterDepartureRecovery = recoveryPending;
+                    // The reset streamed the origin chunk synchronously; perch in this frame
+                    // when possible so the spawn is never rendered between reset and perch.
+                    ProcessPerchRecovery(0f);
+                }
                 return true;
             }
             calibration.BeginPlatformRecenter();
-            if (input is XRFlightInput xr) { xr.WingsEnabled = false; xr.ResetDerivatives(); }
-            CalibrationStatus = "Calibration rejected: hold a level comfortable T pose";
-            CoachStatus = "HOLD A LEVEL T POSE\nPRESS A: START + CALIBRATE";
+            if (input is ITrackedFlightInput xr) { xr.WingsEnabled = false; xr.ResetDerivatives(); }
+            CalibrationStatus = UsesHands ? "Calibration rejected: hold a comfortable compact spread" : "Calibration rejected: hold a level comfortable T pose";
+            CoachStatus = UsesHands ? "HOLD A COMFORTABLE SPREAD\nLOOK AT READY AND PINCH" : "HOLD A LEVEL T POSE\nPRESS A: START + CALIBRATE";
             calibrationCoach?.Show(false);
             coachUntil = Time.unscaledTime + 3f;
             return false;
@@ -681,11 +837,11 @@ namespace VoarVR.Flight
 
         private bool CaptureNeutral(FlightInputFrame frame, string message)
         {
-            if (!calibration.CaptureComfortableGlide(frame))
+            if (!(UsesHands ? calibration.CaptureNaturalHands(frame) : calibration.CaptureComfortableGlide(frame)))
             { telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.CalibrationRejected); return false; }
             telemetry?.Record(VoarVR.Telemetry.TelemetryEvent.CalibrationAccepted);
             Controller.Calibrate(frame);
-            if (input is XRFlightInput xr) { xr.WingsEnabled = true; xr.ResetDerivatives(); }
+            if (input is ITrackedFlightInput xr) { xr.WingsEnabled = true; xr.ResetDerivatives(); }
             platformRecenterPending = false;
             CalibrationStatus = $"Calibrated: {calibration.HumanSpanMeters:F2} m span, {calibration.MotionScale:F2} wing scale";
             resumeNeedsCalibration = false;
@@ -712,20 +868,21 @@ namespace VoarVR.Flight
             stableRecenterSeconds = 0f;
             hasRecenterFrame = false;
             calibration.BeginPlatformRecenter();
-            if (input is XRFlightInput xr)
+            if (input is ITrackedFlightInput xr)
             {
                 xr.WingsEnabled = false;
                 xr.ResetTrackingOrigin();
             }
             CalibrationStatus = "Platform recentered: hold your comfortable spread still";
-            CoachStatus = "HOLD COMFORTABLE SPREAD STILL\nRECENTER CALIBRATES HERE";
+            CoachStatus = UsesHands ? "HOLD A COMFORTABLE SPREAD\nLOOK AT READY AND PINCH TO RECALIBRATE HERE"
+                : "HOLD COMFORTABLE SPREAD STILL\nRECENTER CALIBRATES HERE";
             calibrationCoach?.Show(true);
             coachUntil = float.PositiveInfinity;
         }
 
         public bool TryCompletePlatformRecenter(FlightInputFrame frame, float deltaTime)
         {
-            if (!platformRecenterPending) return false;
+            if (!platformRecenterPending || UsesHands) return false;
             bool comfortable = calibration.IsComfortableGlidePose(frame);
             bool stable = comfortable && hasRecenterFrame
                 && Vector3.Distance(frame.HeadPosition, previousRecenterFrame.HeadPosition) < .025f
@@ -916,7 +1073,8 @@ namespace VoarVR.Flight
             else if(Controller.IsPaused)category=FlightSessionTimeCategory.Paused;
             else if(Controller.HasSupportedPerch||Controller.State.Phase==FlightPhase.Perched)category=FlightSessionTimeCategory.SupportedPerch;
             else if(!tracked||Controller.StreamingBlocked)category=FlightSessionTimeCategory.Excluded;
-            else category=FlightSessionTracker.ClassifyAirborneHands(frame.LeftWing.Velocity,frame.RightWing.Velocity);
+            else category=FlightSessionTracker.ClassifyAirborneHands(frame.LeftWing.Velocity,frame.RightWing.Velocity,
+                !MeasuredHandMotion(frame.LeftWing),!MeasuredHandMotion(frame.RightWing));
             bool supportedAfterStep=Controller.State.Phase==FlightPhase.Perched
                 ||Controller.HasSupportedPerch;
             // A landing/takeoff transition frame contains airborne displacement. Only
@@ -930,6 +1088,7 @@ namespace VoarVR.Flight
                 Controller.State.Position.x,Controller.State.Position.y,Controller.State.Position.z);
             sessionTracker.Observe(new FlightSessionObservation{DeltaTime=dt,LogicalPosition=logical,Velocity=Controller.State.Velocity,
                 WindVelocity=Controller.WindVelocity,LeftHandVelocity=frame.LeftWing.Velocity,RightHandVelocity=frame.RightWing.Velocity,
+                LeftHandMotionEstimated=!MeasuredHandMotion(frame.LeftWing),RightHandMotionEstimated=!MeasuredHandMotion(frame.RightWing),
                 TimeCategory=category,Movement=movement,MovementActive=movementActive,TrackingAvailable=tracked,
                 StreamingReady=!Controller.StreamingBlocked,SampleValid=true});
             RecordCounter(Controller.CollisionCount,ref sessionCollisions,sessionTracker.RecordCollision);
@@ -938,6 +1097,21 @@ namespace VoarVR.Flight
             sessionDraftElapsed += dt;
             if (sessionDraftElapsed >= 30f) SaveSessionDraft(false);
         }
+
+        // Perched hands mirror the player's arms: relaxed arms fold the wings, arms opened
+        // toward the calibrated span spread them. Controllers keep the full ground fold.
+        private float GroundArmFold(FlightInputFrame frame)
+        {
+            if (!UsesHands || !calibration.Captured || !frame.LeftWing.Tracked || !frame.RightWing.Tracked) return 1f;
+            return Mathf.InverseLerp(.85f, .45f, Controller.SpanRatio);
+        }
+
+        private bool MenuTrackingAvailable(FlightInputFrame frame) => !UsesXR || frame.HeadTracked
+            && (UsesHands ? MeasuredHandMotion(frame.LeftWing) || MeasuredHandMotion(frame.RightWing)
+                : frame.LeftWing.Tracked && frame.RightWing.Tracked);
+
+        private static bool MeasuredHandMotion(WingInput wing) => wing.Tracked && !wing.MotionEstimated
+            && (wing.Source == HandPoseSource.Unknown || wing.Source == HandPoseSource.DirectHigh);
 
         private static void RecordCounter(int current,ref int previous,Func<int,bool> record)
         {if(current>previous)record(current-previous);previous=current;}

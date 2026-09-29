@@ -100,7 +100,7 @@ namespace VoarVR.Gameplay
             : Activity == FlightActivity.RouteHome ? (Stage == 2 ? ObjectiveKind.CollectSeed : Stage == 3 ? ObjectiveKind.Precision : ObjectiveKind.Land)
             : Stage == 2 ? (Activity == FlightActivity.RidgeJourney ? ObjectiveKind.Migration : ObjectiveKind.Precision)
             : Stage == 3 && Activity == FlightActivity.RidgeJourney ? ObjectiveKind.Precision : ObjectiveKind.Land;
-        public string Title => Activity == FlightActivity.ObstacleCourse ? "OBSTACLE COURSE" : Activity == FlightActivity.Training ? "LEARNING THE AIR" : Activity == FlightActivity.RidgeJourney ? "RIDGE JOURNEY" : Activity == FlightActivity.RouteHome ? "A ROUTE HOME" : "SKYWARD EXPEDITION";
+        public string Title => Activity == FlightActivity.FreeFlight ? "FREE FLIGHT" : Activity == FlightActivity.ObstacleCourse ? "OBSTACLE COURSE" : Activity == FlightActivity.Training ? "LEARNING THE AIR" : Activity == FlightActivity.RidgeJourney ? "RIDGE JOURNEY" : Activity == FlightActivity.RouteHome ? "A ROUTE HOME" : "SKYWARD EXPEDITION";
         public string Instruction => Status == ChallengeStatus.Completed
             ? Activity == FlightActivity.RouteHome ? "The garden is growing again. Your seed has a home." : "RESULT SAVED · CONTINUE EXPLORING"
             : Kind == ObjectiveKind.DiscoverLift ? Activity == FlightActivity.RouteHome ? "The quiet garden needs a seed. Follow the rising leaves." : "Find the rising leaves above the valley"

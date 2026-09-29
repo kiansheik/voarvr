@@ -8,6 +8,8 @@ Install the checked-in editor version, Unity 6000.6.0f1, through Hub with Androi
 
 The pinned OpenXR 1.18.0 package contains **Meta Quest Support** and Touch interaction profiles. No Meta All-in-One SDK, Oculus provider or Unity OpenXR Meta extension package is necessary for basic opaque VR/controller tracking. Add optional extensions only when their functionality is needed. The architecture does not require XR Interaction Toolkit for flight input.
 
+The `meta-vr-start-2026-hand-flight` branch additionally pins **Meta XR Core SDK 207.0.0** (OVRPlugin 1.207.0) from the `https://npm.developer.oculus.com` scoped registry for hand tracking; Unity OpenXR stays the XR backend. See [hands-first build](#hands-first-build-competition-branch).
+
 ## Android configuration and manual fallback
 
 File > Build Profiles > Android > Switch Platform. Some Hub/editor UI versions expose a Meta Quest entry over Android. Inspect the Android target tab regardless.
@@ -44,6 +46,12 @@ export ADB="/actual/Android/SDK/platform-tools/adb"
 
 `device` means authorized. `unauthorized` requires accepting the headset prompt; `offline` merits reconnect/restart troubleshooting. An empty list merits checking the cable, Developer Mode and USB connection. USB charging alone does not prove data access. Meta Quest Developer Hub is an optional device-management GUI.
 
+## Automatic Wi-Fi discovery
+
+`make quest-connect` with the headset on authorized USB enables wireless debugging (`adb tcpip 5555` via the SDK adb, only when needed), connects over Wi-Fi and caches the address in `artifacts/quest_ip.txt`, so install/launch keep working after you unplug. Without USB it reuses an existing ADB connection, tries the cached Quest address, then scans TCP5555 across the active interface's actual IPv4 subnet (up to4096 addresses). It does not assume `/24`; mesh networks such as `192.168.68.0/22` are covered. A wider network requires `QUEST_IP` to bound discovery.
+
+The headset must expose an authorized wireless ADB session. Being present on Wi-Fi is not enough, and an explicit IP does not enable debugging. If it is reachable but TCP5555 refuses connections, wake it; if still unavailable, connect an authorized USB data cable, accept the debugging prompt, run `"$ADB" tcpip 5555` using the SDK adb above, then retry `make quest-connect`. No app installation is performed by `connect`.
+
 ## Build, run, observe
 
 From Unity: Development Build, Run Device = your Quest, then Build And Run to `builds/quest/VoarVR.apk`. Both scenes must be enabled. From a shell with the editor closed:
@@ -56,9 +64,9 @@ python3 tools/scripts/unity.py build-quest
 
 For multiple devices use `"$ADB" -s SERIAL install -r builds/quest/VoarVR.apk`. Launch from the headset's developer/unknown-sources app library after adb installation. Build output is ignored. No production signing key is stored; Unity uses development signing for this prototype.
 
-Current acceptance artifact (2026-09-12): the live Unity Editor produced `builds/quest/VoarVR.apk` in 91.360 seconds with BuildReport `Succeeded`, zero errors and five warnings. It is 82,339,095 bytes with SHA-256 `61a4b5ee5e4aca70ab32b82b7c7052dea4aabcfa0078e9b0a5c09cd82d8d36b7`; ZIP integrity and the Android signature pass. Manifest inspection confirms `com.voarvr.prototype`, debuggable, minimum SDK 29, target/compile SDK 36, `arm64-v8a`, OpenXR permissions and the VR headtracking feature. Its embedded source SHA-256 `7764cae054cd89b5b93a609cd983bdd309c2dd62c28ede5835daa8efc573fb10` matches current source. Exact XR preload subassets were restored after the build transient. Quest 3 remains `adb offline` and reconnect reports `Host is down`, so this artifact has not been installed, launched or worn-tested.
+Historical controller acceptance artifact (2026-09-12; predates the hand-flight branch): the live Unity Editor produced `builds/quest/VoarVR.apk` in 91.360 seconds with BuildReport `Succeeded`, zero errors and five warnings. It is 82,339,095 bytes with SHA-256 `61a4b5ee5e4aca70ab32b82b7c7052dea4aabcfa0078e9b0a5c09cd82d8d36b7`; ZIP integrity and the Android signature pass. Manifest inspection confirms `com.voarvr.prototype`, debuggable, minimum SDK 29, target/compile SDK 36, `arm64-v8a`, OpenXR permissions and the VR headtracking feature. Its embedded source SHA-256 `7764cae054cd89b5b93a609cd983bdd309c2dd62c28ede5835daa8efc573fb10` matched the September 12 source. It does not validate the merged hand-flight branch. Exact XR preload subassets were restored after the build transient. At that check Quest 3 was `adb offline` and reconnect reported `Host is down`, leaving installation, launch and wearer validation pending; current connectivity requires a fresh check.
 
-On device Auto selects XR. Physical controller position/orientation is read through Input System/OpenXR; torso-relative derivatives suppress body-turn and tracking-recovery spikes. A opens the diagram-led calibration coach and confirms a ready pose; B toggles view; X pauses; Y cycles weather; Left Menu pauses and opens the session menu. While supported, the left stick translates and the right stick turns the bird. Meta platform recenter pauses, recalibrates in place after stable tracking and returns to the session menu. The reserved system button is not directly bound. See [input contract](../design/INPUT.md).
+On device Auto selects XR; on the hands-first branch that means hands (see below), and this paragraph describes the retained controller adapter. Physical controller position/orientation is read through Input System/OpenXR; torso-relative derivatives suppress body-turn and tracking-recovery spikes. A opens the diagram-led calibration coach and confirms a ready pose; B toggles view; X pauses; Y cycles weather; Left Menu pauses and opens the session menu. While supported, the left stick translates and the right stick turns the bird. Meta platform recenter pauses, recalibrates in place after stable tracking and returns to the session menu. The reserved system button is not directly bound. See [input contract](../design/INPUT.md).
 
 Installed APKs persist locally after disconnect/reboot. Find **VoarVR** in **Library → Unknown Sources**, not the main app grid. If the tab is absent after installation, reopen Library. [Meta documents this location](https://developers.meta.com/horizon/documentation/android-apps/enable-developer-mode/).
 
@@ -72,6 +80,22 @@ The following gameplay is present in the current development APK but still requi
 - Five 30-second obstacle courses with a 3-2-1 start, ordered tasks, local personal-best/leaderboard records and a required six-second rest before retry.
 - Three noncombat aerial rivals outside ranked courses.
 - Directional collision bump, camera/rig reaction, spatial contact sound, haptics and foliage disturbance, backed by solid tree branches and exact compound or mesh-derived profiles for tapered roofs, Ruin hex pillars, Rock, Spire and Log rather than invisible landmark rectangles.
+
+## Hands-first build (competition branch)
+
+Android players select `MetaHandFlightInput` by default; the controller adapter remains in source. After packages resolve, run **VoarVR → Configure Hand Flight** once. It enables the Meta XR feature on Android OpenXR, sets hand tracking to Hands Only, body tracking to Required (for Wide Motion Mode), keeps the default hand-tracking frequency and selects the OpenXR hand skeleton. `HandFlightBuildValidation` fails any Android build whose settings drift; it never rewrites settings during a build.
+
+Every Android build entry point runs `LocalSdkBuildSettings`, which clears the Meta Core DevAgent's local connection token and LAN fallback before the player is serialized. Before installing or sharing an APK, run `VoarVR.Editor.LocalSdkBuildSettings.VerifyApk()` in the editor. It scans every decompressed entry and fails on either value, except Unity's own Development-build profiler address (`player-connection-ip` in `boot.config`), which it reports separately.
+
+A packaged hands build should show `oculus.software.handtracking` required, `com.oculus.permission.HAND_TRACKING`, `com.oculus.permission.BODY_TRACKING`, `com.oculus.software.body_tracking` required, `com.oculus.handtracking.frequency=LOW` and the `com.oculus.intent.category.VR` launcher. Inspect it with Unity's bundled tools:
+
+```sh
+AAPT=/Applications/Unity/Hub/Editor/6000.6.0f1/PlaybackEngines/AndroidPlayer/SDK/build-tools/36.0.0/aapt2
+"$AAPT" dump badging builds/quest/VoarVR.apk
+"$AAPT" dump xmltree --file AndroidManifest.xml builds/quest/VoarVR.apk
+```
+
+`ProjectSetup.BuildQuest()` makes a **Development** build. Meta Core then deliberately adds its dev-only XR Operator layer (`com.meta.agenticxr`: a MediaProjection screen-capture service, `FOREGROUND_SERVICE_MEDIA_PROJECTION` and a non-required `com.oculus.experimental.enabled` tag), and Unity writes the editor's LAN address for the profiler. A submission build must be non-Development and re-inspected for their absence. Meta's setup checks also report minimum API 32 and a single `GameActivity` entry as store-compatibility requirements (this project still uses API 29 for local development); resolve those before a Developer Dashboard upload. On device: look + pinch selects, both pinches held forward for 0.6 s opens rest, measured downstrokes fly. See [hand-flight contract](../design/HAND_FLIGHT.md).
 
 ## Mac testing boundary
 
