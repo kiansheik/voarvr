@@ -12,7 +12,9 @@ namespace VoarVR.Telemetry
         private float quietSeconds,strokeCooldown;private bool armed;
         public void Step(FlightInputFrame input,float dt,bool valid)
         {
-            if(!valid || dt<=0 || dt>.1f){quietSeconds=ContinuousActiveSeconds=0;Resting=false;armed=false;return;}
+            if(!valid || dt<=0 || dt>.1f || !input.LeftWing.Tracked || !input.RightWing.Tracked
+                || !Measured(input.LeftWing) || !Measured(input.RightWing))
+            {quietSeconds=ContinuousActiveSeconds=0;Resting=false;armed=false;return;}
             float speed=(input.LeftWing.Velocity.magnitude+input.RightWing.Velocity.magnitude)*.5f;
             HandTravelMeters+=speed*dt;
             SmoothedSpeed=Mathf.Lerp(SmoothedSpeed,speed,1-Mathf.Exp(-dt/2));
@@ -24,5 +26,7 @@ namespace VoarVR.Telemetry
             if(vertical>.25f)armed=true;
             if(armed && vertical<-.25f && strokeCooldown==0){Strokes++;armed=false;strokeCooldown=.25f;}
         }
+        private static bool Measured(WingInput wing) => !wing.MotionEstimated &&
+            (wing.Source == HandPoseSource.Unknown || wing.Source == HandPoseSource.DirectHigh);
     }
 }

@@ -354,7 +354,7 @@ namespace VoarVR.Gameplay
                     +" • "+runtime.ElapsedSeconds.ToString("F1")+"s\n"
                     +p.Label.ToUpperInvariant()+" "+amount+" • "+DirectionHint();
             }
-            if(runtime.State==CourseState.Ready&&awaitingRetry)return definition.Title.ToUpperInvariant()+"  •  REST COMPLETE  •  TRIGGER TO RETRY";
+            if(runtime.State==CourseState.Ready&&awaitingRetry)return definition.Title.ToUpperInvariant()+(bird.UsesHands ? "  •  REST COMPLETE  •  PINCH TO RETRY" : "  •  REST COMPLETE  •  TRIGGER TO RETRY");
             return definition.Title.ToUpperInvariant()+"  •  "+runtime.State.ToString().ToUpperInvariant();
         }
 
@@ -496,7 +496,8 @@ namespace VoarVR.Gameplay
                     overlay.text="REST BREAK  "+remaining+"\nLET YOUR ARMS HANG · BREATHE · RESET YOUR SHOULDERS";
                 }
             }
-            else overlay.text="REST COMPLETE\nRIGHT TRIGGER: RETRY   ·   LEFT MENU: FINISH SESSION";
+            else overlay.text=bird.UsesHands ? "REST COMPLETE\nPINCH: RETRY   ·   HOLD BOTH PINCHES IN FRONT: MENU"
+                : "REST COMPLETE\nRIGHT TRIGGER: RETRY   ·   LEFT MENU: FINISH SESSION";
         }
 
         private string ResultText()
@@ -519,7 +520,7 @@ namespace VoarVR.Gameplay
             else for(int i=0;i<Math.Min(5,entries.Length);i++)text.Append("\n").Append(i+1).Append("  ")
                     .Append(entries[i].ProfileName).Append("  ").Append(entries[i].Seconds.ToString("F2")).Append(" s");
             if(!string.IsNullOrEmpty(leaderboardError))text.Append("\nRECORD WARNING  ").Append(leaderboardError);
-            text.Append("\n\nRIGHT TRIGGER: BEGIN REQUIRED REST");return text.ToString();
+            text.Append(bird.UsesHands ? "\n\nPINCH: BEGIN REQUIRED REST" : "\n\nRIGHT TRIGGER: BEGIN REQUIRED REST");return text.ToString();
         }
 
         private static string PracticeReasons(CourseNonRankedReason reasons)

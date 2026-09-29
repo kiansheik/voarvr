@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VoarVR.Flight;
+using VoarVR.Input;
 
 namespace VoarVR.Core
 {
@@ -33,7 +34,17 @@ namespace VoarVR.Core
             var rig=bird.GetComponent<BirdRigDriver>();
             // Keep tracked head samples live in both views. The platform can toggle views
             // while the player continues to look and move around the chase camera.
-            if (bird.UsesXR && tracked.ReadValue<float>() > 0f)
+            if (bird.UsesHands)
+            {
+                var handFrame = HandInteraction.Sample();
+                if (handFrame.HeadTracked && HandPoseContinuity.Valid(handFrame.HeadOrientation)
+                    && HandPoseContinuity.Finite(handFrame.HeadPosition))
+                {
+                    lastValidRotation = handFrame.HeadOrientation;
+                    lastValidPosition = handFrame.HeadPosition;
+                }
+            }
+            else if (bird.UsesXR && tracked.ReadValue<float>() > 0f)
             {
                 var candidateRotation = rotation.ReadValue<Quaternion>();
                 if (candidateRotation != default(Quaternion)) lastValidRotation = candidateRotation;

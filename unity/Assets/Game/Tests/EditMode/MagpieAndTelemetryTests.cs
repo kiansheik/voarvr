@@ -90,7 +90,7 @@ namespace VoarVR.Tests
                 Assert.That(SpinWait.SpinUntil(()=>writer.Finished,3000),Is.True);
                 Assert.That(writer.Error,Is.Null);
                 var replay=new TelemetryReplayInput(path);
-                Assert.That(replay.Header.schemaVersion,Is.EqualTo(4));
+                Assert.That(replay.Header.schemaVersion,Is.EqualTo(5));
                 Assert.That(replay.Count,Is.EqualTo(1));Assert.That(replay.TryAdvance(out float dt),Is.True);
                 Assert.That(dt,Is.EqualTo(.013f));Assert.That(replay.Sample(dt).LeftWing.Position.x,Is.EqualTo(-.71f));
                 Assert.That(replay.Sample(dt).GroundTurn,Is.EqualTo(.75f));
@@ -104,14 +104,15 @@ namespace VoarVR.Tests
             finally {if(File.Exists(path))File.Delete(path);}
         }
 
-        [TestCase(1,253)][TestCase(2,275)][TestCase(3,295)]
+        [TestCase(1,253)][TestCase(2,275)][TestCase(3,295)][TestCase(4,301)]
         public void LegacyBinarySchemasRetainValuesAndDefaultAbsentMotionInputs(int version,int fieldCount)
         {
             string path=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".voartlm");
             try
             {
                 string[] fields=TelemetrySample.Fields.Take(fieldCount).ToArray();
-                var header=new FlightTelemetry.Header {schemaVersion=version,fields=fields,session="legacy"};
+                var header=new FlightTelemetry.Header {schemaVersion=version,fields=fields,
+                    wideFields=TelemetrySample.LegacyWideFields,session="legacy"};
                 var bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(header));
                 var sample=new TelemetrySample {timestamp=987654321.125,dt=.02,raw_left_tracked=1,
                     raw_left_velocity_y=-2.5,raw_ground_turn=.75,raw_left_motion_estimated=1};
@@ -119,12 +120,12 @@ namespace VoarVR.Tests
                 {
                     writer.Write(Encoding.ASCII.GetBytes("VOARTLM1"));writer.Write(version);
                     writer.Write(bytes.Length);writer.Write(bytes);
-                    writer.Write((byte)1);writer.Write(version==3?1200:fieldCount*8);
+                    writer.Write((byte)1);writer.Write(version==4?1224:version==3?1200:fieldCount*8);
                     // Build the historical format independently of today's sample writer.
                     foreach(string name in fields)
                     {
                         double value=(double)typeof(TelemetrySample).GetField(name).GetValue(sample);
-                        if(version<3||TelemetrySample.WideFields.Contains(name))writer.Write(value);
+                        if(version<3||TelemetrySample.LegacyWideFields.Contains(name))writer.Write(value);
                         else writer.Write((float)value);
                     }
                     writer.Write((byte)3);writer.Write(4);writer.Write(0);
@@ -134,19 +135,23 @@ namespace VoarVR.Tests
                 Assert.That(dt,Is.EqualTo(.02f));
                 Assert.That(replay.Current.timestamp,Is.EqualTo(987654321.125));
                 Assert.That(replay.Sample(dt).LeftWing.Velocity.y,Is.EqualTo(-2.5f));
-                Assert.That(replay.Sample(dt).GroundTurn,Is.Zero);
-                Assert.That(replay.Sample(dt).LeftWing.MotionEstimated,Is.False);
+                Assert.That(replay.Sample(dt).GroundTurn,Is.EqualTo(version>=4?.75f:0));
+                Assert.That(replay.Sample(dt).LeftWing.MotionEstimated,Is.EqualTo(version>=4));
                 Assert.That(replay.Sample(dt).RightWing.MotionEstimated,Is.False);
                 Assert.That(replay.Current.mapped_ground_turn,Is.Zero);
                 Assert.That(replay.Current.mapped_left_motion_estimated,Is.Zero);
                 Assert.That(replay.Current.mapped_right_motion_estimated,Is.Zero);
+                Assert.That(replay.Sample(dt).LeftWing.Source,Is.EqualTo(HandPoseSource.Unknown));
+                Assert.That(replay.Sample(dt).RightWing.Source,Is.EqualTo(HandPoseSource.Unknown));
+                Assert.That(replay.Sample(dt).LeftWing.HasUnextrapolatedPose,Is.False);
+                Assert.That(replay.Sample(dt).LeftWing.SampleTimestamp,Is.Zero);
                 Assert.That(replay.TryAdvance(out _),Is.False,"Legacy frames must not consume the following record.");
             }
             finally {if(File.Exists(path))File.Delete(path);}
         }
 
         [Test]
-        public void CompactV4BinaryMatchesHeaderOrderAndPreservesWideCoordinates()
+        public void CompactV5BinaryMatchesHeaderOrderAndPreservesWideCoordinates()
         {
             object boxed=new TelemetrySample();
             for(int i=0;i<TelemetrySample.Fields.Length;i++)
@@ -156,8 +161,8 @@ namespace VoarVR.Tests
             using(var writer=new BinaryWriter(stream,Encoding.UTF8,true))
             {
                 sample.WriteCompact(writer);writer.Flush();
-                Assert.That(TelemetrySample.Fields.Length,Is.EqualTo(301));
-                Assert.That(stream.Length,Is.EqualTo(1224));
+                Assert.That(TelemetrySample.Fields.Length,Is.EqualTo(325));
+                Assert.That(stream.Length,Is.EqualTo(1336));
                 stream.Position=0;
                 using(var reader=new BinaryReader(stream,Encoding.UTF8,true))
                 {
@@ -177,7 +182,7 @@ namespace VoarVR.Tests
         }
 
         [Test]
-        public void VersionFourReplayPreservesSupportedTurningTrajectory()
+        public void CurrentReplayPreservesSupportedTurningTrajectory()
         {
             string path=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".voartlm");
             try
@@ -203,7 +208,7 @@ namespace VoarVR.Tests
         }
 
         [Test]
-        public void VersionFourReplayDoesNotTurnEstimatedDownstrokeIntoActiveForce()
+        public void CurrentReplayDoesNotTurnEstimatedDownstrokeIntoActiveForce()
         {
             string path=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".voartlm");
             try
@@ -225,6 +230,83 @@ namespace VoarVR.Tests
                 Assert.That(direct.StrokeForce.sqrMagnitude,Is.GreaterThan(1));
             }
             finally {if(File.Exists(path))File.Delete(path);}
+        }
+
+        [Test]
+        public void VersionFiveReplayPreservesHandSourcesAndUnextrapolatedCaptureTimes()
+        {
+            string path=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".voartlm");
+            try
+            {
+                var writer=new TelemetryWriter(path,JsonUtility.ToJson(new FlightTelemetry.Header
+                    {session="hand-provenance",input="Meta hand tracking"}),16);
+                const double captureTime=987654321.1234567;
+                for(int source=0;source<=4;source++)
+                {
+                    var sample=NeutralMotionSample();
+                    sample.raw_left_pose_source=source;
+                    sample.raw_right_pose_source=4-source;
+                    sample.raw_left_sample_timestamp=captureTime;
+                    sample.raw_right_sample_timestamp=captureTime+.01;
+                    sample.raw_left_unextrapolated_available=1;
+                    sample.raw_left_unextrapolated_position_x=-.45;
+                    sample.raw_left_unextrapolated_position_y=.125;
+                    sample.raw_left_unextrapolated_rotation_w=1;
+                    sample.raw_left_unextrapolated_timestamp=captureTime-.02;
+                    sample.raw_right_unextrapolated_timestamp=double.NaN;
+                    sample.raw_left_motion_estimated=source>=2?1:0;
+                    sample.hand_wmm2_enabled=1;
+                    Assert.That(writer.Capture(sample),Is.True);
+                }
+                writer.Stop();Assert.That(SpinWait.SpinUntil(()=>writer.Finished,3000),Is.True);
+                Assert.That(writer.Error,Is.Null);
+                var replay=new TelemetryReplayInput(path);
+                Assert.That(replay.Header.input,Is.EqualTo("Meta hand tracking"));
+                Assert.That(replay.Header.schemaVersion,Is.EqualTo(5));
+                for(int source=0;source<=4;source++)
+                {
+                    Assert.That(replay.TryAdvance(out float dt),Is.True);
+                    var frame=replay.Sample(dt);
+                    Assert.That(frame.LeftWing.Source,Is.EqualTo((HandPoseSource)source));
+                    Assert.That(frame.RightWing.Source,Is.EqualTo((HandPoseSource)(4-source)));
+                    Assert.That(frame.LeftWing.SampleTimestamp,Is.EqualTo(captureTime));
+                    Assert.That(frame.RightWing.SampleTimestamp,Is.EqualTo(captureTime+.01));
+                    Assert.That(frame.LeftWing.MotionEstimated,Is.EqualTo(source>=2));
+                    Assert.That(frame.LeftWing.HasUnextrapolatedPose,Is.True);
+                    Assert.That(frame.LeftWing.UnextrapolatedPosition,Is.EqualTo(new Vector3(-.45f,.125f,0)));
+                    Assert.That(frame.LeftWing.UnextrapolatedOrientation,Is.EqualTo(Quaternion.identity));
+                    Assert.That(frame.LeftWing.UnextrapolatedTimestamp,Is.EqualTo(captureTime-.02));
+                    Assert.That(frame.RightWing.HasUnextrapolatedPose,Is.False);
+                    Assert.That(double.IsNaN(frame.RightWing.UnextrapolatedTimestamp),Is.True);
+                    Assert.That(replay.Current.hand_wmm2_enabled,Is.EqualTo(1));
+                    Assert.That(replay.Current.hand_fmm_requested,Is.Zero);
+                }
+                Assert.That(replay.TryAdvance(out _),Is.False);
+            }
+            finally {if(File.Exists(path))File.Delete(path);}
+        }
+
+        [TestCase(HandPoseSource.DirectLow)]
+        [TestCase(HandPoseSource.Inferred)]
+        [TestCase(HandPoseSource.Lost)]
+        public void EffortDoesNotBridgeAnUnmeasuredHandSourceGap(HandPoseSource source)
+        {
+            var effort=new FlightEffort();
+            var frame=FlightInputFrame.Neutral;
+            frame.LeftWing.Source=frame.RightWing.Source=HandPoseSource.DirectHigh;
+            frame.LeftWing.Velocity=frame.RightWing.Velocity=Vector3.up;
+            effort.Step(frame,.02f,true);
+            float measuredTravel=effort.HandTravelMeters;
+            frame.LeftWing.Source=source;
+            // Source alone must defend accounting even if an adapter forgets MotionEstimated.
+            effort.Step(frame,.02f,true);
+            Assert.That(effort.HandTravelMeters,Is.EqualTo(measuredTravel));
+            Assert.That(effort.ActiveSeconds,Is.EqualTo(.02f));
+            frame.LeftWing.Source=HandPoseSource.DirectHigh;
+            frame.LeftWing.Velocity=frame.RightWing.Velocity=Vector3.down;
+            effort.Step(frame,.02f,true);
+            Assert.That(effort.Strokes,Is.Zero,"A source gap must clear the previously armed upstroke.");
+            Assert.That(effort.RestSeconds,Is.Zero);
         }
 
         private sealed class RecordedFixtureInput:IFlightInput

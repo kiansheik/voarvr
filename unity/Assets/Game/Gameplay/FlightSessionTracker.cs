@@ -31,6 +31,8 @@ namespace VoarVR.Gameplay
         public Vector3 WindVelocity;
         public Vector3 LeftHandVelocity;
         public Vector3 RightHandVelocity;
+        public bool LeftHandMotionEstimated;
+        public bool RightHandMotionEstimated;
         public FlightSessionTimeCategory TimeCategory;
         public FlightSessionMovement Movement;
         public bool TrackingAvailable;
@@ -121,6 +123,9 @@ namespace VoarVR.Gameplay
             bool usableAirborne = finiteSample && observation.TrackingAvailable && observation.StreamingReady;
             var category = airborneCategory && !usableAirborne
                 ? FlightSessionTimeCategory.Excluded : requestedCategory;
+            bool measuredHands = !observation.LeftHandMotionEstimated && !observation.RightHandMotionEstimated;
+            if (category == FlightSessionTimeCategory.ActiveHand && !measuredHands)
+                category = FlightSessionTimeCategory.QuietAirborne;
 
             metrics.ObservedSeconds += dt;
             AddPrimaryTime(category, dt);
@@ -159,8 +164,9 @@ namespace VoarVR.Gameplay
         public void MarkWorldRebaseContinuity() { }
 
         public static FlightSessionTimeCategory ClassifyAirborneHands(Vector3 leftVelocity,
-            Vector3 rightVelocity)
+            Vector3 rightVelocity, bool leftMotionEstimated = false, bool rightMotionEstimated = false)
         {
+            if (leftMotionEstimated || rightMotionEstimated) return FlightSessionTimeCategory.QuietAirborne;
             if (!Finite(leftVelocity) || !Finite(rightVelocity)) return FlightSessionTimeCategory.Excluded;
             float averageSpeed = (leftVelocity.magnitude + rightVelocity.magnitude) * .5f;
             return averageSpeed > ActiveHandSpeedMps
@@ -303,7 +309,8 @@ namespace VoarVR.Gameplay
         private void AccumulateWingbeat(FlightSessionObservation observation,
             FlightSessionTimeCategory category, float dt)
         {
-            if (category != FlightSessionTimeCategory.ActiveHand
+            if (observation.LeftHandMotionEstimated || observation.RightHandMotionEstimated
+                || category != FlightSessionTimeCategory.ActiveHand
                 && category != FlightSessionTimeCategory.QuietAirborne)
             {
                 ResetWingbeatDetector();

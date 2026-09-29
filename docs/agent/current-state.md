@@ -1,5 +1,17 @@
 # Current state
 
+## September 29 — hand controls revision 2 installed on Quest
+
+First wearer session (`6a5e0f27`) compared with five controller sessions: inputs matched controller speeds, but 16% of airborne time was an unintended flare (span wider than the compact calibration) and natural shoulder-plane hands dropped to Wide Motion Mode's inferred pose, which jumps 25–39 cm at handoffs and correctly earns no flap force. Revision: no span flare for hands, forward-sweep "backstroke" flare latched until a normal downstroke, calibration 0.25–0.65 m per side, continuous inferred handoff, 0.06 s recovery, perched wings mirror arm spread. EditMode 324/324, PlayMode 70/70. APK `fe75c541…` installed and running on Quest 3 (no fatal or Unity errors). Awaiting wearer feedback. [Telemetry review](../reviews/2026-09-29-hand-controls-telemetry.md).
+
+## September 29 — hands-first flow closed out locally; ready for a Quest test
+
+Controller-free Magpie Route Home is implemented end to end in source: gaze + pinch preflight, calibration perched on an authored ridge lookout (`FlightRegions.DepartureLookout*`) with the bird visible, measured takeoff, two-pinch rest, settings, recalibration, results and return. Cards draw over terrain; gaze uses a two-tone reticle and hover. Round-3 visual/player critique drove fixes for calibration exits, hands resume, focus return and card re-anchoring (technical critic was cut off by a usage limit). **EditMode 318/318, PlayMode 70/70, host 29/29.** Scripted Magpie pilot completes from the lookout in 215.85 simulated s. Fresh Development APK built from this tree (see handoff for hash, manifest and `VerifyApk()` result). Not installed; no Quest evidence. Deferred items (HUD-hidden coaching, moth tally, chase-camera horizon roll, afterglow) are listed in the [review](../reviews/2026-09-28-hand-flight-implementation.md). [Handoff](session-handoffs/2026-09-28-hand-flight-implementation.md). No commit/push.
+
+## September 28 — Quest discovery subnet fix
+
+`quest.py` now uses the default interface and actual IPv4 netmask, instead of hardcoding `/24`. This Mac is on `192.168.68.0/22`; all1022 hosts are covered with bounded discovery.27 host tests pass. Live full-subnet discovery found no TCP5555 listener; cached address192.168.68.52 responds to ping but refuses5555, and ADB/mDNS discovery is empty. Network presence is not an enabled wireless-debugging session. No install/launch occurred. [Handoff](session-handoffs/2026-09-28-quest-discovery.md).
+
 ## September 28 — local competition preflight executed; hands-first candidate pending
 
 User confirmed US/Start membership. Reconnected Unity6000.6.0f1 and ran the merged branch: **297/297 EditMode**, **58/58 full PlayMode**, **12/12 final affected player-facing tests**, **23/23 host tests**. Independent visual/player/technical review drove bounded fixes for rival landability, course input recovery, v4 turn/estimated-motion replay, objective/reward feedback and UI layout. [Full review](../reviews/2026-09-28-competition-preflight.md), [handoff](session-handoffs/2026-09-28-competition-preflight.md).

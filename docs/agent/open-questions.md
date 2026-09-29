@@ -4,8 +4,10 @@
 
 - Entrant/Start membership: user confirmed US membership on September 28; the earlier eligibility question is closed. See the [competition brief](../competition/meta-vr-start-2026.md#entrant-eligibility--user-confirmed).
 - Merged hand-safety/flight/ground/replay tests now pass locally; see the [current pre-Quest review](../reviews/2026-09-28-competition-preflight.md). Physical input-only completion of all five obstacle courses and the authored cold-start opening remain unverified.
-- Pin compatible SDK/OVRPlugin versions, implement hand adapter/continuity, preserve estimated-motion provenance in session metrics and extend implemented v4 replay with versioned hand-source signals, then complete every required UI action and compact calibration without controllers.
-- Record actual Quest hand tracking, uncoached Route Home completion, comfort and sustained frame pacing. Prior controller recordings and screenshot scores do not close these gates. See [readiness table](../competition/meta-vr-start-2026.md#readiness-at-september-28).
+- ~~Pin SDK/OVRPlugin, hand adapter/continuity, provenance-aware metrics, v5 hand telemetry, controller-free UI and compact calibration~~ Implemented September 28 with deterministic tests and synthetic-hand desktop evidence; see the [hand-flight review](../reviews/2026-09-28-hand-flight-implementation.md).
+- Does `OVRPlugin.GetHandPoseSourceInferred` succeed on the target Quest OS with and without Wide Motion Mode, including after a denied body-tracking permission? Source-query failure decides whether direct hands can calibrate, pinch and flap at all. Needs the first device session.
+- Record actual Quest hand tracking, physical gaze/pinch and two-pinch rest recognition, uncoached Route Home completion from the ridge lookout, comfort (including always-on-top cards) and sustained frame pacing. Prior controller recordings and screenshot scores do not close these gates. See [readiness table](../competition/meta-vr-start-2026.md#readiness-at-september-28).
+- Submission build: non-Development APK without Meta's dev-only XR Operator layer or Unity's profiler address; Meta's API 32 / single-GameActivity checks; fresh manifest and `VerifyApk()` pass.
 
 ## Existing controller game
 

@@ -24,7 +24,7 @@ def decode(path):
         head=f.read(8)
         if len(head)!=8: raise ValueError('Truncated header')
         version,length=struct.unpack('<ii',head)
-        if version not in (1,2,3,4): raise ValueError(f'Unsupported schema {version}')
+        if version not in (1,2,3,4,5): raise ValueError(f'Unsupported schema {version}')
         if not 0<length<=1024*1024: raise ValueError('Invalid header size')
         header=json.loads(f.read(length)); names=header['fields']
         if len(names)>4096 or len(names)!=len(set(names)): raise ValueError('Invalid fields')
@@ -87,6 +87,30 @@ def wrist_excursion(row,side):
     return math.degrees(2*math.acos(min(1,max(0,dot))))
 
 
+def measured_motion(row, side):
+    """Legacy controller samples retain their historical measured-motion meaning."""
+    return (bool(row.get('raw_'+side+'_tracked',0))
+            and not row.get('raw_'+side+'_motion_estimated',0)
+            and row.get('raw_'+side+'_pose_source',0) in (0,1))
+
+
+def stroke_frequencies(rows, side):
+    # Reset across invalid samples so an inferred upstroke cannot arm a measured flap.
+    strokes=[];last=None;armed=False;previous=None
+    for row in rows:
+        t=row['timestamp']
+        if not (measured_motion(row,side) and row['raw_head_tracked'] and row['raw_body_tracked']):
+            last=previous=None;armed=False;continue
+        if previous is not None and (t<=previous or t-previous>.15):
+            last=None;armed=False
+        previous=t;vy=row['raw_'+side+'_velocity_y']
+        if vy>.3:armed=True
+        if armed and vy<-.3:
+            if last is not None and .25<t-last<3:strokes.append(1/(t-last))
+            last=t;armed=False
+    return strokes
+
+
 def summarize(data):
     rows=data['frames']; duration=sum(r['dt'] for r in rows)
     result=dict(utc=data['header'].get('utc'),build=data['header'].get('git'),session=data['header'].get('session'),character=data['header'].get('character'),frames=len(rows),simulation_seconds=duration,clean_close=data['complete'],truncated=data['truncated'],dropped=data['dropped'],allocation_counter='unavailable',metrics={},inputs={},events={})
@@ -99,17 +123,11 @@ def summarize(data):
     result['slow_frames']={str(hz)+'hz':sum(r['unscaled_dt']>1/hz for r in rows) for hz in (72,90,120)}
     for side in ['left','right']:
         valid=[r for r in rows if r['raw_'+side+'_tracked'] and r['raw_head_tracked'] and r['raw_body_tracked']]
-        positions=[body_relative(r,side) for r in valid]
-        strokes=[];last=None; armed=False
-        # Count robust positive-to-negative vertical velocity reversals, separated by
-        # 0.25 s. This is a human cadence estimate, not a measured bird wingbeat rate.
-        for r in valid:
-            vy=r['raw_'+side+'_velocity_y'];t=r['timestamp']
-            if vy>.3:armed=True
-            if armed and vy<-.3:
-                if last is not None and .25<t-last<3:strokes.append(1/(t-last))
-                last=t;armed=False
-        result['inputs'][side]=dict(body_relative_m={c:stats([p[i] for p in positions]) for i,c in enumerate('xyz')},human_stroke_hz=stats(strokes),finite_difference_speed=stats([magnitude(r,'raw_'+side+'_velocity') for r in valid]),native_speed=stats([magnitude(r,'native_'+side+'_velocity') for r in valid if r['native_'+side+'_velocity_available']]),native_angular_radians_per_second=stats([magnitude(r,'native_'+side+'_angular') for r in valid if r['native_'+side+'_angular_available']]),tracking_fraction=len(valid)/len(rows) if rows else 0)
+        measured=[r for r in valid if measured_motion(r,side)]
+        positions=[body_relative(r,side) for r in measured]
+        result['inputs'][side]=dict(body_relative_m={c:stats([p[i] for p in positions]) for i,c in enumerate('xyz')},human_stroke_hz=stats(stroke_frequencies(rows,side)),finite_difference_speed=stats([magnitude(r,'raw_'+side+'_velocity') for r in measured]),native_speed=stats([magnitude(r,'native_'+side+'_velocity') for r in measured if r['native_'+side+'_velocity_available']]),native_angular_radians_per_second=stats([magnitude(r,'native_'+side+'_angular') for r in measured if r['native_'+side+'_angular_available']]),tracking_fraction=len(valid)/len(rows) if rows else 0,measured_motion_fraction=len(measured)/len(rows) if rows else 0)
+        if rows and 'raw_'+side+'_pose_source' in rows[0]:
+            result['inputs'][side]['pose_source_fraction']={name:sum(r['raw_'+side+'_pose_source']==i for r in rows)/len(rows) for i,name in enumerate(('unknown','direct_high','direct_low','inferred','lost'))}
     for e in data['events']:result['events'][e['event']]=result['events'].get(e['event'],0)+1
     result['markers']=[e for e in data['events'] if e['event']=='Marker']
     result['state_seconds']={name:sum(r['dt'] for r in rows if predicate(r)) for name,predicate in {
@@ -121,9 +139,9 @@ def summarize(data):
     def quaternion(r,p):return [r[p+'_'+c] for c in 'xyzw']
     def angle(a,b):
         dot=abs(sum(x*y for x,y in zip(a,b)));return math.degrees(2*math.acos(min(1,max(0,dot))))
-    result['inputs']['asymmetry_speed_mps']=stats([abs(magnitude(r,'raw_left_velocity')-magnitude(r,'raw_right_velocity')) for r in rows if r['raw_left_tracked'] and r['raw_right_tracked']])
+    result['inputs']['asymmetry_speed_mps']=stats([abs(magnitude(r,'raw_left_velocity')-magnitude(r,'raw_right_velocity')) for r in rows if measured_motion(r,'left') and measured_motion(r,'right')])
     for side in ('left','right'):
-        result['inputs'][side]['wrist_deviation_degrees']=stats([wrist_excursion(r,side) for r in rows if r['raw_'+side+'_tracked'] and r['raw_body_tracked'] and r['calibrated']])
+        result['inputs'][side]['wrist_deviation_degrees']=stats([wrist_excursion(r,side) for r in rows if measured_motion(r,side) and r['raw_body_tracked'] and r['calibrated']])
         yr=result['inputs'][side]['body_relative_m']['y']
         result['inputs'][side]['robust_stroke_height_m']=yr['p95']-yr['p05'] if yr['n'] else None
     yaws=[];last=None;unwrapped=0
@@ -155,12 +173,13 @@ def summarize(data):
             'perched':sum(r['dt'] for r in rows if r['phase']==5),
             'paused':sum(r['dt'] for r in rows if r['phase']==6),
             'tracking_incomplete':sum(r['dt'] for r in rows if not all(r[k] for k in ('raw_head_tracked','raw_left_tracked','raw_right_tracked'))),
+            'unmeasured_hand_motion':sum(r['dt'] for r in rows if not (measured_motion(r,'left') and measured_motion(r,'right'))),
             'streaming_blocked':sum(r['dt'] for r in rows if r.get('streaming_blocked',0)),
         }
         result['effort_proxies']['span_ratio']=stats([r['span_ratio'] for r in rows if r['input_wings_enabled']])
         result['effort_proxies']['rest_bouts']=sum(e['event']=='RestStarted' for e in data['events'])
         result['effort_proxies']['rising_but_sinking_seconds']=sum(r['dt'] for r in rows if r['wind_y']>2 and r['velocity_y']<0 and r['phase'] not in (5,6))
-    result['limits']=['Cadence inferred from thresholded human controller motion; inspect raw traces.', 'CPU/GPU NaN means unsupported; no zero-allocation claim.', 'Frame timings may describe earlier rendered frames.', 'Point-mass replay excludes streamed collisions and mutable wind unless supplied.']
+    result['limits']=['Cadence estimated from thresholded measured controller or direct hand motion; inferred, low-confidence and recovery samples are excluded. Inspect raw traces.', 'CPU/GPU NaN means unsupported; no zero-allocation claim.', 'Frame timings may describe earlier rendered frames.', 'Point-mass replay excludes streamed collisions and mutable wind unless supplied.']
     return result
 
 
@@ -176,8 +195,8 @@ def extract_window(data,number,before=5,after=10):
     marker=next((e for e in data['events'] if e['event']=='Marker' and e['value']==number),None)
     if marker is None:raise ValueError(f'Marker {number} not found')
     start,end=marker['timestamp']-before,marker['timestamp']+after
-    # Deliberately preserves only raw input, calibration and original time step.
-    frames=[{k:v for k,v in r.items() if k.startswith(('raw_','calibration_')) or k in ('dt','timestamp','calibrated','human_span','bird_half_span','motion_scale','input_wings_enabled')} for r in data['frames'] if start<=r['timestamp']<=end]
+    # Preserve raw input and its hand mode, calibration and original time step.
+    frames=[{k:v for k,v in r.items() if k.startswith(('raw_','calibration_','hand_')) or k in ('dt','timestamp','calibrated','human_span','bird_half_span','motion_scale','input_wings_enabled')} for r in data['frames'] if start<=r['timestamp']<=end]
     return dict(schemaVersion=data['header'].get('schemaVersion',1),source_session=data['header']['session'],marker=number,header=data['header'],frames=frames,events=[e for e in data['events'] if start<=e['timestamp']<=end])
 
 

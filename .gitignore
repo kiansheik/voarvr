@@ -44,3 +44,7 @@ __pycache__/
 unity/Assets/Resources/BuildRevision.txt
 unity/Assets/Resources/BuildRevision.txt.meta
 *.voartlm
+
+# Meta Core generates these local debugger connection credentials on editor startup.
+unity/Assets/Resources/DevAgentSettings.asset
+unity/Assets/Resources/DevAgentSettings.asset.meta

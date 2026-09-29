@@ -24,15 +24,18 @@ namespace VoarVR.Editor
         private const BindingFlags Private=BindingFlags.Instance|BindingFlags.NonPublic;
         public static string Run()=>Start(new[]{"Duck","Dragon","Magpie"},false);
         public static string RunSpecies(string species)=>Start(new[]{species},false);
+        // Hands-first judge start: the same pilot, beginning perched on the supported ridge lookout.
+        public static string RunSpeciesFromLookout(string species)=>Start(new[]{species},false,false,true);
         public static string CaptureVisualFixtures()=>Start(new[]{"Duck"},true);
         public static string CaptureGuidanceFixtures()=>Start(new[]{"Duck","Magpie","Dragon"},false,true);
-        private static string Start(string[] species,bool visuals,bool guidance=false)
+        private static bool fromLookout;
+        private static string Start(string[] species,bool visuals,bool guidance=false,bool lookout=false)
         {
             if(!Application.isPlaying)return "Enter Play Mode in BirdFlight first.";
             if(running)return Status;
             var driver=Object.FindAnyObjectByType<BirdFlightDriver>();
             if(driver==null || driver.Controller==null || Object.FindAnyObjectByType<WorldStreamer>()==null)return "A ready BirdFlight scene is required.";
-            running=true;Status=guidance?"Capturing staged runtime guidance":visuals?"Capturing labeled visual fixtures":"Running controller-input-only Route Home";
+            running=true;fromLookout=lookout;Status=guidance?"Capturing staged runtime guidance":visuals?"Capturing labeled visual fixtures":"Running controller-input-only Route Home";
             driver.StartCoroutine(Session(driver,species,visuals,guidance));return Status;
         }
         private static IEnumerator Session(BirdFlightDriver original,string[] species,bool visuals,bool guidance)
@@ -229,6 +232,19 @@ namespace VoarVR.Editor
                 var log=new StringBuilder();int lastStage=-1;bool departureClimbed=false,arrivalClimbed=false,contactStopped=false;float continuousLowSpeedContact=0;
                 var seedPilot=new PortalPilot(false);var archPilot=new PortalPilot(true);
                 for(int j=0;j<240;j++)scope.World.TickStreaming(controller.State.Position);
+                if(fromLookout)
+                {
+                    float radius=Resources.Load<BirdCharacterDefinition>("Characters/"+species).BuildProfile().CollisionRadius;
+                    double x=FlightRegions.DepartureLookoutX,z=FlightRegions.DepartureLookoutZ;
+                    var target=scope.Space.ToLocal(x,WorldTerrain.Elevation(scope.Space.Seed,x,z)+radius+FlightContactSolver.Skin,z);
+                    for(int j=0;j<240 && !scope.World.IsReadyAt(target);j++)scope.World.TickStreaming(target);
+                    scope.Sky.Tick(target);Physics.SyncTransforms();
+                    if(!controller.TryRecoverToPerch(target,FlightRegions.DepartureLookoutHeading))
+                        throw new InvalidOperationException("The departure lookout did not provide native support.");
+                    fixture.Driver.transform.SetPositionAndRotation(controller.State.Position,controller.State.Rotation);
+                    report.Evidence="Actual controller/driver input-only flight, native streamed collisions; starts perched with zero velocity on the supported departure lookout used by hands mode. Scripted semantic input is not hand-tracking, wearer or Quest performance evidence.";
+                    log.AppendLine("START perched departure lookout logical="+x+","+scope.Space.ToLogical(controller.State.Position).Y.ToString("F2")+","+z+" heading="+FlightRegions.DepartureLookoutHeading);
+                }
                 for(int step=0;step<108000 && fixture.Director.Challenge.Status==ChallengeStatus.Active;step++)
                 {
                     var challenge=fixture.Director.Challenge;var pos=controller.State.Position;float time=controller.SimulationTime;
@@ -313,7 +329,7 @@ namespace VoarVR.Editor
                 // The pilot advances simulation faster than wall time. Let the .15s
                 // ribbon and .2s card refresh before photographing the final state.
                 yield return new WaitForSecondsRealtime(.4f);yield return null;
-                DuckReview.CaptureCurrent(Folder,species.ToLowerInvariant()+"-actual-controller-result-v2");
+                DuckReview.CaptureCurrent(Folder,species.ToLowerInvariant()+(fromLookout?"-lookout-controller-result":"-actual-controller-result-v2"));
             }
             yield return null;
         }
@@ -433,7 +449,7 @@ namespace VoarVR.Editor
         private static void FollowCamera(BirdFlightDriver d,Camera camera)
         {if(camera==null)return;var forward=d.Heading*Vector3.forward;camera.transform.position=d.transform.position-forward*5+Vector3.up*2;camera.transform.LookAt(d.transform.position+forward*8);}
         private static void WriteReport(string species,Report report,StringBuilder log)
-        {string name=species.ToLowerInvariant()+"-controller-route-v2";File.WriteAllText(Path.Combine(Folder,name+".json"),JsonUtility.ToJson(report,true));File.WriteAllText(Path.Combine(Folder,name+".txt"),log.ToString());}
+        {string name=species.ToLowerInvariant()+(fromLookout?"-lookout-controller-route":"-controller-route-v2");File.WriteAllText(Path.Combine(Folder,name+".json"),JsonUtility.ToJson(report,true));File.WriteAllText(Path.Combine(Folder,name+".txt"),log.ToString());}
         private static void Shot(Vector3 position,Vector3 target,string name)
         {string prior=FlightGameReview.Folder;try{FlightGameReview.Folder=Folder;FlightGameReview.Shot(position,target,name);}finally{FlightGameReview.Folder=prior;}}
         private static void Set(object target,string name,object value)=>target.GetType().GetField(name,Private).SetValue(target,value);

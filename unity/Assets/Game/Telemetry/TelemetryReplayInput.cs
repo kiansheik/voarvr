@@ -33,12 +33,15 @@ namespace VoarVR.Telemetry
                     throw new InvalidDataException("Invalid frame schema");
                 bool current=Header.fields.SequenceEqual(TelemetrySample.Fields);
                 bool compact=version>=3;
-                var expectedFields=version==3?TelemetrySample.Fields.Take(TelemetrySample.LegacyV3FieldCount):TelemetrySample.Fields;
+                var expectedFields=version==3?TelemetrySample.Fields.Take(TelemetrySample.LegacyV3FieldCount):
+                    version==4?TelemetrySample.Fields.Take(TelemetrySample.LegacyV4FieldCount):TelemetrySample.Fields;
+                var expectedWideFields=version<5?TelemetrySample.LegacyWideFields:TelemetrySample.WideFields;
                 var legacy=Header.fields.Select(name=>typeof(TelemetrySample).GetField(name)).ToArray();
                 if(legacy.Any(f=>f==null) || compact && (!Header.fields.SequenceEqual(expectedFields)
-                    || Header.wideFields==null || !Header.wideFields.SequenceEqual(TelemetrySample.WideFields)))
+                    || Header.wideFields==null || !Header.wideFields.SequenceEqual(expectedWideFields)))
                     throw new InvalidDataException("Incompatible frame schema");
                 int frameSize=version==3?TelemetrySample.LegacyV3CompactSize:
+                    version==4?TelemetrySample.LegacyV4CompactSize:
                     compact?TelemetrySample.CompactSize:Header.fields.Length*8;
                 while(r.BaseStream.Position<r.BaseStream.Length)
                 {
@@ -49,7 +52,7 @@ namespace VoarVR.Telemetry
                     if(kind==1)
                     {
                         if(length!=frameSize)throw new InvalidDataException("Invalid frame size");
-                        if(compact)samples.Add(TelemetrySample.ReadCompact(r,version>=4));
+                        if(compact)samples.Add(TelemetrySample.ReadCompact(r,version));
                         else if(current)samples.Add(TelemetrySample.Read(r));
                         else {object value=new TelemetrySample();foreach(var f in legacy)f.SetValue(value,r.ReadDouble());samples.Add((TelemetrySample)value);}
                     }
@@ -67,8 +70,32 @@ namespace VoarVR.Telemetry
         public static FlightInputFrame Raw(TelemetrySample s) => new FlightInputFrame
         {
             ControlModePressed=s.raw_control_mode_pressed>0,
-            LeftWing=new WingInput { Position=new Vector3((float)s.raw_left_position_x,(float)s.raw_left_position_y,(float)s.raw_left_position_z), Velocity=new Vector3((float)s.raw_left_velocity_x,(float)s.raw_left_velocity_y,(float)s.raw_left_velocity_z), Orientation=new Quaternion((float)s.raw_left_rotation_x,(float)s.raw_left_rotation_y,(float)s.raw_left_rotation_z,(float)s.raw_left_rotation_w), Tracked=s.raw_left_tracked>0, MotionEstimated=s.raw_left_motion_estimated>0 },
-            RightWing=new WingInput { Position=new Vector3((float)s.raw_right_position_x,(float)s.raw_right_position_y,(float)s.raw_right_position_z), Velocity=new Vector3((float)s.raw_right_velocity_x,(float)s.raw_right_velocity_y,(float)s.raw_right_velocity_z), Orientation=new Quaternion((float)s.raw_right_rotation_x,(float)s.raw_right_rotation_y,(float)s.raw_right_rotation_z,(float)s.raw_right_rotation_w), Tracked=s.raw_right_tracked>0, MotionEstimated=s.raw_right_motion_estimated>0 },
+            LeftWing=new WingInput
+            {
+                Position=new Vector3((float)s.raw_left_position_x,(float)s.raw_left_position_y,(float)s.raw_left_position_z),
+                Velocity=new Vector3((float)s.raw_left_velocity_x,(float)s.raw_left_velocity_y,(float)s.raw_left_velocity_z),
+                Orientation=new Quaternion((float)s.raw_left_rotation_x,(float)s.raw_left_rotation_y,(float)s.raw_left_rotation_z,(float)s.raw_left_rotation_w),
+                Tracked=s.raw_left_tracked>0, MotionEstimated=s.raw_left_motion_estimated>0,
+                Source=(HandPoseSource)(int)s.raw_left_pose_source,
+                SampleTimestamp=s.raw_left_sample_timestamp,
+                HasUnextrapolatedPose=s.raw_left_unextrapolated_available>0,
+                UnextrapolatedPosition=new Vector3((float)s.raw_left_unextrapolated_position_x,(float)s.raw_left_unextrapolated_position_y,(float)s.raw_left_unextrapolated_position_z),
+                UnextrapolatedOrientation=new Quaternion((float)s.raw_left_unextrapolated_rotation_x,(float)s.raw_left_unextrapolated_rotation_y,(float)s.raw_left_unextrapolated_rotation_z,(float)s.raw_left_unextrapolated_rotation_w),
+                UnextrapolatedTimestamp=s.raw_left_unextrapolated_timestamp
+            },
+            RightWing=new WingInput
+            {
+                Position=new Vector3((float)s.raw_right_position_x,(float)s.raw_right_position_y,(float)s.raw_right_position_z),
+                Velocity=new Vector3((float)s.raw_right_velocity_x,(float)s.raw_right_velocity_y,(float)s.raw_right_velocity_z),
+                Orientation=new Quaternion((float)s.raw_right_rotation_x,(float)s.raw_right_rotation_y,(float)s.raw_right_rotation_z,(float)s.raw_right_rotation_w),
+                Tracked=s.raw_right_tracked>0, MotionEstimated=s.raw_right_motion_estimated>0,
+                Source=(HandPoseSource)(int)s.raw_right_pose_source,
+                SampleTimestamp=s.raw_right_sample_timestamp,
+                HasUnextrapolatedPose=s.raw_right_unextrapolated_available>0,
+                UnextrapolatedPosition=new Vector3((float)s.raw_right_unextrapolated_position_x,(float)s.raw_right_unextrapolated_position_y,(float)s.raw_right_unextrapolated_position_z),
+                UnextrapolatedOrientation=new Quaternion((float)s.raw_right_unextrapolated_rotation_x,(float)s.raw_right_unextrapolated_rotation_y,(float)s.raw_right_unextrapolated_rotation_z,(float)s.raw_right_unextrapolated_rotation_w),
+                UnextrapolatedTimestamp=s.raw_right_unextrapolated_timestamp
+            },
             HeadPosition=new Vector3((float)s.raw_head_position_x,(float)s.raw_head_position_y,(float)s.raw_head_position_z),
             HeadOrientation=new Quaternion((float)s.raw_head_rotation_x,(float)s.raw_head_rotation_y,(float)s.raw_head_rotation_z,(float)s.raw_head_rotation_w),
             LookDirection=new Vector3((float)s.raw_look_x,(float)s.raw_look_y,(float)s.raw_look_z),

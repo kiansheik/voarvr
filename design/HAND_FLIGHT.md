@@ -1,6 +1,6 @@
 # Hands-first bird flight
 
-This is the implementation contract for the Meta VR Start 2026 hand-flight work. The existing controller path remains a fallback; the competition path must require no controller.
+This is the implementation contract for the Meta VR Start 2026 hand-flight work. Android now selects the hand adapter by default; the controller adapter remains in source. Implementation is separate from Quest acceptance: synthetic tests and desktop captures do not establish tracking quality, hand-only route completion or wearer comfort.
 
 ## Architecture decision
 
@@ -14,13 +14,13 @@ device tracking -> IFlightInput -> FlightInputFrame -> BirdFlightController -> p
 
 `BirdFlightController` consumes tracking-local wing position, orientation and velocity after calibration. Active stroke work is computed from the component of down/back wing velocity against the calibrated wing pressure normal. That means a hand wrist/palm transform can replace a controller transform while preserving the established flight model, species tuning, contact solver, wind, Route Home logic and telemetry.
 
-Implement a new device adapter, provisionally:
+The implemented adapter is:
 
 ```
-MetaHandFlightInput : IFlightInput
+MetaHandFlightInput : ITrackedFlightInput : IFlightInput
 ```
 
-Meta APIs, Interaction SDK types and hand skeleton details stay under `Game/Input/`. The flight solver must remain device-independent.
+`ITrackedFlightInput` shares calibration and tracking-reset lifecycle with `XRFlightInput`. Meta APIs and hand skeleton details stay under `Game/Input/`; the solver remains device-independent. `UI/HandGazePointer` drives the existing UGUI Buttons directly from head gaze and a confidence-filtered index pinch. Meta Interaction SDK is not required for this path.
 
 ## Why hand flight is harder than controller flight
 
@@ -43,28 +43,28 @@ References:
 
 - https://developers.meta.com/horizon/design/hands-technology/
 - https://developers.meta.com/horizon/documentation/unity/unity-wide-motion-mode/
-- https://developers.meta.com/horizon/documentation/unity/unity-handtracking-fast-motion-mode/
+- https://developers.meta.com/horizon/documentation/unity/fast-motion-mode/
 - https://developers.meta.com/horizon/documentation/unity/unity-handtracking-unextrapolated-poses/
 
 ## Wing pose source
 
-Use the OpenXR hand skeleton and derive each wing control pose from a stable wrist/palm basis. Do not hardcode a global palm axis and assume it matches the old controller grip. On accepted calibration, capture the hand's neutral basis exactly as the controller path already captures a neutral grip.
+`HandInteraction` selects the OpenXR hand skeleton and reads Meta hand root poses in tracking-local Unity coordinates. Accepted calibration captures each hand's neutral orientation rather than assuming the controller grip basis applies. Display pose, source classification, standard sample timestamp, and available unextrapolated pose/timestamp enter `WingInput`.
 
-For each hand retain at least:
+Implemented per-hand data:
 
 - predicted/display wrist root position + orientation;
 - whether the hand is tracked;
-- hand confidence;
+- confidence classified into DirectHigh or DirectLow;
 - direct camera vs WMM inferred pose source;
-- unextrapolated root pose + capture timestamp when available;
-- last direct high-confidence sample time;
-- continuity state and inferred gap age.
+- unextrapolated root pose + capture timestamp when available.
+
+`HandPoseContinuity` keeps trusted derivative history and bounded recovery/gap timers internally. Separate confidence values, exported last-direct age and an explicit serialized continuity state remain future instrumentation; do not infer them from the current schema.
 
 The unextrapolated API is specifically useful here because Meta exposes the real capture timestamp and recommends it for motion analysis, replay and custom prediction. Record it; do not necessarily render from it.
 
 ## Tracking-quality state machine
 
-Treat hand data as four semantic states rather than a single `Tracked` bit.
+The adapter distinguishes four semantic states alongside `Tracked`. `Unknown` is retained for legacy controller records.
 
 ### DirectHigh
 
@@ -95,7 +95,7 @@ WMM/body tracking is supplying the pose.
 - **do not create active flap energy from inferred velocity in the first implementation**;
 - allow glide and thermal riding to continue naturally.
 
-The current branch adds `WingInput.MotionEstimated`; `BirdFlightController` refuses active `Stroke`/stroke force when this flag is true while still accepting the tracked pose for the rest of the flight signals.
+`WingInput.MotionEstimated` blocks active stroke force while a tracked pose can still provide bounded presentation and steering. Effort, session activity and wingbeat accounting also exclude estimated or non-direct hand motion.
 
 If later telemetry shows WMM motion is trustworthy enough to support flaps, replace the boolean safety gate with a measured 0..1 stroke-authority signal. Do not guess a fractional value first.
 
@@ -103,7 +103,7 @@ If later telemetry shows WMM motion is trustworthy enough to support flaps, repl
 
 No usable direct or inferred pose.
 
-For a short gap, continuity may hold/predict presentation, but predicted motion must be marked estimated. Velocity should decay toward zero. After the bounded grace period, stop moving the wing rather than extrapolating indefinitely.
+The implementation holds the last pose for at most 0.18 seconds with zero velocity and `MotionEstimated=true`, then marks it untracked. It does not extrapolate a lost hand indefinitely.
 
 A lost hand must never cause:
 - an impulse;
@@ -118,86 +118,87 @@ A lost hand must never cause:
 
 The controller adapter already suppresses velocity on the first sample after `Tracked=false`. Hand tracking needs the stronger version because WMM may keep the hand nominally tracked while the pose source changes.
 
-On any Direct ↔ Inferred or Lost → Direct transition:
+Implemented transitions, including a change between standard and unextrapolated motion streams:
 
 1. detect the source edge;
 2. reset trusted finite-difference history;
-3. crossfade presentation pose over a short measured window;
-4. keep `MotionEstimated=true` until at least one stable direct interval establishes a velocity again;
+3. smooth presentation toward the new pose during recovery;
+4. keep `MotionEstimated=true` through a 0.06-second warmup (0.12 s before the first Quest session) and until a stable direct capture interval establishes velocity again;
 5. only then restore active stroke authority.
 
-No one-frame position delta across a source transition may be fed to the squared stroke-force calculation.
+No one-frame position delta across a source transition may enter the squared stroke-force calculation. Current conservative bounds also reject a capture-position jump above 0.3 m, stale/reversed timestamps and invalid poses; trusted velocity is capped at 8 m/s. These limits need evaluation against recorded Quest motion, not assumed physiological validity.
 
 ## Compact seated mapping
 
-Competition mode should not require literal full human wingspan. The current bird calibration already separates human neutral pose from species presentation scale, so preserve that concept.
+Hands mode uses compact calibration by default. Bird calibration retains the distinction between human neutral pose and species presentation scale.
 
-Target:
+Current accepted pose and intended movement:
 
-- hands roughly 0.35–0.55 m from the body centerline at neutral, adjusted to comfort;
+- each hand 0.25–0.65 m laterally from the tracked body centerline at neutral (widened after the first Quest session to include the recorded controller posture);
 - elbows may stay bent;
-- hands can sit somewhat forward of the shoulder plane when that improves visibility;
+- hands may sit forward of the shoulder plane; mean forward offset must remain within 0.55 m;
 - the authored bird still displays its natural full span;
 - the player performs compact but recognizable down/up strokes.
 
 Do not simply multiply all hand velocity by a large constant. That would amplify jitter and tracking jumps. Scale the **pose envelope** into bird space while tuning active-work response from measured sessions.
 
-Keep a Full Wing / Fitness option for the original larger motion, but the competition default must pass the airplane-seat test.
+A separate Full Wing / Fitness hand option is future work. Compact calibration is implemented; the airplane-seat comfort test remains a wearer acceptance gate.
 
 ## Flight verbs without buttons
 
 The core airborne verbs should not depend on finger gestures that may be unavailable while hands are lateral.
 
-| Verb | Hands-first target |
+| Verb | Implemented hands path |
 | --- | --- |
-| Calibrate | comfortable compact spread accepted from hand pose; explicit gaze+pinch confirm if needed |
+| Calibrate | hands-free: hold the natural glide pose, look left and right (learns each hand's inferred-pose bias), gaze+pinch START with arms free, return to the pose, 3-2-1 countdown captures the last frame and launches a glide; redo/recenter/resume skip the look-around |
 | Take off / flap | down/back wrist/palm motion |
 | Glide | spread and quiet hands |
 | Bank | asymmetric hand height plus calibrated wrist roll, retaining current mapping |
 | Climb/descend | preserve comfortable head-pitch Beginner mapping initially |
 | Tuck/dive | shorten span / draw wings inward; do not require trigger |
-| Flare/land | raise and hold spread wings, preserving the current physical brake |
-| Pause/settings | bring hands into reliable forward interaction space; gaze+pinch menu |
-| Recalibrate | hands-first pause menu plus existing platform recenter lifecycle |
-| Character/activity selection | gaze+pinch / Interaction SDK UI |
+| Flare/land | sweep both hands forward ("flap backwards") to latch the brake until a normal downstroke; raised, held spread wings near a perch still brake. Spreading wider than calibration is **not** a flare for hands (it was the main cause of lost height in the first Quest session) |
+| Walk / turn on a perch | pinch then move the left hand to walk, or the right hand sideways to turn; solver consumes these axes only while supported |
+| Pause/settings | bring both hands forward, hold both index pinches for 0.6 seconds, then release; use gaze+pinch in the rest menu |
+| View / controls / wind / instruments | Flight settings page in the rest menu; guidance, audio and horizon comfort remain available |
+| Recalibrate | rest-menu coach and platform-recenter lifecycle both require explicit READY confirmation |
+| Character/activity/course selection | head gaze + index pinch on existing UGUI Buttons; default species is Magpie |
+| Finish / return | explicit session results and saved return through gaze+pinch Buttons |
 
-Do not require pinch recognition during a flap. Pinch is for deliberate menus when the player has brought a hand into a well-tracked interaction zone.
+Do not require pinch recognition during a flap. Pinch is used for deliberate menus and supported ground movement when the player has brought a hand into a well-tracked interaction zone.
 
-## SDK integration plan
+Gaze targets require a released pinch before every activation and after tracking loss, panel opening or page changes. After initial calibration, a non-course flight recovers to a real supported departure perch with zero initial takeoff; measured motion must launch it. Courses retain their authored starting positions/countdown. This is an implemented lifecycle, not proof that the complete judge route is now comfortable on Quest.
 
-1. Keep Unity OpenXR as the backend.
-2. Import a competition-compatible Meta XR Core SDK and Interaction SDK v207+ using Meta's supported package path.
-3. Enable OpenXR hand skeleton.
-4. Build a minimal hand source in isolation before altering scene/UI flow.
-5. Expose WMM state and `PoseSourceInferred`.
-6. Add gaze+pinch interaction for existing menu actions.
-7. Test WMM via the documented adb override before permanently enabling it in project configuration.
-8. Compare default tracking against FMM on real Quest captures; enable FMM only when it improves fast-stroke retention enough to justify jitter.
-9. Do not add Meta SDK types to `BirdFlightController`, wind, gameplay or world code.
+The departure perch is the authored ridge lookout `FlightRegions.DepartureLookout*` (logical 72, ~23.3, 60; heading 18° toward the departure thermal's mean centre), not the spawn floor. The spawn sits in an 85 m flattened bowl, so a grounded bird there faces rising terrain in every direction. A 10 m scatter clearing keeps the perch open. If the lookout cannot support the bird, recovery falls back to the spawn floor and the departure still resumes; a final failure opens the rest menu in hands mode. A scripted semantic-input Magpie pilot completes Route Home from this perch in 215.85 simulated seconds and finds the lift edge 2.2 s after launch. Whether that early success helps a first-time wearer is a Quest question.
+
+Rest, settings, calibration and result cards are drawn over world geometry (`UI/WorldCardRendering`: a copy of the built-in canvas material with `unity_GUIZTestMode = Always` and render queue 4000). At roughly 2 m with the chase view pitched down, a perch slope otherwise cuts through their lower rows, including the results card's only exit button. Stereo depth comfort of an always-on-top card is unverified on Quest.
+
+## Implemented SDK integration and device gates
+
+The package manifest pins **Meta XR Core 207.0.0**, whose imported OVRPlugin is **1.207.0**. Unity OpenXR remains the backend. Meta hand skeleton and source/unextrapolated APIs are used through the first-party adapter. The current UGUI gaze/pinch path does not install Meta Interaction SDK.
+
+On Android the adapter requests `com.oculus.permission.BODY_TRACKING`, then calls `SetWideMotionMode2HandPosesEnabled(true)` after permission is granted and reads `IsWideMotionMode2HandPosesEnabled()`. Permission refusal/unavailable APIs must not be reported as working WMM. The request and reported state are implemented; actual inferred tracking retention and behavior remain unverified on hardware.
+
+Hand tracking frequency stays at the SDK default, with no FMM request. Compare default tracking against FMM on real Quest captures before changing this. Keep Meta SDK types out of the aerodynamic solver, wind, gameplay and world code.
 
 Verify API capability as well as package version before selecting dependencies: Meta documents `OVRHand.PoseSourceInferred` / `OVRPlugin.GetHandPoseSourceInferred` as experimental and requiring OVRPlugin **1.115.0+**. Record exact imported versions and confirm the API works with WMM enabled; a `v207+` package label alone is insufficient evidence. [Meta WMM documentation, checked September 28](https://developers.meta.com/horizon/documentation/unity/unity-wide-motion-mode/).
 
-## Telemetry: implemented v4 and planned hand schema
+## Telemetry: implemented v5 and remaining instrumentation
 
-Schema 4 now records raw/mapped supported turn and both wings' `MotionEstimated` flags (301 fields / 1224 bytes), with tested v1–v3 compatibility and provenance-preserving replay. See [telemetry contract](../docs/development/telemetry.md#schema-4-supported-turning-and-estimated-motion). The hand-specific fields below need a later explicit schema version (v5 or later); do not append them silently to v4.
+Schema 5 contains **325 signals / 1336 bytes per frame**, preserving v4's complete 301-field / 1224-byte prefix and legacy readers. V4 retains raw/mapped supported turn and `MotionEstimated`; v5 adds each raw hand's source classification, standard sample timestamp, unextrapolated availability/pose/timestamp, plus SDK-reported WMM2 enabled state and app-requested FMM state. The FMM request signal is currently zero and does not measure actual OS tracking frequency. See the [telemetry contract](../docs/development/telemetry.md#schema-5-hand-source-and-capture-provenance).
 
-Before enabling hand input, `BirdFlightDriver.UpdateSessionTracking` and `FlightSessionTracker` must classify activity and estimate wingbeats with motion provenance. Keep estimated/low-confidence/recovery motion out of measured activity and wingbeat credit while retaining actual flight displacement. V4 fixes replay of the existing estimated-motion flag; source/confidence/continuity state is still prospective hand-adapter work. Preserve historical controller-reader behavior for v1–v4.
+The existing raw position/orientation fields contain the continuity-filtered pose consumed by flight, not a separate unfiltered display snapshot. Confidence is represented through DirectHigh/DirectLow classification; Inferred/Lost have no independent confidence field. Four native capture timestamps retain float64 precision and their tracking-runtime clock domain. Header `input` identifies the adapter, and `handConvention` explains provenance.
 
-Minimum new per-hand fields:
+`BirdFlightDriver.UpdateSessionTracking`, `FlightSessionTracker`, runtime effort and offline cadence analysis exclude estimated/low-confidence/recovery motion from measured activity and wingbeat credit while retaining actual flight displacement. Legacy Unknown input retains controller meaning when tracked and not estimated. V5 replay restores recorded provenance; it does not rerun the live continuity filter or enable SDK modes.
 
-- predicted/display root position and orientation;
-- unextrapolated root position/orientation and sample timestamp/availability;
-- direct/inferred/lost source;
-- hand confidence;
+Future instrumentation, requiring an explicit later schema revision:
+
+- a separate unfiltered display-root pose;
+- independent hand confidence where the API provides it;
 - tracking-source age;
 - continuity/reacquisition state;
-- `MotionEstimated`;
-- FMM enabled;
-- WMM enabled;
+- actual FMM activation/frequency if a supported observation becomes available;
 - raw-to-filtered position delta;
 - raw-to-filtered orientation delta.
-
-Also record a hand-input mode identifier in the header.
 
 Useful derived analysis:
 
@@ -215,7 +216,7 @@ Useful derived analysis:
 
 The existing controller telemetry is valuable because it contains real comfortable arm trajectories and replay timing.
 
-Build an offline fault-injection mode that can:
+Further work: build an offline recorded-session fault-injection mode that can:
 
 1. take a recorded controller session;
 2. erase one/both hand poses using synthetic side-FoV dropout windows;
@@ -241,13 +242,13 @@ Automated:
 
 - `MotionEstimated` wing motion produces zero active stroke force;
 - an estimated downstroke cannot trigger takeoff from supported rest;
-- estimated/recovery motion cannot earn measured activity or wingbeat credit, and v4 replay preserves the energy guard;
+- estimated/recovery motion cannot earn measured activity or wingbeat credit; v4/v5 replay preserves the energy guard;
 - a source transition cannot create a higher flap impulse than a continuous trusted trajectory;
 - no first trusted frame after reacquisition has a derived velocity spike;
 - lost tracking does not change tuck/flare by itself;
 - heading remains bounded when one/both hands disappear;
 - replay of old direct controller recordings is unchanged when `MotionEstimated=false`;
-- telemetry readers retain v1/v2/v3 compatibility after v4 ships.
+- telemetry readers retain v1–v4 compatibility while the writer emits v5.
 
 Quest wearer:
 
@@ -259,23 +260,19 @@ Quest wearer:
 - landing can be completed hand-only;
 - complete Route Home is possible without controllers.
 
-## Agent work order
+## Remaining agent work order
 
-An implementation agent with the repository's normal Unity MCP/editor access should work in this order:
+Adapter, continuity, compact calibration, UGUI interaction and v5 source instrumentation now exist. Continue from the current tree:
 
 1. Re-read `AGENTS.md`, agent current state and this design.
-2. Import Meta SDK dependencies as a separate reviewable change and prove clean compilation before adding behavior. Commit only when the user requests it.
-3. Add a `MetaHandFlightInput` that produces `FlightInputFrame` without changing the solver.
-4. Add source/confidence state and continuity filters; wire `MotionEstimated` conservatively.
-5. Add EditMode tests for dropout/source transitions before wearer tuning.
-6. Extend the implemented v4 telemetry with a versioned hand schema and C#/Python compatibility tests for v1–v4.
-7. Add hand/gaze UI so every essential action is controller-free.
-8. Add compact calibration.
-9. Build/install on Quest and capture hand sessions with WMM off/on.
-10. Decide FMM from measurements.
-11. Feed marked good/bad sessions into replay and tune.
-12. Only then alter Route Home pacing/polish.
-13. Run the repository quality loop with separate visual/player/Quest critics.
-14. Update competition documentation with measured final behavior; never upgrade an unverified hand-tracking claim into a fact.
+2. Run source/continuity/replay tests and the explicit isolated `HandFlightReview` helper. Its synthetic poses and Button callbacks do not prove device gesture recognition.
+3. Build and inspect the Android manifest, then install the source-matched build when authorized. Commit only when requested.
+4. Capture real hand sessions, including denied permission, WMM availability, dropout/recovery, calibration, ground controls, rest/settings/results and the first supported takeoff.
+5. Complete Route Home and each course with physical hand input; record stereo readability, sustained performance and wearer comfort separately.
+6. Compare WMM behavior and decide FMM from measurements; feed marked good/bad sessions into replay and tune.
+7. Refine Route Home pacing/polish and run the quality loop with separate visual/player/Quest critics.
+8. Update competition documentation with measured final behavior; never upgrade an unverified hand-tracking claim into a fact.
 
 The first hand implementation is successful when it is boringly safe under tracking loss. Fine-grained “bird feel” tuning comes after that boundary is trustworthy.
+
+First Quest hands session findings and the resulting revision: [hand controls telemetry review](../docs/reviews/2026-09-29-hand-controls-telemetry.md). Inferred poses jump a median 25–39 cm at source edges, so they remain motion-estimated; the wing now stays continuous across the handoff instead.

@@ -4,6 +4,7 @@
   "references": [
     "Unity.InputSystem",
     "UnityEngine.UI",
-    "Unity.XR.Interaction.Toolkit"
+    "Unity.XR.Interaction.Toolkit",
+    "Oculus.VR"
   ]
 }

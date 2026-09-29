@@ -9,6 +9,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 using VoarVR.Flight;
 using VoarVR.Gameplay;
+using VoarVR.Input;
 
 namespace VoarVR.UI
 {
@@ -65,10 +66,16 @@ namespace VoarVR.UI
                 var rig = Own(Instantiate(xrRigPrefab));
                 var locomotion = rig.transform.Find("Locomotion");
                 if (locomotion != null) locomotion.gameObject.SetActive(false);
+                if (HandInputSettings.UseHands)
+                {
+                    foreach (var child in rig.GetComponentsInChildren<Transform>(true))
+                        if (child.name == "Left Controller" || child.name == "Right Controller"
+                            || child.name == "Gaze Interactor") child.gameObject.SetActive(false);
+                }
             }
-            if (FindAnyObjectByType<XRInteractionManager>() == null)
+            if (!HandInputSettings.UseHands && FindAnyObjectByType<XRInteractionManager>() == null)
                 Own(new GameObject("XR Interaction Manager", typeof(XRInteractionManager)));
-            if (FindAnyObjectByType<EventSystem>() == null)
+            if (!HandInputSettings.UseHands && FindAnyObjectByType<EventSystem>() == null)
                 Own(new GameObject("EventSystem", typeof(EventSystem), typeof(XRUIInputModule)));
             profileCatalog = new PlayerProfileCatalog();
             sessionHistory = new FlightSessionHistoryStore();
@@ -80,7 +87,8 @@ namespace VoarVR.UI
                 throw new InvalidOperationException("No BirdCharacterDefinition assets under Resources/Characters. Run VoarVR/Configure Characters.");
             BuildUI();
             ChooseCharacter(CharacterSelection.Chosen != null && characters.Contains(CharacterSelection.Chosen)
-                ? CharacterSelection.Chosen : characters[0]);
+                ? CharacterSelection.Chosen : HandInputSettings.UseHands
+                    ? characters.FirstOrDefault(c => c.name == "Magpie") ?? characters[0] : characters[0]);
             ChooseActivity(ActivitySelection.Chosen);
         }
 
@@ -88,7 +96,8 @@ namespace VoarVR.UI
 
         private void BuildUI()
         {
-            var root = Own(new GameObject("Journey preflight", typeof(RectTransform), typeof(Canvas), typeof(TrackedDeviceGraphicRaycaster)));
+            var root = Own(new GameObject("Journey preflight", typeof(RectTransform), typeof(Canvas)));
+            if (!HandInputSettings.UseHands) root.AddComponent<TrackedDeviceGraphicRaycaster>();
             canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
             var rect = root.GetComponent<RectTransform>(); rect.sizeDelta = new Vector2(1920, 1440); rect.localScale = Vector3.one * .00142f;
             var eye = Camera.main; canvas.worldCamera = eye;
@@ -159,7 +168,9 @@ namespace VoarVR.UI
             RefreshComfort();
             calibrationBriefing = Label(root.transform, "Calibration briefing", "Begin in third-person. Spread your arms comfortably, then press A to calibrate.",
                 new Vector2(0, -468), new Vector2(1770, 62), 29, Ink);
-            Label(root.transform, "Control briefing", "RIGHT TRIGGER  Select / tuck     X  Pause     A  Calibration coach     B  View\nON GROUND  Left stick walk · right stick turn     LEFT MENU  Session + results\nInstruments start hidden. World markers and the goal ribbon remain when gauges are hidden.",
+            Label(root.transform, "Control briefing", HandInputSettings.UseHands
+                ? "LOOK AT A BUTTON · PINCH THUMB + INDEX TO SELECT · RELEASE BETWEEN CHOICES\nREST  Palms down, hands forward: hold both pinches 0.6s, release. Flap to fly; sweep hands forward to slow.\nON A PERCH  Pinch + move: left hand to walk, right hand to turn. Draw hands inward to tuck."
+                : "RIGHT TRIGGER  Select / tuck     X  Pause     A  Calibration coach     B  View\nON GROUND  Left stick walk · right stick turn     LEFT MENU  Session + results\nInstruments start hidden. World markers and the goal ribbon remain when gauges are hidden.",
                 new Vector2(0, -548), new Vector2(1770, 94), 24, Muted);
             var playerBar=Box(root.transform,"Player history card",new Vector2(0,-645),new Vector2(1770,70),Panel);
             var profileButton=Button(playerBar.transform,"PLAYER",new Vector2(-650,0),new Vector2(430,52),23);
@@ -168,6 +179,7 @@ namespace VoarVR.UI
             addPlayer.onClick.AddListener(CreatePlayer);
             profileHistory=Label(playerBar.transform,"Player history","",new Vector2(350,0),new Vector2(1040,54),23,Muted);
             RefreshProfile();
+            if (HandInputSettings.UseHands) root.AddComponent<HandGazePointer>().Configure(canvas, eye);
         }
 
         public void ChooseCharacter(BirdCharacterDefinition character)
@@ -227,9 +239,11 @@ namespace VoarVR.UI
             for (int i = 0; i < courseButtons.Count; i++) courseButtons[i].gameObject.SetActive(courses);
             saveStatus.gameObject.SetActive(!courses);
             bool resume = !courses && journey.HasResume(activity);
-            if (calibrationBriefing != null) calibrationBriefing.text = resume
-                ? "Resume opens paused at your saved perch. Choose Recalibrate Here, match the relaxed pose, then press A only when the coach says ready."
-                : "Begin in third-person. Spread your arms comfortably, then press A to calibrate.";
+            if (calibrationBriefing != null) calibrationBriefing.text = HandInputSettings.UseHands
+                ? resume ? "Resume opens at your saved perch. Recalibrate with relaxed, bent elbows; look at READY and pinch."
+                    : "Begin in third-person. Open your arms with hands just ahead of your shoulders; the coach fits your wings."
+                : resume ? "Resume opens paused at your saved perch. Choose Recalibrate Here, match the relaxed pose, then press A only when the coach says ready."
+                    : "Begin in third-person. Spread your arms comfortably, then press A to calibrate.";
             var checkpoint = journey.GetCheckpoint(activity);
             string progress = resume && checkpoint != null ? "Checkpoint saved / step " + (checkpoint.Stage + 1) + ". Resume from a safe perch."
                 : activity == FlightActivity.RouteHome && journey.GardenRestored ? "The garden remembers your gift. Fly the journey again whenever you like."

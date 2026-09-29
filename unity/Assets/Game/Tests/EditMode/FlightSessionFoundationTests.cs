@@ -69,6 +69,36 @@ namespace VoarVR.Tests
         }
 
         [Test]
+        public void EstimatedHandMotionKeepsFlightTravelButCannotEarnActivityOrBridgeWingbeats()
+        {
+            var tracker = NewTracker();
+            var up = At(0, 0, 0, FlightSessionTimeCategory.ActiveHand);
+            up.LeftHandVelocity = up.RightHandVelocity = Vector3.up;
+            tracker.Observe(up);
+            var estimated = At(0, 3, 4, FlightSessionTimeCategory.ActiveHand);
+            estimated.LeftHandVelocity = estimated.RightHandVelocity = Vector3.down * 8;
+            estimated.LeftHandMotionEstimated = true;
+            tracker.Observe(estimated);
+            var recoveredDown = At(0, 3, 5, FlightSessionTimeCategory.ActiveHand);
+            recoveredDown.LeftHandVelocity = recoveredDown.RightHandVelocity = Vector3.down;
+            tracker.Observe(recoveredDown);
+            var metrics = tracker.Snapshot().Metrics;
+            Assert.That(metrics.ActiveHandSeconds, Is.EqualTo(.1).Within(.00001));
+            Assert.That(metrics.QuietAirborneSeconds, Is.EqualTo(.05).Within(.00001));
+            Assert.That(metrics.FlightDistanceMeters, Is.EqualTo(6).Within(.00001));
+            Assert.That(metrics.GrossAscentMeters, Is.EqualTo(3).Within(.00001));
+            Assert.That(metrics.EstimatedWingbeats, Is.Zero);
+            Assert.That(FlightSessionTracker.ClassifyAirborneHands(Vector3.down * 8,
+                Vector3.down * 8, true, false), Is.EqualTo(FlightSessionTimeCategory.QuietAirborne));
+            var nextUp = At(0, 3, 6, FlightSessionTimeCategory.ActiveHand);
+            nextUp.LeftHandVelocity = nextUp.RightHandVelocity = Vector3.up;
+            tracker.Observe(nextUp);
+            recoveredDown.LogicalPosition = new VoarVR.World.LogicalPosition(0, 3, 7);
+            tracker.Observe(recoveredDown);
+            Assert.That(tracker.Snapshot().Metrics.EstimatedWingbeats, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TrackerCountsARealFrameHitchWithoutMultiplyingItsTravel()
         {
             var tracker=NewTracker();

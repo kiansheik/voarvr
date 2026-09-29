@@ -34,6 +34,13 @@ namespace VoarVR.World
         }
         public static LogicalPosition DepartureThermal(double time)
             =>new LogicalPosition(100+Math.Sin(time*.007)*14,150,140+Math.Cos(time*.007)*14);
+        // The spawn clearing is a bowl, so a grounded bird there faces rising terrain in
+        // every direction. Supported departures use this ridge lookout instead: flat,
+        // outside the bowl and facing the departure thermal's mean center downhill.
+        public const double DepartureLookoutX=72,DepartureLookoutZ=60,DepartureLookoutClearing=10;
+        public const float DepartureLookoutHeading=18;
+        public static bool InDepartureLookoutClearing(double x,double z)
+        {double dx=x-DepartureLookoutX,dz=z-DepartureLookoutZ;return dx*dx+dz*dz<DepartureLookoutClearing*DepartureLookoutClearing;}
         private static float Bell(double d,double r) {double a=d/r;if(Math.Abs(a)>=1)return 0;return (float)((1-a*a)*(1-a*a));}
         public static Vector3 HighAir(double x,double y,double z,double time,int seed,WindMode mode,float width)
         {
